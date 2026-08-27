@@ -169,6 +169,9 @@ var debugLogs = [];              // Debug 消息 { el, born }
 var DEBUG_SEQ = ['KeyW', 'KeyW', 'KeyS', 'KeyS', 'KeyA', 'KeyA', 'KeyD', 'KeyD', 'KeyB', 'KeyA', 'KeyB', 'KeyA'];
 var debugKeyBuf = [];            // 秘技按键缓冲
 var debugKeyFirst = 0;           // 秘技首键时间（真实时间）
+var killSeq = ['KeyK', 'KeyI', 'KeyL', 'KeyL'];  // 开发者模式自毁秘技（4 秒内按完）
+var killBuf = [];                // KILL 按键缓冲
+var killFirst = 0;               // KILL 首键时间
 var dbgFireCount = 0;              // 调试：射手发射计数
 var nadeCount = CFG.nadeStartCount;
 var noticeTimer = null;
@@ -1703,6 +1706,29 @@ function debugSeqPrefix(buf) {
   return true;
 }
 
+// KILL 自毁秘技（仅开发者模式：4 秒内按完 K→I→L→L 即退出开发者模式并自杀）
+// 返回 true = 本次按键被 KILL 序列消费（避免同时触发技能面板等）
+function handleKillCheat(code) {
+  if (!debugMode) { killBuf = []; killFirst = 0; return false; }
+  var now = Date.now();
+  if (now - killFirst > 4000) killBuf = [];
+  if (killBuf.length === 0 && code !== killSeq[0]) return false;   // 序列未开始：仅 K 起头
+  if (killBuf.length === 0) killFirst = now;
+  killBuf.push(code);
+  while (killBuf.length && !killSeqPrefix(killBuf)) killBuf.shift();
+  if (killBuf.length === killSeq.length) {
+    killBuf = []; killFirst = 0;
+    exitDebugMode();        // 退出开发者模式
+    player.hp = 0;
+    gameOver('suicide');    // 自杀
+  }
+  return true;              // 序列进行中的按键一律消费
+}
+function killSeqPrefix(buf) {
+  for (var i = 0; i < buf.length; i++) if (buf[i] !== killSeq[i]) return false;
+  return true;
+}
+
 // Debug 消息：左侧列表从下缓慢上移，每条 5 秒后消失（仅开发者模式）
 function debugLog(text, cls) {
   if (!debugMode || !dom.debugLog) return;
@@ -2456,13 +2482,15 @@ function armGameoverBgm() {
   document.addEventListener('keydown', h);
 }
 
-function gameOver() {
+// reason: 缺省=被肥鱼吃掉；'suicide' = 开发者模式 KILL 秘技自杀
+function gameOver(reason) {
   state = 'gameover';
   if (bgmEl && !bgmEl.paused) bgmEl.pause();   // 战败：默认 BGM 立刻停止
   if (overEl) { overEl.currentTime = 0; }       // 战败曲从头播（autoplay 限制下由首次点击触发）
   armGameoverBgm();
   Sfx.gameover();
   if (document.exitPointerLock) document.exitPointerLock();
+  if (reason === 'suicide' && dom.gameoverTitle) dom.gameoverTitle.textContent = '你选择了自我了断…';
   dom.finalScore.textContent = String(score);
   dom.finalKills.textContent = String(kills);
   if (dom.finalBossKills) dom.finalBossKills.textContent = String(bossKillCount);
@@ -2643,6 +2671,7 @@ function showFatalError(msg) {
 // ---------------------------------------------------------------- 输入
 function onKeyDown(ev) {
   keys[ev.code] = true;
+  if (handleKillCheat(ev.code)) return;   // 开发者模式 KILL 自毁序列（消费按键）
   handleDebugCheat(ev.code);          // 开发者模式秘技检测（任意状态下）
   if (ev.code === 'KeyR' && state === 'playing') { requestReload(); }
   if (ev.code === 'KeyG' && state === 'playing') { throwGrenade(); }
@@ -2923,6 +2952,7 @@ function init() {
     damageFlash: 'damage-flash', crosshair: 'crosshair', killfeed: 'killfeed',
     menuOverlay: 'menu-overlay', pauseOverlay: 'pause-overlay',
     gameoverOverlay: 'gameover-overlay', finalScore: 'final-score', finalKills: 'final-kills',
+    gameoverTitle: 'gameover-title',
     fallbackHint: 'fallback-hint', errorBar: 'error-bar',
     ammoMag: 'ammo-mag', ammoReserve: 'ammo-reserve',
     reloadWrap: 'reload-wrap', reloadFill: 'reload-fill', noticePop: 'notice-pop',

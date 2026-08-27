@@ -890,6 +890,35 @@ check('再次秘技关闭开发者模式', dbg.isDebugMode() === false && dbg.ge
   'hp=' + dbg.getPlayer().hp);
 dbg.setHp(100);
 
+// ---- KILL 自毁秘技（仅开发者模式生效）----
+// 非开发者模式：输入 KILL 不触发（I 键按游戏正常功能只打开技能面板）
+dbg.enterFallback();
+fakeDocument.fire('keydown', { code: 'KeyK' });
+fakeDocument.fire('keydown', { code: 'KeyI' });
+fakeDocument.fire('keydown', { code: 'KeyL' });
+fakeDocument.fire('keydown', { code: 'KeyL' });
+check('非开发者模式下KILL不生效(未自杀未开debug)', dbg.isDebugMode() === false && dbg.getState() !== 'gameover',
+  dbg.getState() + '/debug=' + dbg.isDebugMode());
+fakeDocument.fire('keydown', { code: 'Escape' });   // 关掉 I 键正常打开的技能面板
+check('关闭技能面板恢复游戏', dbg.getState() === 'playing', dbg.getState());
+dbg.enterFallback();
+// 开启开发者模式 → KILL 自杀
+for (const dc3 of cheatSeq) fakeDocument.fire('keydown', { code: dc3 });
+check('再次开启开发者模式', dbg.isDebugMode() === true && dbg.getPlayer().hp === 99999, 'hp=' + dbg.getPlayer().hp);
+fakeDocument.fire('keydown', { code: 'KeyK' });
+fakeDocument.fire('keydown', { code: 'KeyI' });
+fakeDocument.fire('keydown', { code: 'KeyL' });
+fakeDocument.fire('keydown', { code: 'KeyL' });
+check('KILL秘技退出开发者模式并自杀', dbg.isDebugMode() === false && dbg.getState() === 'gameover',
+  dbg.getState() + '/debug=' + dbg.isDebugMode());
+check('自杀结算文案', els['gameover-title'].textContent === '你选择了自我了断…', els['gameover-title'].textContent);
+dbg.restart();
+fakeDocument.pointerLockElement = canvasEl;
+fakeDocument.fire('pointerlockchange');
+check('KILL自杀后可重开', dbg.getState() === 'playing' && dbg.getPlayer().hp <= 100 && dbg.getPlayer().hp > 0,
+  dbg.getState() + '/hp=' + dbg.getPlayer().hp);
+dbg.enterFallback();
+
 // 长时间稳定性
 advance(12);
 check('长跑 12 秒无异常', true);
