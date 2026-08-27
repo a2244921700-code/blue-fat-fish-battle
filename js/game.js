@@ -1325,7 +1325,6 @@ function updateFishVisuals(dt) {
 function killFish(e, hitPoint) {
   e.alive = false;
   e.respawnTimer = CFG.fishRespawnTime;
-  debugLog('你击败了 ' + enemyName(e) + '!（+10 分）', 'dbg-kill');
   rollKillRewards();              // 击杀概率战利品（技能 2/3/4）
   e.mesh.visible = false;
   kills += 1;
@@ -2213,7 +2212,6 @@ function defeatBoss() {
   var nadeBonus = 1 + Math.floor(Math.random() * CFG.nadeBossBonusMax); // 随机 1~3 颗手雷
   nadeCount += nadeBonus;
   showNotice('BOSS 击破！生命回满 +' + CFG.bossAmmoReward + ' 子弹 +' + nadeBonus + ' 手雷');
-  debugLog('你击败了 超级蓝色大肥鱼!（+50 分）', 'dbg-kill');
   Sfx.bossDie();
   hideBossBar();
   updateHUD();
