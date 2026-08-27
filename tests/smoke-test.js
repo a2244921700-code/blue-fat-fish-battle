@@ -858,6 +858,38 @@ fakeDocument.fire('pointerlockchange');
 check('通关后重开正常', dbg.getState() === 'playing' && dbg.getGrowth().bossKillCount === 0,
   dbg.getState() + '/bossKills=' + dbg.getGrowth().bossKillCount);
 
+// ---- 开发者模式（秘技：5 秒内按 WWSSAADDBABA 切换） ----
+const cheatSeq = ['KeyW', 'KeyW', 'KeyS', 'KeyS', 'KeyA', 'KeyA', 'KeyD', 'KeyD', 'KeyB', 'KeyA', 'KeyB', 'KeyA'];
+for (const dc of cheatSeq) fakeDocument.fire('keydown', { code: dc });
+check('秘技开启开发者模式(生命99999)', dbg.isDebugMode() === true && dbg.getPlayer().hp === 99999,
+  'hp=' + dbg.getPlayer().hp);
+dbg.setHp(99999);
+dbg.resetHurt();
+dbg.damagePlayer(10, { name: '近战肥鱼', atk: '撕咬' });
+check('开发者模式仍受到伤害', dbg.getPlayer().hp === 99989, 'hp=' + dbg.getPlayer().hp);
+const dlNow = dbg.getDebugLogs();
+check('受击日志已记录(含护盾减免)', dlNow.length > 0 && dlNow[dlNow.length - 1].indexOf('受到') >= 0 && dlNow[dlNow.length - 1].indexOf('护盾') >= 0,
+  JSON.stringify(dlNow.slice(-2)));
+dbg.resetHurt();
+advance(0.6);
+dbg.resetHurt();
+dbg.damagePlayer(85, { name: '射手肥鱼', atk: '子弹' });
+const hpBeforeHeal = dbg.getPlayer().hp;
+check('伤害累计(99904)', hpBeforeHeal === 99904, 'hp=' + hpBeforeHeal);
+// 5 秒回血（期间钉住鱼防干扰）
+for (let dh = 0; dh < 6; dh++) {
+  for (const fz of dbg.getEnemies()) {
+    if (fz.alive) { fz.mesh.position.set(-43, fz.baseY, -43); fz.waypoint.set(-43, 0, -43); fz.state = 'patrol'; fz.waitTimer = 999; }
+  }
+  advance(1.0);
+}
+check('开发者模式每5秒恢复100生命', dbg.getPlayer().hp === 99999, 'hp=' + dbg.getPlayer().hp);
+// 再次秘技关闭
+for (const dc2 of cheatSeq) fakeDocument.fire('keydown', { code: dc2 });
+check('再次秘技关闭开发者模式', dbg.isDebugMode() === false && dbg.getPlayer().hp <= 100 && dbg.getPlayer().hp > 0,
+  'hp=' + dbg.getPlayer().hp);
+dbg.setHp(100);
+
 // 长时间稳定性
 advance(12);
 check('长跑 12 秒无异常', true);

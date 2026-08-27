@@ -161,6 +161,14 @@ var bossBallDmgNow = 25;       // Boss 炮弹伤害（25 起每 Boss +2）
 var fishCapNow = 6;            // 小怪生成速率对应场上数量上限（6 起 ×1.05^Boss）
 var armorStacks = 0;           // 护甲层数（每层减 2 所受伤，上限 15）
 var armorTimer = CFG.armorInterval; // 护甲生成判定倒计时
+// ===== 开发者模式 =====
+var debugMode = false;           // 开发者模式开关（秘技 WWSSAADDBABA 切换）
+var saveMaxHp = 100;             // 进入开发者模式前的生命上限备份
+var debugHealTimer = 0;          // 每 5 秒回血计时
+var debugLogs = [];              // Debug 消息 { el, born }
+var DEBUG_SEQ = ['KeyW', 'KeyW', 'KeyS', 'KeyS', 'KeyA', 'KeyA', 'KeyD', 'KeyD', 'KeyB', 'KeyA', 'KeyB', 'KeyA'];
+var debugKeyBuf = [];            // 秘技按键缓冲
+var debugKeyFirst = 0;           // 秘技首键时间（真实时间）
 var dbgFireCount = 0;              // 调试：射手发射计数
 var nadeCount = CFG.nadeStartCount;
 var noticeTimer = null;
@@ -1278,7 +1286,8 @@ function updateEnemies(dt) {
       } else if (e.attackTimer <= 0) {
         e.attackTimer = CFG.fishAttackInterval;
         e.pulse = 0.25;
-        damagePlayer(Math.round(rand(CFG.fishDamageMin, CFG.fishDamageMax)));
+        damagePlayer(Math.min(CFG.meleeDmgMax, Math.round(rand(CFG.fishDamageMin, CFG.fishDamageMax)) + meleeAtkBonus),
+          { name: enemyName(e), atk: '撕咬' });
       }
     }
   }
@@ -1316,6 +1325,7 @@ function updateFishVisuals(dt) {
 function killFish(e, hitPoint) {
   e.alive = false;
   e.respawnTimer = CFG.fishRespawnTime;
+  debugLog('你击败了 ' + enemyName(e) + '!（+10 分）', 'dbg-kill');
   rollKillRewards();              // 击杀概率战利品（技能 2/3/4）
   e.mesh.visible = false;
   kills += 1;
@@ -1408,7 +1418,8 @@ function updateFishBullets(dt) {
       var dx = px - player.pos.x, dy = py - (player.pos.y + 1.0), dz = pz - player.pos.z;
       if (dx * dx + dy * dy + dz * dz < 0.55 * 0.55) {
         gone = true;
-        damagePlayer(Math.min(CFG.rangedDmgMax, Math.round(rand(CFG.rangedDamageMin, CFG.rangedDamageMax)) + rangedAtkBonus));
+        damagePlayer(Math.min(CFG.rangedDmgMax, Math.round(rand(CFG.rangedDamageMin, CFG.rangedDamageMax)) + rangedAtkBonus),
+          { name: '射手肥鱼', atk: '子弹' });
         spawnBurst(m.position, 0xffc84d, 6, 2.2);
       }
     }
@@ -1652,6 +1663,77 @@ function closeSkills() {
   state = 'playing';
   requestLockWithFallback();
 }
+
+// ---------------------------------------------------------------- 开发者模式（秘技：5 秒内按 WWSSAADDBABA 切换）
+function enterDebugMode() {
+  debugMode = true;
+  saveMaxHp = CFG.maxHp;
+  CFG.maxHp = 99999;                       // 生命上限 → 99999（仍会受伤害）
+  player.hp = CFG.maxHp;
+  debugHealTimer = 5;
+  if (dom.debugLog) dom.debugLog.style.display = 'block';
+  showNotice('开发者模式已开启：无限生命 + Debug 数据');
+  updateHUD();
+}
+
+function exitDebugMode() {
+  debugMode = false;
+  CFG.maxHp = saveMaxHp;
+  player.hp = Math.min(player.hp, CFG.maxHp);
+  debugLogs = [];
+  if (dom.debugLog) { dom.debugLog.style.display = 'none'; dom.debugLog.innerHTML = ''; }
+  showNotice('开发者模式已关闭');
+  updateHUD();
+}
+
+// 秘技按键缓冲：匹配 DEBUG_SEQ 前缀，5 秒窗口超时重置
+function handleDebugCheat(code) {
+  var now = Date.now();
+  if (now - debugKeyFirst > 5000) { debugKeyBuf = []; }
+  if (debugKeyBuf.length === 0) debugKeyFirst = now;
+  debugKeyBuf.push(code);
+  while (debugKeyBuf.length && !debugSeqPrefix(debugKeyBuf)) debugKeyBuf.shift();
+  if (debugKeyBuf.length === DEBUG_SEQ.length) {
+    debugKeyBuf = []; debugKeyFirst = 0;
+    if (debugMode) exitDebugMode();
+    else enterDebugMode();
+  }
+}
+function debugSeqPrefix(buf) {
+  for (var i = 0; i < buf.length; i++) if (buf[i] !== DEBUG_SEQ[i]) return false;
+  return true;
+}
+
+// Debug 消息：左侧列表从下缓慢上移，每条 5 秒后消失（仅开发者模式）
+function debugLog(text, cls) {
+  if (!debugMode || !dom.debugLog) return;
+  var div = document.createElement('div');
+  div.className = 'dbg-line' + (cls ? ' ' + cls : '');
+  div.textContent = text;
+  dom.debugLog.appendChild(div);
+  debugLogs.push({ el: div, born: time });
+  while (debugLogs.length > 14) {          // 最多保留 14 条
+    var old = debugLogs.shift();
+    if (old.el.parentNode) old.el.parentNode.removeChild(old.el);
+  }
+}
+
+function updateDebugLog(dt) {
+  for (var i = debugLogs.length - 1; i >= 0; i--) {
+    var l = debugLogs[i];
+    var age = time - l.born;
+    if (age > 5.2) {
+      if (l.el.parentNode) l.el.parentNode.removeChild(l.el);
+      debugLogs.splice(i, 1);
+      continue;
+    }
+    l.el.style.transform = 'translateY(-' + (age * 26) + 'px)';   // 缓慢上移（26px/s）
+    l.el.style.opacity = age > 4 ? String(Math.max(0, 5.2 - age)) : '1';
+  }
+}
+
+// 怪物显示名（Debug 消息用）
+function enemyName(e) { return e.ranged ? '射手肥鱼' : '近战肥鱼'; }
 
 // 击杀（含 Boss）后的概率收益（对应技能 1/2/3/4）
 function rollKillRewards() {
@@ -1970,7 +2052,9 @@ function explodeShell(s, index, byPlayer) {
   var R = CFG.bossShellRadius;
   // 玩家（所有爆炸类型都伤）
   var pdx = center.x - player.pos.x, pdy = center.y - (player.pos.y + 1.0), pdz = center.z - player.pos.z;
-  if (pdx * pdx + pdy * pdy + pdz * pdz <= R * R) damagePlayer(dmg);
+  if (pdx * pdx + pdy * pdy + pdz * pdz <= R * R) {
+    damagePlayer(dmg, { name: '超级蓝色大肥鱼', atk: '火箭弹爆炸' });
+  }
   // 敌人：仅玩家击毁的空爆才会波及
   if (byPlayer) {
     for (var i = 0; i < enemies.length; i++) {
@@ -2036,7 +2120,7 @@ function updateBossShots(dt) {
       var dx = px - player.pos.x, dy = py - (player.pos.y + 1.0), dz = pz - player.pos.z;
       if (dx * dx + dy * dy + dz * dz < 0.65 * 0.65) {
         gone = true;
-        damagePlayer(bossBallDmgNow);   // 炮弹直击伤害（随成长，≤60）
+        damagePlayer(bossBallDmgNow, { name: '超级蓝色大肥鱼', atk: '火箭弹' });   // 炮弹直击伤害（随成长，≤60）
         spawnBurst(m.position, 0xffd54a, 8, 2.5);
       }
     }
@@ -2129,6 +2213,7 @@ function defeatBoss() {
   var nadeBonus = 1 + Math.floor(Math.random() * CFG.nadeBossBonusMax); // 随机 1~3 颗手雷
   nadeCount += nadeBonus;
   showNotice('BOSS 击破！生命回满 +' + CFG.bossAmmoReward + ' 子弹 +' + nadeBonus + ' 手雷');
+  debugLog('你击败了 超级蓝色大肥鱼!（+50 分）', 'dbg-kill');
   Sfx.bossDie();
   hideBossBar();
   updateHUD();
@@ -2241,7 +2326,7 @@ function explodeGrenade(gr) {
   var pdy = center.y - (player.pos.y + 1.0);
   var pdz = center.z - player.pos.z;
   if (pdx * pdx + pdy * pdy + pdz * pdz <= CFG.nadeRadius * CFG.nadeRadius) {
-    damagePlayer(Math.round(rand(CFG.nadeDamageMin, CFG.nadeDamageMax)));
+    damagePlayer(Math.round(rand(CFG.nadeDamageMin, CFG.nadeDamageMax)), { name: '自己', atk: '手雷爆炸' });
   }
 }
 
@@ -2320,6 +2405,7 @@ function shootOnce() {
   } else if (hitBoss) {
     _hitPoint.copy(_rayOrigin).addScaledVector(_rayDir, bestT);
     boss.hp -= 1 + upgrades.dmg;      // 子弹伤害升级：每发多造成 L 点
+    debugLog('你对 超级蓝色大肥鱼 造成了 ' + (1 + upgrades.dmg) + ' 点伤害（剩余 ' + Math.max(0, boss.hp) + '）', 'dbg-hit');
     boss.hurt = 0.15;
     spawnBurst(_hitPoint, 0xffd54a, 10, 3.5);
     Sfx.bossHit();
@@ -2329,6 +2415,7 @@ function shootOnce() {
   } else if (best) {
     _hitPoint.copy(_rayOrigin).addScaledVector(_rayDir, bestT);
     best.hp = (best.hp || 1) - (1 + upgrades.dmg);  // 小怪扣血（可多级成长）
+    debugLog('你对 ' + enemyName(best) + ' 造成了 ' + (1 + upgrades.dmg) + ' 点伤害' + (best.hp > 0 ? '（剩余 ' + best.hp + ' 血）' : '（击败！）'), 'dbg-hit');
     Sfx.hitFish();
     spawnBurst(_hitPoint, 0x9fd8ff, best.hp > 0 ? 6 : 12, best.hp > 0 ? 2.2 : 3.5);
     flashCrosshair();
@@ -2341,10 +2428,16 @@ function shootOnce() {
 }
 
 // ---------------------------------------------------------------- 伤害 / 结算
-function damagePlayer(d) {
+// src = { name: 怪物名, atk: 攻击方式 }（Debug 日志用，可缺省）
+function damagePlayer(d, src) {
   if (state !== 'playing' || hurtCd > 0) return;
+  var raw = d;
   d = Math.max(0, d - armorStacks * CFG.armorPerPick);   // 护甲：每层减免 2 点伤害
-  if (d <= 0) return;                                     // 护甲完全吸收（不触发受击反馈）
+  if (d <= 0) {
+    if (src) debugLog('受到' + src.name + '的' + src.atk + '攻击（' + raw + '点伤害），经 ' + armorStacks + ' 层护盾完全吸收', 'dbg-dmg');
+    return;                                              // 护甲完全吸收（不触发受击反馈）
+  }
+  if (src) debugLog('受到' + src.name + '的' + src.atk + '攻击的 ' + raw + ' 点伤害，经过 ' + armorStacks + ' 层护盾减免，最终受到 ' + d + ' 点伤害', 'dbg-dmg');
   hurtCd = 0.5;
   player.hp = Math.max(0, player.hp - d);
   Sfx.hurt();
@@ -2446,7 +2539,7 @@ function restartGame() {
 // ---------------------------------------------------------------- HUD / 覆盖层
 function updateHUD() {
   if (!dom.healthFill) return;
-  dom.healthFill.style.width = player.hp + '%';
+  dom.healthFill.style.width = (player.hp / CFG.maxHp * 100) + '%';   // 按生命上限计算（开发者模式 99999 上限时不失真）
   dom.healthText.textContent = String(player.hp);
   dom.healthFill.classList.toggle('low', player.hp <= 30);
   dom.scoreValue.textContent = String(score);
@@ -2552,6 +2645,7 @@ function showFatalError(msg) {
 // ---------------------------------------------------------------- 输入
 function onKeyDown(ev) {
   keys[ev.code] = true;
+  handleDebugCheat(ev.code);          // 开发者模式秘技检测（任意状态下）
   if (ev.code === 'KeyR' && state === 'playing') { requestReload(); }
   if (ev.code === 'KeyG' && state === 'playing') { throwGrenade(); }
   if (ev.code === 'KeyI') {
@@ -2756,6 +2850,14 @@ function update(dt) {
     updateGrenades(dt);
     updateFishBullets(dt);
     updateCombo(dt);   // 连杀窗口倒计时（暂停时冻结）
+    if (debugMode) {
+      debugHealTimer -= dt;                       // 开发者模式：每 5 秒恢复 100 生命
+      if (debugHealTimer <= 0) {
+        debugHealTimer = 5;
+        player.hp = Math.min(CFG.maxHp, player.hp + 100);
+        updateHUD();
+      }
+    }
   } else {
     updateBoss(dt);   // 暂停/结算时 Boss 仍做视觉动画
   }
@@ -2782,6 +2884,7 @@ function update(dt) {
   updateHUD();
   drawMiniMap();
   updateBgm(dt);
+  if (debugMode) updateDebugLog(dt);   // Debug 消息上移/淡出/清理
   ensureFishPool();   // 小怪生成速率成长：场上数量补足上限
 }
 
@@ -2834,6 +2937,7 @@ function init() {
     finalKillsV: 'final-kills-v', finalBossKillsV: 'final-bosskills-v',
     finalBossKills: 'final-bosskills',
     skillsOverlay: 'skills-overlay', skillsList: 'skills-list',
+    debugLog: 'debug-log',
     minimapCanvas: 'minimap-canvas',
     levelOverlay: 'level-overlay',
   };
@@ -2958,6 +3062,11 @@ window.FishGame = {
     openSkills: openSkills,
     closeSkills: closeSkills,
     isSkillsOpen: function () { return state === 'skills'; },
+    // ---- 开发者模式 ----
+    isDebugMode: function () { return debugMode; },
+    enterDebug: enterDebugMode,
+    exitDebug: exitDebugMode,
+    getDebugLogs: function () { return debugLogs.map(function (l) { return l.el.textContent; }); },
     setBossMisses: function (v) { bossMisses = v; },
     inertEnemies: function () {
       for (var i = 0; i < enemies.length; i++) {

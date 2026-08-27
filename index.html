@@ -293,6 +293,18 @@ window.addEventListener('load', function () {
   .reward-card .rw-next { color: #8ef0b0; font-size: 12.5px; margin-top: 8px; }
   .reward-note { color: #8fa3ba; font-size: 12.5px; margin-top: 12px; }
 
+  /* ---------- 开发者模式 Debug 日志（屏幕左侧，从下缓慢上移） ---------- */
+  #debug-log { position: fixed; left: 20px; bottom: 272px; width: 430px;
+    z-index: 14; pointer-events: none; display: none; }
+  .dbg-line { position: absolute; bottom: 0; left: 0; right: 0;
+    color: #9fe8ff; font-size: 12.5px; line-height: 1.5; padding: 4px 10px;
+    background: rgba(8, 18, 34, .62); border-left: 3px solid #4db6ff;
+    border-radius: 4px; margin-bottom: 5px; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+  .dbg-line.dbg-dmg { border-left-color: #ff7a7a; color: #ffc9c9; }
+  .dbg-line.dbg-hit { border-left-color: #ffd54a; color: #ffe9a8; }
+  .dbg-line.dbg-kill { border-left-color: #8ef0b0; color: #c8f5d8; }
+
   /* ---------- 技能等级查看面板（按 I 打开） ---------- */
   #skills-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin: 10px 0 16px; }
   .skill-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px;
@@ -366,6 +378,7 @@ window.addEventListener('load', function () {
 <div id="notice-pop"></div>
 <div id="error-bar"></div>
 <div id="damage-flash"></div>
+<div id="debug-log"></div>
 <div id="killfeed"></div>
 
 <!-- 主菜单 -->
