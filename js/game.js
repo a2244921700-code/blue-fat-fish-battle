@@ -3067,7 +3067,10 @@ function init() {
   ammo.mag = CFG.magSize;
   ammo.reserve = CFG.startReserve;
   itemTimer = rand(CFG.itemIntervalMin, CFG.itemIntervalMax);
-  if (dom.bossName) dom.bossName.textContent = '超级蓝色大肥鱼';
+  // 血条数值由 HTML 静态 span 承载；仅在无子元素时兜底设置名字（避免 textContent 覆盖清除数字子元素）
+  if (dom.bossName && dom.bossName.children.length === 0) dom.bossName.textContent = '超级蓝色大肥鱼';
+  if (dom.bossHpCur) dom.bossHpCur.textContent = '15';
+  if (dom.bossHpMax) dom.bossHpMax.textContent = '15';
   updateHUD();
   updateArmorHUD();
 
