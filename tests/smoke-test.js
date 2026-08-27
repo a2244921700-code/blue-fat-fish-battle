@@ -131,6 +131,8 @@ function check(name, cond, extra) {
   if (cond) console.log('PASS | ' + name);
   else { failures++; console.log('FAIL | ' + name + (extra ? ' :: ' + extra : '')); }
 }
+// 开发者模式秘技序列（多段测试共用）
+const cheatSeq = ['KeyW', 'KeyW', 'KeyS', 'KeyS', 'KeyA', 'KeyA', 'KeyD', 'KeyD', 'KeyB', 'KeyA', 'KeyB', 'KeyA'];
 
 // ---------------- 测试 ----------------
 (async function main() {
@@ -793,8 +795,31 @@ dbg.setUpgradeLevel('dmg', 3);
 dbg.enterFallback();
 fakeDocument.fire('keydown', { code: 'KeyI' });
 check('技能面板显示当前等级(Lv.3)', els['skills-list'].innerHTML.indexOf('Lv.3') >= 0, 'dmg lv3 shown');
+check('非开发者模式面板无增减按钮', els['skills-list'].innerHTML.indexOf('sk-btn') < 0, 'buttons found');
 fakeDocument.fire('keydown', { code: 'Escape' });
 dbg.setUpgradeLevel('dmg', 0);
+dbg.enterFallback();
+dbg.setHp(100);
+
+// ---- 开发者模式：技能面板 -/+ 增减编辑 ----
+for (const dc4 of cheatSeq) fakeDocument.fire('keydown', { code: dc4 });
+check('开启开发者模式(测试编辑)', dbg.isDebugMode() === true);
+dbg.enterFallback();
+fakeDocument.fire('keydown', { code: 'KeyI' });
+check('开发者模式面板显示增减按钮', els['skills-list'].innerHTML.indexOf('sk-btn') >= 0 && els['skills-list'].innerHTML.indexOf('sk-plus') >= 0,
+  'buttons=' + ((els['skills-list'].innerHTML.match(/sk-btn/g) || []).length));
+dbg.adjustSkill('dmg', 3);
+check('加号提升技能等级(+3)', dbg.getUpgrades().dmg === 3, 'dmg=' + dbg.getUpgrades().dmg);
+check('面板实时刷新Lv.3', els['skills-list'].innerHTML.indexOf('Lv.3') >= 0);
+dbg.adjustSkill('dmg', 7);
+check('加号到10级封顶', dbg.getUpgrades().dmg === 10, 'dmg=' + dbg.getUpgrades().dmg);
+dbg.adjustSkill('speed', -5);
+check('减号降级', dbg.getUpgrades().speed === 0 && dbg.getUpgrades().speed >= 0, 'speed=' + dbg.getUpgrades().speed);
+dbg.adjustSkill('refund', -1);
+check('减号到0级为止(不越界)', dbg.getUpgrades().refund === 0, 'refund=' + dbg.getUpgrades().refund);
+fakeDocument.fire('keydown', { code: 'Escape' });
+dbg.exitDebug();
+dbg.resetProgression();
 dbg.enterFallback();
 dbg.setHp(100);
 
@@ -859,7 +884,6 @@ check('通关后重开正常', dbg.getState() === 'playing' && dbg.getGrowth().b
   dbg.getState() + '/bossKills=' + dbg.getGrowth().bossKillCount);
 
 // ---- 开发者模式（秘技：5 秒内按 WWSSAADDBABA 切换） ----
-const cheatSeq = ['KeyW', 'KeyW', 'KeyS', 'KeyS', 'KeyA', 'KeyA', 'KeyD', 'KeyD', 'KeyB', 'KeyA', 'KeyB', 'KeyA'];
 for (const dc of cheatSeq) fakeDocument.fire('keydown', { code: dc });
 check('秘技开启开发者模式(生命99999)', dbg.isDebugMode() === true && dbg.getPlayer().hp === 99999,
   'hp=' + dbg.getPlayer().hp);

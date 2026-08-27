@@ -152,7 +152,7 @@ var combo = { score: 0, rank: -1, timer: 0 };  // 连杀评级：score=连杀点
 var upgrades = { dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0 }; // 技能等级 0~10（dmg=子弹伤害, refund=回弹, heal=回血, nade=掉雷, speed=速度）
 var bossKillCount = 0;         // 本局已击杀 Boss 数（驱动敌人成长）
 var rewardOptions = null;      // 当前奖励窗口可选项 [{id, name, ico, lv, desc, next}]
-var rewardAllMax = false;      // 全部技能满级标记（再杀 Boss 即通关）
+
 var enemyHpNow = 1;            // 当前小怪血量（随 Boss 击杀增长，≤10）
 var meleeAtkBonus = 0;         // 近战小怪攻击加成（血量到 10 后增长）
 var rangedAtkBonus = 0;        // 射手小怪子弹攻击加成
@@ -1612,7 +1612,6 @@ function chooseReward(idx) {
   var opt = rewardOptions[idx];
   upgrades[opt.id] = Math.min(CFG.upgradeMaxLevel, upgrades[opt.id] + 1);
   rewardOptions = null;
-  if (isAllUpgradeMax()) rewardAllMax = true;
   progressMusicOn = false;                   // 选择奖励后关闭"进步的小曲"
   if (progressEl) { progressEl.pause(); progressEl.currentTime = 0; }
   hideAllOverlays();
@@ -1629,9 +1628,18 @@ function renderSkillsPanel() {
     var def = UPGRADE_DEFS[id];
     var lv = upgrades[id];
     var maxed = lv >= CFG.upgradeMaxLevel;
+    var zero = lv <= 0;
     var dots = '';
     for (var d = 0; d < CFG.upgradeMaxLevel; d++) {
       dots += '<span class="' + (d < lv ? '' : 'off') + '">▮</span>';
+    }
+    // 开发者模式：技能行显示 -/+ 可编辑（0~10 级）
+    var ctrl = '';
+    if (debugMode) {
+      ctrl = '<div class="sk-ctrl">' +
+        '<button class="sk-btn sk-minus" data-id="' + id + '" data-act="minus" ' + (zero ? 'disabled' : '') + '>−</button>' +
+        '<button class="sk-btn sk-plus" data-id="' + id + '" data-act="plus" ' + (maxed ? 'disabled' : '') + '>＋</button>' +
+        '</div>';
     }
     html += '<div class="skill-row' + (maxed ? ' sk-max' : '') + '">' +
       '<div class="sk-ico">' + def.ico + '</div>' +
@@ -1639,9 +1647,17 @@ function renderSkillsPanel() {
       '<div class="sk-name">' + def.name + (maxed ? '<span class="sk-lv">MAX 已满级</span>' : '<span class="sk-lv">Lv.' + lv + ' / ' + CFG.upgradeMaxLevel + '</span>') + '</div>' +
       '<div class="sk-desc">' + upgradeNextDesc(id, Math.max(1, lv + 1)) + '</div>' +
       '<div class="sk-dots">' + dots + '</div>' +
-      '</div></div>';
+      '</div>' + ctrl + '</div>';
   }
   dom.skillsList.innerHTML = html;
+}
+
+// 开发者模式：调整技能等级（0 ~ 10，实时生效并刷新面板）
+function adjustSkill(id, delta) {
+  if (!upgrades.hasOwnProperty(id)) return;
+  upgrades[id] = Math.max(0, Math.min(CFG.upgradeMaxLevel, upgrades[id] + delta));
+  renderSkillsPanel();
+  updateHUD();
 }
 
 // 打开技能等级查看面板：游戏暂停、默认 BGM 暂停、播放"进步的小曲"
@@ -2244,8 +2260,8 @@ function defeatBoss() {
   updateAmmoHUD();
   if (bossMusicTempo !== 0) bossMusicTempo = -1;   // 战斗曲开始匀速淡出（结束后主 BGM 续播）
   growEnemies();                  // 敌人成长：小怪变强、Boss 变硬、生成提速
-  if (rewardAllMax) {
-    victory();                    // 全部强化满级后击杀 Boss → 无尽模式通关
+  if (isAllUpgradeMax()) {
+    victory();                    // 通关判定：实时检测所有技能等级，全部满级后击杀 Boss 即通关
   } else {
     showRewardWindow();           // 弹出 3 选 1 奖励窗口（选择前游戏暂停）
   }
@@ -2524,7 +2540,6 @@ function restartGame() {
   upgrades = { dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0 };
   bossKillCount = 0;
   rewardOptions = null;
-  rewardAllMax = false;
   enemyHpNow = 1;
   meleeAtkBonus = 0;
   rangedAtkBonus = 0;
@@ -3022,6 +3037,16 @@ function init() {
       if (card && card.getAttribute('data-idx') !== null) chooseReward(parseInt(card.getAttribute('data-idx'), 10));
     });
   }
+  // 技能面板 -/+ 按钮（仅开发者模式，事件委托）
+  if (dom.skillsList) {
+    dom.skillsList.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('.sk-btn') : null;
+      if (!btn || btn.disabled) return;
+      var id = btn.getAttribute('data-id');
+      var act = btn.getAttribute('data-act');
+      if (id) adjustSkill(id, act === 'plus' ? 1 : -1);
+    });
+  }
   var btnLevelDesert = document.getElementById('btn-level-desert');
   var btnLevelBack = document.getElementById('btn-level-back');
   if (btnLevelDesert) btnLevelDesert.addEventListener('click', function () {
@@ -3090,6 +3115,7 @@ window.FishGame = {
     openSkills: openSkills,
     closeSkills: closeSkills,
     isSkillsOpen: function () { return state === 'skills'; },
+    adjustSkill: adjustSkill,
     // ---- 开发者模式 ----
     isDebugMode: function () { return debugMode; },
     enterDebug: enterDebugMode,
@@ -3140,7 +3166,7 @@ window.FishGame = {
     comboRankPoints: function () { return CFG.comboRankPoints; },
     // ---- 局内强化调试接口（无尽模式） ----
     getUpgrades: function () { return upgrades; },
-    setUpgradeLevel: function (id, lv) { upgrades[id] = lv; if (isAllUpgradeMax()) rewardAllMax = true; },
+    setUpgradeLevel: function (id, lv) { upgrades[id] = lv; },
     getRewardOptions: function () { return rewardOptions; },
     chooseReward: chooseReward,
     getGrowth: function () {
@@ -3151,14 +3177,13 @@ window.FishGame = {
     setArmor: function (v) { armorStacks = v; updateArmorHUD(); },
     spawnArmorItem: spawnArmorItem,
     isRewardOpen: function () { return state === 'reward'; },
-    isMaxAll: function () { return rewardAllMax; },
+    isMaxAll: function () { return isAllUpgradeMax(); },
     setBossHp: function (v) { if (boss) { boss.hp = v; } },
     simulateGrowth: function () { growEnemies(); },
     resetProgression: function () {
       upgrades = { dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0 };
       bossKillCount = 0;
       rewardOptions = null;
-      rewardAllMax = false;
       enemyHpNow = 1;
       meleeAtkBonus = 0;
       rangedAtkBonus = 0;

@@ -315,6 +315,14 @@ window.addEventListener('load', function () {
   .skill-row .sk-name .sk-lv { color: #ffe9a8; margin-left: 8px; font-size: 13.5px; }
   .skill-row .sk-desc { color: #8fa3ba; font-size: 12.5px; margin-top: 4px; }
   .skill-row.sk-max .sk-name .sk-lv { color: #8ef0b0; }
+  .skill-row .sk-ctrl { display: flex; flex-direction: column; gap: 6px; margin-left: 8px; flex-shrink: 0; }
+  .sk-btn { width: 34px; height: 34px; border-radius: 8px; border: 1px solid rgba(110,198,255,.5);
+    background: rgba(47,155,255,.25); color: #dff0ff; font-size: 18px; font-weight: 700;
+    cursor: pointer; line-height: 1; transition: background .12s, transform .12s; }
+  .sk-btn:hover:not(:disabled) { background: rgba(47,155,255,.45); transform: scale(1.06); }
+  .sk-btn:disabled { opacity: .35; cursor: not-allowed; }
+  .sk-btn.sk-minus { border-color: rgba(255,122,122,.5); background: rgba(200,60,60,.2); }
+  .sk-btn.sk-minus:hover:not(:disabled) { background: rgba(220,80,80,.4); }
   .skill-row.sk-max { border-color: rgba(140,230,170,.4); background: rgba(80,160,110,.1); }
   .sk-dots { font-size: 11px; letter-spacing: 2px; margin-top: 5px; color: #4da3ff; }
   .sk-dots .off { color: rgba(255,255,255,.18); }
