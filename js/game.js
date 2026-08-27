@@ -150,6 +150,7 @@ var fishBullets = [];              // 射手鱼子弹 { mesh, vel, life }
 var combo = { score: 0, rank: -1, timer: 0 };  // 连杀评级：score=连杀点数, rank=评级索引(-1 无), timer=衰减剩余秒
 // ===== 局内强化与成长（无尽模式专属） =====
 var upgrades = { dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0 }; // 技能等级 0~10（dmg=子弹伤害, refund=回弹, heal=回血, nade=掉雷, speed=速度）
+var upgradesAllMax = false;      // 缓存：技能全部满级（仅在技能等级变化时检测一次，击杀 Boss 时直接读取，零帧开销）
 var bossKillCount = 0;         // 本局已击杀 Boss 数（驱动敌人成长）
 var rewardOptions = null;      // 当前奖励窗口可选项 [{id, name, ico, lv, desc, next}]
 
@@ -1561,6 +1562,11 @@ function isAllUpgradeMax() {
   return true;
 }
 
+// 每次技能等级变化后调用一次：刷新"全部满级"缓存（通关判定零扫描）
+function refreshUpgradesMaxFlag() {
+  upgradesAllMax = isAllUpgradeMax();
+}
+
 // 从未满级技能中随机抽取（最多 3 个；不足 3 个有多少抽多少）
 function pickRewardOptions() {
   var pool = [];
@@ -1611,6 +1617,7 @@ function chooseReward(idx) {
   if (state !== 'reward' || !rewardOptions || !rewardOptions[idx]) return;
   var opt = rewardOptions[idx];
   upgrades[opt.id] = Math.min(CFG.upgradeMaxLevel, upgrades[opt.id] + 1);
+  refreshUpgradesMaxFlag();                  // 升级时检测一次满级缓存
   rewardOptions = null;
   progressMusicOn = false;                   // 选择奖励后关闭"进步的小曲"
   if (progressEl) { progressEl.pause(); progressEl.currentTime = 0; }
@@ -1656,6 +1663,7 @@ function renderSkillsPanel() {
 function adjustSkill(id, delta) {
   if (!upgrades.hasOwnProperty(id)) return;
   upgrades[id] = Math.max(0, Math.min(CFG.upgradeMaxLevel, upgrades[id] + delta));
+  refreshUpgradesMaxFlag();                  // 编辑时检测一次满级缓存
   renderSkillsPanel();
   updateHUD();
 }
@@ -2260,8 +2268,8 @@ function defeatBoss() {
   updateAmmoHUD();
   if (bossMusicTempo !== 0) bossMusicTempo = -1;   // 战斗曲开始匀速淡出（结束后主 BGM 续播）
   growEnemies();                  // 敌人成长：小怪变强、Boss 变硬、生成提速
-  if (isAllUpgradeMax()) {
-    victory();                    // 通关判定：实时检测所有技能等级，全部满级后击杀 Boss 即通关
+  if (upgradesAllMax) {
+    victory();                    // 通关判定：读取升级时的满级缓存（全部技能满级后击杀 Boss 即通关）
   } else {
     showRewardWindow();           // 弹出 3 选 1 奖励窗口（选择前游戏暂停）
   }
@@ -2538,6 +2546,7 @@ function restartGame() {
   resetCombo();   // 新一局连杀评级清零
   // 重置局内强化与成长（无尽模式技能独立：死亡重来/退出重进均不继承）
   upgrades = { dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0 };
+  upgradesAllMax = false;
   bossKillCount = 0;
   rewardOptions = null;
   enemyHpNow = 1;
@@ -3166,7 +3175,7 @@ window.FishGame = {
     comboRankPoints: function () { return CFG.comboRankPoints; },
     // ---- 局内强化调试接口（无尽模式） ----
     getUpgrades: function () { return upgrades; },
-    setUpgradeLevel: function (id, lv) { upgrades[id] = lv; },
+    setUpgradeLevel: function (id, lv) { upgrades[id] = lv; refreshUpgradesMaxFlag(); },
     getRewardOptions: function () { return rewardOptions; },
     chooseReward: chooseReward,
     getGrowth: function () {
@@ -3177,11 +3186,12 @@ window.FishGame = {
     setArmor: function (v) { armorStacks = v; updateArmorHUD(); },
     spawnArmorItem: spawnArmorItem,
     isRewardOpen: function () { return state === 'reward'; },
-    isMaxAll: function () { return isAllUpgradeMax(); },
+    isMaxAll: function () { return upgradesAllMax; },
     setBossHp: function (v) { if (boss) { boss.hp = v; } },
     simulateGrowth: function () { growEnemies(); },
     resetProgression: function () {
       upgrades = { dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0 };
+      upgradesAllMax = false;
       bossKillCount = 0;
       rewardOptions = null;
       enemyHpNow = 1;
