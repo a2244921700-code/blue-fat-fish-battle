@@ -102,8 +102,8 @@ var CFG = {
   // ===== 护甲道具（防御） =====
   armorInterval: 10,          // 每 10 秒判定一次生成
   armorChance: 0.25,          // 25% 概率生成护甲道具
-  armorPerPick: 2,            // 每次拾取护甲 +2
-  armorMaxStacks: 15,         // 护甲层数上限（满层后不再生成）
+  armorPerPick: 2,            // 每层护甲防御力（每拾取一次护甲 = 1 层，每层减免 2 点伤害）
+  armorMaxStacks: 15,         // 护甲层数上限（15 层 = 30 点减免，满层后不再生成）
   bgmVolume: 0.18,         // 背景音乐音量（小音量，避免盖过射击音效）
   bossMusicVolume: 0.12,   // Boss 战斗曲峰值音量（明显低于射击音效，不抢戏）
   bossMusicFadeIn: 1.2,    // Boss 战曲淡入时长（秒）：声音从小到大
@@ -1791,8 +1791,9 @@ function pickupItem(it, index) {
     showNotice('+' + CFG.ammoPack + ' 子弹');
     Sfx.pickupAmmo();
   } else if (it.type === 'armor') {
-    armorStacks = Math.min(CFG.armorMaxStacks, armorStacks + CFG.armorPerPick);
-    showNotice('护甲 +' + CFG.armorPerPick + '（当前 ' + armorStacks + ' 层）');
+    // 每拾取一个护甲道具 = +1 层护盾（每层防御力 = CFG.armorPerPick 点）
+    armorStacks = Math.min(CFG.armorMaxStacks, armorStacks + 1);
+    showNotice('护甲 +1 层（防御 +' + CFG.armorPerPick + ' · 当前 ' + armorStacks + ' 层）');
     Sfx.pickupHealth();
     updateArmorHUD();
   } else {

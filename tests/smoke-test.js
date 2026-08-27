@@ -248,7 +248,13 @@ check('护甲道具已进场(青色盾牌)', !!armorItem, String(!!armorItem));
 if (armorItem) {
   armorItem.mesh.position.set(dbg.getPlayer().pos.x, 0.55, dbg.getPlayer().pos.z);
   advance(0.2);
-  check('拾取护甲防御+2', dbg.getArmor() === 2, 'armor=' + dbg.getArmor());
+  check('拾取护甲+1层', dbg.getArmor() === 1, 'armor=' + dbg.getArmor());
+  // 每层护甲减免 2 点伤害：1 层时承 10 伤只掉 8 血
+  const hpArmor = dbg.getPlayer().hp;
+  dbg.resetHurt();
+  dbg.damagePlayer(10);
+  check('每层护甲减免2点伤害', dbg.getPlayer().hp === hpArmor - 8, hpArmor + '->' + dbg.getPlayer().hp);
+  dbg.resetHurt();
 }
 const armorBefore15 = dbg.getItems().filter(it => it.type === 'armor').length;
 dbg.setArmor(15);
