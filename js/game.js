@@ -173,6 +173,9 @@ var debugKeyFirst = 0;           // 秘技首键时间（真实时间）
 var killSeq = ['KeyK', 'KeyI', 'KeyL', 'KeyL'];  // 开发者模式自毁秘技（4 秒内按完）
 var killBuf = [];                // KILL 按键缓冲
 var killFirst = 0;               // KILL 首键时间
+var cheatMusicOn = false;        // 作弊被抓搞怪音乐循环开关
+var cheatMusicTimer = 0;         // 音符节奏计时
+var cheatMusicStep = 0;          // 循环音符步进
 var dbgFireCount = 0;              // 调试：射手发射计数
 var nadeCount = CFG.nadeStartCount;
 var noticeTimer = null;
@@ -286,6 +289,14 @@ var Sfx = (function () {
       tone('sine', 500, 760, 0.1, 0.2);
       setTimeout(function () { tone('sine', 760, 1080, 0.1, 0.2); }, 100);
       setTimeout(function () { tone('sine', 1080, 1400, 0.1, 0.2); }, 200);
+    },
+    // 作弊被抓：程序生成滑稽搞怪音符（歪斜下滑 + 偶尔滑稽高音与"啪"声）
+    cheatNote: function (step) {
+      var freqs = [392, 370, 349, 311, 349, 311, 294, 262];
+      var f = freqs[step % freqs.length];
+      tone('triangle', f, f * 0.8, 0.22, 0.38);
+      if (step % 4 === 2) tone('square', f * 1.5, f * 1.15, 0.12, 0.12);
+      if (step % 4 === 3) noiseHit(0.05, 'bandpass', 700, 320, 0.14);
     },
   };
 })();
@@ -1753,6 +1764,37 @@ function killSeqPrefix(buf) {
   return true;
 }
 
+// ---------------------------------------------------------------- 作弊被抓（开发者模式通关后回主菜单）
+function triggerCheatCaught() {
+  state = 'cheat';
+  exitDebugMode();                       // 解除开发者模式
+  if (dom.cheatOverlay) dom.cheatOverlay.classList.remove('hidden');
+  if (document.exitPointerLock) document.exitPointerLock();
+  cheatMusicOn = true;
+  cheatMusicTimer = 0;
+  cheatMusicStep = 0;
+  Sfx.cheatNote(0);
+}
+
+// 任意键：关闭搞怪音乐 → 完整重置回主菜单（菜单音乐随之恢复）
+function closeCheatCaught() {
+  if (state !== 'cheat') return;
+  cheatMusicOn = false;
+  if (dom.cheatOverlay) dom.cheatOverlay.classList.add('hidden');
+  restartGame(true);
+}
+
+// 搞怪音乐循环驱动（WebAudio 程序合成，0.26 秒一拍）
+function updateCheatMusic(dt) {
+  if (!cheatMusicOn) return;
+  cheatMusicTimer -= dt;
+  if (cheatMusicTimer <= 0) {
+    cheatMusicTimer = 0.26;
+    cheatMusicStep += 1;
+    Sfx.cheatNote(cheatMusicStep);
+  }
+}
+
 // Debug 消息：左侧列表从下缓慢上移，每条 5 秒后消失（仅开发者模式）
 function debugLog(text, cls) {
   if (!debugMode || !dom.debugLog) return;
@@ -2533,6 +2575,9 @@ function restartGame(toMenu) {
   if (menuEl) { menuEl.pause(); menuEl.currentTime = 0; }   // 菜单曲复位
   menuMusicOn = false;
   menuMusicVol = 0;
+  cheatMusicOn = false;                 // 作弊搞怪音乐复位
+  cheatMusicTimer = 0;
+  cheatMusicStep = 0;
   score = 0; kills = 0; playingTime = 0;
   ammo.mag = CFG.magSize;
   ammo.reserve = CFG.startReserve;
@@ -2702,6 +2747,7 @@ function showFatalError(msg) {
 // ---------------------------------------------------------------- 输入
 function onKeyDown(ev) {
   keys[ev.code] = true;
+  if (state === 'cheat') { closeCheatCaught(); return; }   // 作弊被抓：任意键回主菜单
   if (handleKillCheat(ev.code)) return;   // 开发者模式 KILL 自毁序列（消费按键）
   handleDebugCheat(ev.code);          // 开发者模式秘技检测（任意状态下）
   if (ev.code === 'KeyR' && state === 'playing') { requestReload(); }
@@ -2943,6 +2989,7 @@ function update(dt) {
   drawMiniMap();
   updateBgm(dt);
   if (debugMode) updateDebugLog(dt);   // Debug 消息上移/淡出/清理
+  updateCheatMusic(dt);                // 作弊被抓搞怪音乐循环
   ensureFishPool();   // 小怪生成速率成长：场上数量补足上限
 }
 
@@ -2996,7 +3043,7 @@ function init() {
     finalKillsV: 'final-kills-v', finalBossKillsV: 'final-bosskills-v',
     finalBossKills: 'final-bosskills',
     skillsOverlay: 'skills-overlay', skillsList: 'skills-list',
-    debugLog: 'debug-log',
+    debugLog: 'debug-log', cheatOverlay: 'cheat-overlay',
     minimapCanvas: 'minimap-canvas',
     levelOverlay: 'level-overlay',
   };
@@ -3045,7 +3092,10 @@ function init() {
   });
   if (btnRestart) btnRestart.addEventListener('click', function () { restartGame(); });
   var btnVictoryRestart = document.getElementById('btn-victory-restart');
-  if (btnVictoryRestart) btnVictoryRestart.addEventListener('click', function () { restartGame(true); });  // 通关 → 回到主菜单
+  if (btnVictoryRestart) btnVictoryRestart.addEventListener('click', function () {
+    if (debugMode) { triggerCheatCaught(); return; }    // 开发者模式通关回主菜单 → 抓到你作弊咯！
+    restartGame(true);                                   // 通关 → 回到主菜单
+  });
   // 奖励卡片：点击选择对应技能（事件委托，卡片动态重建）
   if (dom.rewardCards) {
     dom.rewardCards.addEventListener('click', function (e) {
@@ -3132,6 +3182,8 @@ window.FishGame = {
     closeSkills: closeSkills,
     isSkillsOpen: function () { return state === 'skills'; },
     adjustSkill: adjustSkill,
+    triggerCheatCaught: triggerCheatCaught,
+    closeCheatCaught: closeCheatCaught,
     // ---- 开发者模式 ----
     isDebugMode: function () { return debugMode; },
     enterDebug: enterDebugMode,

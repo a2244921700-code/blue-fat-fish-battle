@@ -886,6 +886,22 @@ dbg.enterFallback();            // 从主菜单重新进入游戏（模拟选关
 check('主菜单重新进入游戏正常', dbg.getState() === 'playing' && dbg.getEnemies().length === 6 && dbg.getEnemies()[0].hp === 1,
   dbg.getState() + '/fish=' + dbg.getEnemies().length);
 
+// ---- 作弊被抓（开发者模式胜利后回主菜单） ----
+for (const dc5 of cheatSeq) fakeDocument.fire('keydown', { code: dc5 });
+check('开启开发者模式(作弊测试)', dbg.isDebugMode() === true);
+dbg.enterFallback();
+dbg.triggerCheatCaught();
+check('作弊被抓全屏弹出+解除开发者模式', dbg.getState() === 'cheat' && dbg.isDebugMode() === false &&
+  els['cheat-overlay'].classList.contains('hidden') === false,
+  dbg.getState() + '/debug=' + dbg.isDebugMode());
+dbg.setHp(100);
+fakeDocument.fire('keydown', { code: 'KeyX' });   // 任意键
+check('任意键关闭作弊回主菜单', dbg.getState() === 'menu' && els['cheat-overlay'].classList.contains('hidden') === true,
+  dbg.getState());
+check('作弊后世界已重置', dbg.getGrowth().bossKillCount === 0 && dbg.isMaxAll() === false, 'bossKills=' + dbg.getGrowth().bossKillCount);
+dbg.enterFallback();
+dbg.setHp(100);
+
 // ---- 开发者模式（秘技：5 秒内按 WWSSAADDBABA 切换） ----
 for (const dc of cheatSeq) fakeDocument.fire('keydown', { code: dc });
 check('秘技开启开发者模式(生命99999)', dbg.isDebugMode() === true && dbg.getPlayer().hp === 99999,

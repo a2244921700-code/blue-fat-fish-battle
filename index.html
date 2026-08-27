@@ -293,6 +293,26 @@ window.addEventListener('load', function () {
   .reward-card .rw-next { color: #8ef0b0; font-size: 12.5px; margin-top: 8px; }
   .reward-note { color: #8fa3ba; font-size: 12.5px; margin-top: 12px; }
 
+  /* ---------- 作弊被抓全屏界面 ---------- */
+  #cheat-overlay { z-index: 40; background: rgba(30, 8, 12, .88); }
+  .cheat-panel { text-align: center; }
+  .cheat-title { font-size: 84px; font-weight: 900; letter-spacing: 8px; color: #ff5d5d;
+    text-shadow: 0 4px 24px rgba(255, 40, 40, .65), 0 0 60px rgba(255, 80, 80, .35);
+    animation: cheatWobble .9s ease-in-out infinite; }
+  .cheat-sub { margin-top: 22px; color: #ffc9c9; font-size: 24px; letter-spacing: 4px; }
+  .cheat-hint { margin-top: 46px; color: #ffd76e; font-size: 16px; letter-spacing: 3px;
+    animation: cheatHint 1.2s ease-in-out infinite; }
+  @keyframes cheatWobble {
+    0%, 100% { transform: rotate(-2.5deg) scale(1); }
+    25% { transform: rotate(2deg) scale(1.04); }
+    50% { transform: rotate(-1.5deg) scale(.98); }
+    75% { transform: rotate(2.5deg) scale(1.02); }
+  }
+  @keyframes cheatHint {
+    0%, 100% { opacity: .45; }
+    50% { opacity: 1; }
+  }
+
   /* ---------- 开发者模式 Debug 日志（屏幕左侧，从下缓慢上移） ---------- */
   #debug-log { position: fixed; left: 20px; bottom: 272px; width: 430px;
     z-index: 14; pointer-events: none; display: none; }
@@ -387,6 +407,15 @@ window.addEventListener('load', function () {
 <div id="error-bar"></div>
 <div id="damage-flash"></div>
 <div id="debug-log"></div>
+
+<!-- 作弊被抓全屏提示（开发者模式通关回主菜单时） -->
+<div id="cheat-overlay" class="overlay hidden">
+  <div class="cheat-panel">
+    <div class="cheat-title">抓到你作弊咯！</div>
+    <div class="cheat-sub">开发者模式的胜利不算数哦 🕵️</div>
+    <div class="cheat-hint">按任意键回到主菜单…</div>
+  </div>
+</div>
 <div id="killfeed"></div>
 
 <!-- 主菜单 -->
