@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D射击 · 蓝色肥鱼大作战 V0.2 Beta</title>
+<script>
+/* 全局错误条：任何未捕获的运行错误都会显示在屏幕底部，便于排查 */
+window.addEventListener('error', function (e) {
+  var el = document.getElementById('error-bar');
+  if (el) { el.style.display = 'block'; el.textContent = '运行错误：' + (e.message || '未知错误'); }
+});
+/* 兜底：若游戏脚本未成功加载，点按钮时给出明确提示（而不是毫无反应） */
+document.addEventListener('click', function (e) {
+  var t = e.target;
+  if (t && (t.id === 'btn-start' || t.id === 'btn-resume' || t.id === 'btn-restart') && !window.FishGame) {
+    var el = document.getElementById('error-bar');
+    if (el) {
+      el.style.display = 'block';
+      el.textContent = '游戏脚本未加载成功（three.min.js / fish-texture.js / game.js 可能加载失败），请按 Ctrl+F5 强制刷新重试。';
+    }
+  }
+});
+window.addEventListener('load', function () {
+  setTimeout(function () {
+    if (!window.FishGame) {
+      var el = document.getElementById('error-bar');
+      if (el) {
+        el.style.display = 'block';
+        el.textContent = '游戏脚本未能加载：请按 Ctrl+F5 强制刷新；若仍失败，建议使用 Chrome 或 Edge 浏览器。';
+      }
+    }
+  }, 800);
+});
+</script>
+<style>
+  :root {
+    --accent: #4db6ff;
+    --danger: #ff5252;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0b1220;
+    font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+    -webkit-user-select: none; user-select: none; }
+  #game-canvas { display: block; width: 100vw; height: 100vh; }
+
+  /* ---------- 准星 ---------- */
+  #crosshair {
+    position: fixed; left: 50%; top: 50%; width: 0; height: 0; z-index: 10;
+    pointer-events: none; mix-blend-mode: difference;
+  }
+  #crosshair .line { position: absolute; background: rgba(255,255,255,.95); border-radius: 1px; }
+  #crosshair .up    { width: 2px; height: 11px; left: -1px; top: -19px; }
+  #crosshair .down  { width: 2px; height: 11px; left: -1px; top: 8px; }
+  #crosshair .left  { width: 11px; height: 2px; left: -19px; top: -1px; }
+  #crosshair .right { width: 11px; height: 2px; left: 8px; top: -1px; }
+  #crosshair .dot   { position: absolute; width: 3px; height: 3px; border-radius: 50%;
+    background: rgba(255,255,255,.9); left: -1.5px; top: -1.5px; }
+  #crosshair.hit-hit { mix-blend-mode: normal; }
+  #crosshair.hit-hit .line { background: #ff3b3b; }
+  #crosshair.hit-hit .dot  { background: #ff3b3b; transform: scale(1.6); }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; z-index: 9; pointer-events: none; }
+  #health-wrap {
+    position: absolute; left: 26px; top: 24px; width: 260px;
+    background: rgba(0,0,0,.45); border-radius: 10px; padding: 10px 14px 12px;
+    border: 1px solid rgba(255,255,255,.18); backdrop-filter: blur(3px);
+  }
+  #health-label { color: #dfe7f2; font-size: 13px; letter-spacing: 2px; margin-bottom: 7px;
+    display: flex; justify-content: space-between; }
+  #health-label b { color: #8ef0b0; font-weight: 600; }
+  #health-bar { height: 14px; background: rgba(255,255,255,.14); border-radius: 7px; overflow: hidden; }
+  #health-fill { height: 100%; width: 100%; border-radius: 7px;
+    background: linear-gradient(90deg, #41d16b, #8ef0b0);
+    box-shadow: 0 0 10px rgba(78,240,150,.55); transition: width .18s ease; }
+  #health-fill.low { background: linear-gradient(90deg, #e03131, #ff7a7a); }
+  #score-wrap {
+    position: absolute; right: 26px; top: 24px; text-align: right;
+    background: rgba(0,0,0,.45); border-radius: 10px; padding: 10px 18px;
+    border: 1px solid rgba(255,255,255,.18); backdrop-filter: blur(3px);
+  }
+  #score-value { color: #fff; font-size: 34px; font-weight: 700; line-height: 1.05;
+    text-shadow: 0 0 12px rgba(77,182,255,.7); }
+  #score-wrap .sub { color: #9fb2c8; font-size: 12px; letter-spacing: 1px; margin-top: 2px; }
+  #ammo-wrap { position: absolute; right: 26px; bottom: 26px; text-align: right;
+    color: #cfd9e6; font-size: 15px; background: rgba(0,0,0,.35); padding: 8px 14px;
+    border-radius: 8px; border: 1px solid rgba(255,255,255,.12); }
+  #ammo-wrap b { color: #fff; font-size: 22px; }
+  #ammo-wrap b.low { color: #ff7a7a; text-shadow: 0 0 8px rgba(255,40,40,.7); }
+  #ammo-wrap .ammo-sep { color: #7d8ea3; font-size: 18px; margin: 0 4px; }
+  #ammo-wrap .ammo-lbl { color: #cfd9e6; font-size: 13px; margin-left: 6px; }
+  #minimap { position: fixed; left: 26px; bottom: 26px; width: 210px; height: 210px;
+    z-index: 9; border-radius: 50%; overflow: hidden; pointer-events: none;
+    border: 2px solid rgba(255,255,255,.38);
+    box-shadow: 0 4px 18px rgba(0,0,0,.45), inset 0 0 22px rgba(0,0,0,.35);
+    background: rgba(10,16,26,.6); }
+  #minimap canvas { width: 100%; height: 100%; display: block; }
+  #nade-wrap { position: absolute; right: 208px; bottom: 26px;
+    background: rgba(0,0,0,.35); padding: 7px 14px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.12); color: #cfd9e6; font-size: 13.5px; }
+  #nade-wrap .nade-ico { font-size: 16px; }
+  #nade-wrap b { color: #d8ff9e; font-size: 20px; margin: 0 5px; }
+  #reload-wrap { position: absolute; right: 26px; bottom: 84px; width: 190px; display: none; }
+  #reload-wrap .reload-label { color: #ffd76e; font-size: 13px; letter-spacing: 2px;
+    text-align: center; margin-bottom: 6px; }
+  #reload-bar { height: 6px; background: rgba(255,255,255,.15); border-radius: 3px; overflow: hidden; }
+  #reload-fill { height: 100%; width: 0; border-radius: 3px;
+    background: linear-gradient(90deg, #ffb347, #ffd76e);
+    box-shadow: 0 0 8px rgba(255,200,80,.6); }
+  #boss-bar-wrap { position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    width: 520px; max-width: 92vw; display: none; z-index: 13; text-align: center; pointer-events: none; }
+  #boss-name { color: #ffd76e; font-size: 17px; font-weight: 700; letter-spacing: 3px;
+    text-shadow: 0 2px 6px rgba(0,0,0,.75); margin-bottom: 6px; }
+  #boss-hp-text { color: #fff; font-size: 15px; letter-spacing: 1px; margin-left: 10px;
+    text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+  #boss-hp-text b { color: #ff8a8a; font-weight: 700; }
+  #boss-bar { height: 13px; background: rgba(0,0,0,.55); border-radius: 7px; overflow: hidden;
+    border: 1px solid rgba(255,180,80,.55); }
+  #boss-fill { height: 100%; width: 100%; border-radius: 7px;
+    background: linear-gradient(90deg, #8e1d1d, #ff5252);
+    box-shadow: 0 0 10px rgba(255,80,80,.65); transition: width .12s; }
+  #notice-pop { position: fixed; left: 50%; top: 62%; transform: translateX(-50%);
+    z-index: 12; pointer-events: none; color: #fff; font-size: 21px; font-weight: 700;
+    letter-spacing: 2px; text-shadow: 0 2px 8px rgba(0,0,0,.75);
+    opacity: 0; transition: opacity .15s; white-space: nowrap; }
+  #notice-pop.show { animation: noticeUp 1.3s ease-out forwards; }
+  @keyframes noticeUp {
+    0%   { opacity: 0; transform: translateX(-50%) translateY(14px); }
+    14%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+    72%  { opacity: 1; }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+  }
+  #tip-bar { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+    color: rgba(255,255,255,.55); font-size: 12.5px; letter-spacing: 1px; }
+
+  /* ---------- 受伤红闪 ---------- */
+  #damage-flash { position: fixed; inset: 0; z-index: 8; pointer-events: none;
+    background: radial-gradient(ellipse at center, rgba(255,0,0,0) 45%, rgba(255,30,30,.55) 100%);
+    opacity: 0; transition: opacity .12s; }
+
+  /* ---------- 击杀飘字 ---------- */
+  #killfeed { position: fixed; left: 50%; top: 38%; z-index: 11; pointer-events: none;
+    transform: translateX(-50%); text-align: center; }
+  .kill-pop { color: #ffd76e; font-size: 30px; font-weight: 800; letter-spacing: 2px;
+    text-shadow: 0 2px 6px rgba(0,0,0,.6), 0 0 18px rgba(255,190,60,.8);
+    animation: popUp 1s ease-out forwards; }
+  @keyframes popUp {
+    0%   { opacity: 0; transform: translateY(14px) scale(.7); }
+    18%  { opacity: 1; transform: translateY(0) scale(1.12); }
+    70%  { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-46px) scale(1); }
+  }
+
+  /* ---------- 连杀评级弹出（右侧黄金分割位，蓝色渐变字） ---------- */
+  #combo-pop {
+    position: fixed; left: 61.8vw; top: 36vh;              /* 右侧黄金分割线，不挡准星/左上HUD */
+    transform: translate(-50%, -50%); z-index: 12;
+    pointer-events: none; opacity: 0;
+    font-weight: 900; font-family: Arial Black, "Microsoft YaHei", sans-serif;
+    letter-spacing: 4px; white-space: nowrap; line-height: 1;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    filter: drop-shadow(0 2px 8px rgba(10,30,60,.65)) drop-shadow(0 0 16px rgba(90,180,255,.55));
+  }
+  /* 不支持渐变字的老浏览器：退化为纯色蓝字 */
+  @supports not (-webkit-background-clip: text) {
+    #combo-pop { color: #6ec6ff; -webkit-text-fill-color: initial; }
+  }
+  /* 字号：每级递增，SSS 单个字母 = D 的两倍（46px → 92px） */
+  #combo-pop.rank-0 { font-size: 46px; }
+  #combo-pop.rank-1 { font-size: 54px; }
+  #combo-pop.rank-2 { font-size: 61px; }
+  #combo-pop.rank-3 { font-size: 69px; }
+  #combo-pop.rank-4 { font-size: 77px; }
+  #combo-pop.rank-5 { font-size: 84px; }
+  #combo-pop.rank-6 { font-size: 92px; }
+  /* 渐变配色：等级越高，蓝色色相区域内颜色越丰富 */
+  #combo-pop.rank-0 {
+    background-image: linear-gradient(180deg, #9adcff 0%, #3f96ec 100%); }
+  #combo-pop.rank-1 {
+    background-image: linear-gradient(180deg, #a5e5ff 0%, #4db6ff 55%, #2f86e0 100%); }
+  #combo-pop.rank-2 {
+    background-image: linear-gradient(170deg, #b3f0ff 0%, #5cc5ff 42%, #3a7bff 78%, #8f6cff 100%); }
+  #combo-pop.rank-3 {
+    background-image: linear-gradient(160deg, #c6f6ff 0%, #63ccff 34%, #4d84ff 66%, #9a6cff 100%); }
+  #combo-pop.rank-4 {
+    background-image: linear-gradient(150deg, #dbfaff 0%, #71d5ff 26%, #4d7dff 52%, #a97bff 78%, #5fd0ff 100%); }
+  #combo-pop.rank-5 {
+    background-image: linear-gradient(140deg, #ebfdff 0%, #83e0ff 20%, #5d8bff 42%, #b285ff 64%, #6ec6ff 82%, #4d7dff 100%); }
+  #combo-pop.rank-6 {
+    background-image: linear-gradient(130deg, #f4feff 0%, #9fe9ff 16%, #57a7ff 34%, #4d6bff 50%, #c08aff 66%, #6ee0ff 82%, #3f8cff 100%); }
+  /* 常驻显示：获得评级后字母保持（直到降级变化或 D 级衰减消失） */
+  #combo-pop.show { opacity: 1; }
+  /* D：首次获得评级的小弹出，出场后保持显示 */
+  #combo-pop.anim-d { animation: comboPopD 1.05s ease-out forwards; }
+  @keyframes comboPopD {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(.3); }
+    16%  { opacity: 1; transform: translate(-50%, -50%) scale(1.18); }
+    30%  { transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  /* 升级（C~SSS）：抖动登场，等级越高抖动幅度越大，出场后保持显示 */
+  #combo-pop.anim-up { animation: comboPopUp 1.25s ease-out forwards; }
+  @keyframes comboPopUp {
+    0%   { opacity: 0; transform: translate(calc(-50% + 0px), -50%) scale(.4) rotate(-9deg); }
+    8%   { opacity: 1; transform: translate(calc(-50% - 11px), -49%) scale(1.22) rotate(6deg); }
+    17%  { transform: translate(calc(-50% + 9px), -51%) scale(1.1)  rotate(-6deg); }
+    26%  { transform: translate(calc(-50% - 7px), -49.4%) scale(1.18) rotate(5deg); }
+    35%  { transform: translate(calc(-50% + 6px), -50.6%) scale(1.05) rotate(-4deg); }
+    44%  { transform: translate(calc(-50% - 4px), -49.7%) scale(1.12) rotate(3deg); }
+    53%  { transform: translate(calc(-50% + 3px), -50.3%) scale(1.02) rotate(-2deg); }
+    62%  { transform: translate(calc(-50% - 1px), -50%) scale(1.06) rotate(1deg); }
+    72%  { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  /* 降级：柔和切换到低一级（不抖动，低调整体） */
+  #combo-pop.anim-down { animation: comboPopDown .45s ease-out forwards; }
+  @keyframes comboPopDown {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(.78); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  /* SSS 后继续击杀：同级脉冲刷新（连杀延续反馈） */
+  #combo-pop.anim-keep { animation: comboPopKeep .5s ease-out forwards; }
+  @keyframes comboPopKeep {
+    0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+
+  /* ---------- 覆盖层（菜单/暂停/结算） ---------- */
+  .overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center;
+    justify-content: center; background: rgba(6,12,24,.72); backdrop-filter: blur(6px); }
+  .overlay.hidden { display: none; }
+  .panel { text-align: center; color: #eaf1fa; max-width: 560px; padding: 30px 46px 38px;
+    background: linear-gradient(160deg, rgba(23,40,68,.92), rgba(12,22,40,.94));
+    border: 1px solid rgba(120,180,255,.28); border-radius: 18px;
+    box-shadow: 0 18px 60px rgba(0,0,0,.55); }
+  .panel h1 { font-size: 40px; letter-spacing: 3px; margin-bottom: 6px;
+    background: linear-gradient(90deg, #6ec6ff, #a5e0ff, #6ec6ff);
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .panel h1 .ver-badge { font-size: 21px; letter-spacing: 1px; margin-left: 14px;
+    vertical-align: middle; font-weight: 700; color: #ffd76e;
+    -webkit-text-fill-color: #ffd76e; text-shadow: 0 0 14px rgba(255,190,60,.55); }
+  .panel .sub-title { color: #8fb4d8; font-size: 15px; letter-spacing: 2px; margin-bottom: 18px; }
+  .panel img.fish-preview { width: 130px; height: 130px; object-fit: contain; margin: 6px auto 4px;
+    display: block; filter: drop-shadow(0 6px 14px rgba(80,170,255,.45)); }
+  .controls { display: grid; grid-template-columns: auto auto; gap: 7px 22px; text-align: left;
+    justify-content: center; margin: 16px 0 22px; color: #b8cbde; font-size: 14px; }
+  .controls .k { color: #ffe9a8; font-weight: 700; letter-spacing: 1px; }
+  .big-btn { cursor: pointer; display: inline-block; padding: 13px 46px; font-size: 19px;
+    letter-spacing: 4px; color: #fff; border: none; border-radius: 26px;
+    background: linear-gradient(135deg, #2f9bff, #1668d8);
+    box-shadow: 0 6px 22px rgba(47,155,255,.45); transition: transform .12s, box-shadow .12s; }
+  .big-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(47,155,255,.6); }
+  .big-btn:active { transform: translateY(0) scale(.97); }
+  .stat-line { font-size: 17px; margin: 10px 0 20px; color: #c6d6e8; }
+  .stat-line b { color: #ffd76e; font-size: 26px; margin: 0 6px; }
+  .note { margin-top: 16px; font-size: 12px; color: #6f86a0; }
+
+  /* ---------- 关卡选择 ---------- */
+  .panel-wide { max-width: 780px; }
+  .level-cols { display: flex; gap: 22px; justify-content: center; margin: 14px 0 24px; }
+  .level-col { flex: 1; max-width: 330px; border-radius: 14px; padding: 18px 16px 20px;
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); }
+  .mode-title { font-size: 18px; font-weight: 700; letter-spacing: 2px; margin-bottom: 8px; color: #cfe2f5; }
+  .mode-desc { color: #8fa3ba; font-size: 13px; line-height: 1.9; }
+  .mode-locked { opacity: .55; filter: grayscale(.35); }
+  .mode-locked .mode-title { color: #63788f; }
+  .level-card { cursor: pointer; margin-top: 6px; padding: 18px 16px; border-radius: 12px;
+    background: linear-gradient(135deg, rgba(47,155,255,.22), rgba(22,104,216,.18));
+    border: 1px solid rgba(110,198,255,.5); transition: transform .15s, box-shadow .15s, border-color .15s; }
+  .level-card:hover { transform: translateY(-3px); border-color: #6ec6ff;
+    box-shadow: 0 8px 26px rgba(47,155,255,.35); }
+  .level-card .card-title { color: #fff; font-size: 20px; font-weight: 800; letter-spacing: 1px; margin-bottom: 8px; }
+  .level-card .card-tags { color: #9fc3e2; font-size: 12.5px; line-height: 1.8; margin-bottom: 10px; }
+  .level-card .card-go { color: #ffe9a8; font-size: 14px; font-weight: 700; letter-spacing: 2px; }
+  .ghost { background: rgba(255,255,255,.08); box-shadow: none; font-size: 14px; padding: 9px 26px;
+    letter-spacing: 2px; margin-top: 4px; }
+  .ghost:hover { background: rgba(255,255,255,.16); }
+
+  /* ---------- Boss 奖励选择（3 选 1） ---------- */
+  #reward-cards { display: flex; gap: 18px; justify-content: center; margin: 12px 0 6px; }
+  .reward-card { flex: 1; max-width: 230px; cursor: pointer; padding: 20px 16px; border-radius: 14px;
+    background: linear-gradient(150deg, rgba(255,205,80,.16), rgba(120,90,20,.12));
+    border: 1px solid rgba(255,215,110,.45); transition: transform .15s, box-shadow .15s, border-color .15s; }
+  .reward-card:hover { transform: translateY(-3px); border-color: #ffd76e;
+    box-shadow: 0 8px 26px rgba(255,190,60,.35); }
+  .reward-card .rw-ico { font-size: 30px; margin-bottom: 6px; }
+  .reward-card .rw-name { color: #ffe9a8; font-size: 19px; font-weight: 800; letter-spacing: 1px; margin-bottom: 4px; }
+  .reward-card .rw-lv { color: #9fc3e2; font-size: 12.5px; margin-bottom: 8px; }
+  .reward-card .rw-desc { color: #d8cfb8; font-size: 13.5px; line-height: 1.8; }
+  .reward-card .rw-next { color: #8ef0b0; font-size: 12.5px; margin-top: 8px; }
+  .reward-note { color: #8fa3ba; font-size: 12.5px; margin-top: 12px; }
+
+  /* ---------- 技能等级查看面板（按 I 打开） ---------- */
+  #skills-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin: 10px 0 16px; }
+  .skill-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px;
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); text-align: left; }
+  .skill-row .sk-ico { font-size: 26px; width: 40px; text-align: center; flex-shrink: 0; }
+  .skill-row .sk-body { flex: 1; min-width: 0; }
+  .skill-row .sk-name { color: #eaf1fa; font-size: 15px; font-weight: 700; letter-spacing: 1px; }
+  .skill-row .sk-name .sk-lv { color: #ffe9a8; margin-left: 8px; font-size: 13.5px; }
+  .skill-row .sk-desc { color: #8fa3ba; font-size: 12.5px; margin-top: 4px; }
+  .skill-row.sk-max .sk-name .sk-lv { color: #8ef0b0; }
+  .skill-row.sk-max { border-color: rgba(140,230,170,.4); background: rgba(80,160,110,.1); }
+  .sk-dots { font-size: 11px; letter-spacing: 2px; margin-top: 5px; color: #4da3ff; }
+  .sk-dots .off { color: rgba(255,255,255,.18); }
+  .skills-note { color: #8fa3ba; font-size: 12.5px; }
+
+  /* ---------- 护甲 HUD（生命条下方） ---------- */
+  #armor-wrap { position: absolute; left: 26px; top: 96px; width: 260px;
+    background: rgba(0,0,0,.35); border-radius: 10px; padding: 8px 14px;
+    border: 1px solid rgba(255,255,255,.12); color: #cfd9e6; font-size: 13.5px; }
+  #armor-wrap .armor-ico { font-size: 15px; }
+  #armor-wrap b { color: #d8ecff; font-size: 17px; margin: 0 6px; }
+  #armor-dots { color: #7dc4ff; letter-spacing: 2px; font-size: 12px; }
+
+  /* ---------- 降级模式提示条 / 错误条 ---------- */
+  #fallback-hint { position: fixed; left: 50%; top: 74px; transform: translateX(-50%);
+    z-index: 15; display: none; max-width: 92vw; text-align: center;
+    background: rgba(20,30,48,.94); color: #ffd76e; font-size: 13.5px;
+    padding: 9px 18px; border-radius: 8px; border: 1px solid rgba(255,215,110,.45);
+    transition: opacity .5s; pointer-events: none; }
+  #error-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 99; display: none;
+    background: #b00020; color: #fff; font-size: 14px; padding: 10px 18px; }
+</style>
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+
+<!-- 准星 -->
+<div id="crosshair">
+  <div class="line up"></div><div class="line down"></div>
+  <div class="line left"></div><div class="line right"></div>
+  <div class="dot"></div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="health-wrap">
+    <div id="health-label"><span>生命值</span><b id="health-text">100</b></div>
+    <div id="health-bar"><div id="health-fill"></div></div>
+  </div>
+  <div id="armor-wrap"><span class="armor-ico">🛡️</span>护甲<b id="armor-value">0</b><span id="armor-dots"></span></div>
+  <div id="score-wrap">
+    <div id="score-value">0</div>
+    <div class="sub">得分 · 击杀 <span id="kills-value">0</span></div>
+  </div>
+  <div id="ammo-wrap"><b id="ammo-mag">30</b><span class="ammo-sep">/</span><span id="ammo-reserve">180</span><span class="ammo-lbl">弹药</span></div>
+  <div id="nade-wrap"><span class="nade-ico">💣</span><b id="nade-count">1</b><span class="ammo-lbl">手雷</span></div>
+  <div id="reload-wrap">
+    <div class="reload-label">换弹中...</div>
+    <div id="reload-bar"><div id="reload-fill"></div></div>
+  </div>
+  <div id="tip-bar">WASD 移动 · 左键射击 · R 换弹 · G 手雷 · I 技能面板 · 空格跳跃 · Esc 暂停</div>
+  <div id="minimap"><canvas id="minimap-canvas" width="210" height="210"></canvas></div>
+</div>
+
+<div id="boss-bar-wrap">
+  <div id="boss-name">超级蓝色大肥鱼<span id="boss-hp-text"><b id="boss-hp-cur">15</b> / <span id="boss-hp-max">15</span></span></div>
+  <div id="boss-bar"><div id="boss-fill"></div></div>
+</div>
+<div id="fallback-hint">浏览器未允许指针锁定，已启用拖动瞄准模式：移动鼠标转向，点击画面射击，Esc 暂停</div>
+<div id="combo-pop" class=""></div>
+<div id="notice-pop"></div>
+<div id="error-bar"></div>
+<div id="damage-flash"></div>
+<div id="killfeed"></div>
+
+<!-- 主菜单 -->
+<div id="menu-overlay" class="overlay">
+  <div class="panel">
+    <h1>蓝色肥鱼大作战<span class="ver-badge">V0.2 Beta</span></h1>
+    <div class="sub-title">3D 第一人称射击 · Three.js</div>
+    <img id="fish-preview" class="fish-preview" alt="蓝色大肥鱼">
+    <div class="controls">
+      <span><span class="k">W A S D</span> 移动</span>
+      <span><span class="k">鼠标</span> 瞄准 / 左键射击</span>
+      <span><span class="k">空格</span> 跳跃</span>
+      <span><span class="k">R</span> 换弹</span>
+      <span><span class="k">G</span> 手雷（落地即爆炸，小心自伤）</span>
+      <span><span class="k">I</span> 技能等级面板（打开时游戏暂停）</span>
+      <span><span class="k">Esc</span> 暂停</span>
+    </div>
+    <button id="btn-start" class="big-btn">开始游戏</button>
+    <div class="note">一群蓝色大肥鱼占领了这片草地，它们发现你就会冲过来咬人。<br>消灭它们，坚持得越久得分越高！<br><br>点击开始后鼠标会锁定到画面中央；若浏览器阻止指针锁定，<br>游戏将自动切换为「拖动瞄准」模式（移动鼠标转向、点击射击、Esc 暂停）。</div>
+  </div>
+</div>
+
+<!-- 关卡选择 -->
+<div id="level-overlay" class="overlay hidden">
+  <div class="panel panel-wide">
+    <h1>选择关卡</h1>
+    <div class="sub-title">先选好模式再出发</div>
+    <div class="level-cols">
+      <div class="level-col mode-locked">
+        <div class="mode-title">🎯 闯关模式</div>
+        <div class="mode-desc">关卡剧情正在开发中…<br>完成无尽模式试炼后解锁 🔒<br><br>敬请期待！</div>
+      </div>
+      <div class="level-col">
+        <div class="mode-title">🌊 无尽模式</div>
+        <div class="level-card" id="btn-level-desert">
+          <div class="card-title">无尽模式 —— 沙漠城</div>
+          <div class="card-tags">中央建筑 · A/B 开阔广场 · 长走廊与 B 洞<br>射手鱼与 Boss「超级蓝色大肥鱼」轮番登场<br>补给不断刷新，生存得分不限时</div>
+          <div class="card-go">点击进入 ▶</div>
+        </div>
+      </div>
+    </div>
+    <button id="btn-level-back" class="big-btn ghost">← 返回主菜单</button>
+  </div>
+</div>
+
+<!-- 暂停 -->
+<div id="pause-overlay" class="overlay hidden">
+  <div class="panel">
+    <h1>已暂停</h1>
+    <div class="sub-title">大鱼们都在原地等你</div>
+    <button id="btn-resume" class="big-btn">继续游戏</button>
+    <div class="note">点击继续后将重新锁定鼠标</div>
+  </div>
+</div>
+
+<!-- 结算 -->
+<div id="gameover-overlay" class="overlay hidden">
+  <div class="panel">
+    <h1>你被肥鱼吃掉了！</h1>
+    <div class="sub-title">GAME OVER</div>
+    <div class="stat-line">最终得分 <b id="final-score">0</b><br>击杀肥鱼 <b id="final-kills">0</b> 条 · Boss <b id="final-bosskills">0</b> 只</div>
+    <button id="btn-restart" class="big-btn">再来一局</button>
+  </div>
+</div>
+
+<!-- Boss 奖励选择（无尽模式，3 选 1，选择前游戏暂停） -->
+<div id="reward-overlay" class="overlay hidden">
+  <div class="panel panel-wide">
+    <h1>BOSS 击破！</h1>
+    <div class="sub-title">选择一项战利品强化自身（选择后自动继续）</div>
+    <div id="reward-cards"></div>
+    <div class="reward-note">奖励技能满级(10级)后不再出现<br>全部满级后再击败 BOSS —— 即完成本次无尽试炼！</div>
+  </div>
+</div>
+
+<!-- 技能等级查看（按 I 打开 / I 或 Esc 关闭，打开时游戏暂停） -->
+<div id="skills-overlay" class="overlay hidden">
+  <div class="panel panel-wide">
+    <h1>技能等级</h1>
+    <div class="sub-title">局内强化一览（无尽模式 · 本局有效）</div>
+    <div id="skills-list"></div>
+    <div class="skills-note">按 <b>I</b> 或 <b>Esc</b> 关闭并继续游戏</div>
+  </div>
+</div>
+
+<!-- 无尽模式通关 -->
+<div id="victory-overlay" class="overlay hidden">
+  <div class="panel">
+    <h1>无尽模式通关！</h1>
+    <div class="sub-title">全部强化满级 · 嗜血肥鱼已无力回天</div>
+    <div class="stat-line">最终得分 <b id="final-score-v">0</b><br>击杀肥鱼 <b id="final-kills-v">0</b> 条 · Boss <b id="final-bosskills-v">0</b> 只</div>
+    <button id="btn-victory-restart" class="big-btn">再来一局</button>
+  </div>
+</div>
+
+<!-- 依赖（全部本地化，离线可玩） -->
+<script src="lib/three.min.js"></script>
+<script src="assets/fish-texture.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
