@@ -877,11 +877,14 @@ dbg.shootOnce();
 advance(0.2);
 check('满级后击杀Boss触发通关', dbg.getState() === 'victory', 'state=' + dbg.getState());
 console.log('  (通关触发于击杀 ' + dbg.getGrowth().bossKillCount + ' 只 Boss 后)');
-dbg.restart();                  // 恢复可玩状态并重置成长
-fakeDocument.pointerLockElement = canvasEl;
-fakeDocument.fire('pointerlockchange');
-check('通关后重开正常', dbg.getState() === 'playing' && dbg.getGrowth().bossKillCount === 0,
-  dbg.getState() + '/bossKills=' + dbg.getGrowth().bossKillCount);
+dbg.restart(true);              // 通关界面"回到主菜单"（完整重置世界）
+check('通关点回到主菜单', dbg.getState() === 'menu', dbg.getState());
+check('回到主菜单世界已重置', dbg.getGrowth().bossKillCount === 0 && dbg.isMaxAll() === false &&
+  dbg.getUpgrades().dmg === 0 && dbg.getPlayer().hp === 100,
+  'bossKills=' + dbg.getGrowth().bossKillCount + ' maxAll=' + dbg.isMaxAll() + ' hp=' + dbg.getPlayer().hp);
+dbg.enterFallback();            // 从主菜单重新进入游戏（模拟选关进入）
+check('主菜单重新进入游戏正常', dbg.getState() === 'playing' && dbg.getEnemies().length === 6 && dbg.getEnemies()[0].hp === 1,
+  dbg.getState() + '/fish=' + dbg.getEnemies().length);
 
 // ---- 开发者模式（秘技：5 秒内按 WWSSAADDBABA 切换） ----
 for (const dc of cheatSeq) fakeDocument.fire('keydown', { code: dc });

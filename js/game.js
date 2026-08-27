@@ -2521,7 +2521,8 @@ function gameOver(reason) {
   showOverlay('gameover');
 }
 
-function restartGame() {
+// toMenu = true：通关/结算后回到主菜单（完整重置世界，不直接进入游戏）
+function restartGame(toMenu) {
   if (overEl) { overEl.pause(); overEl.currentTime = 0; }   // 关闭战败曲
   if (bgmEl) bgmEl.currentTime = 0;                          // 默认 BGM 从头（播放在手势内由 requestLock/updateBgm 触发）
   if (bossEl) { bossEl.pause(); bossEl.currentTime = 0; }    // 战斗曲关闭
@@ -2578,6 +2579,12 @@ function restartGame() {
   syncCamera();
   updateHUD();
   hideAllOverlays();
+  if (toMenu) {
+    state = 'menu';
+    showOverlay('menu');
+    if (document.exitPointerLock) document.exitPointerLock();
+    return;
+  }
   if (lockMode === 'fallback') {
     state = 'playing';
     showFallbackHint();
@@ -3038,7 +3045,7 @@ function init() {
   });
   if (btnRestart) btnRestart.addEventListener('click', function () { restartGame(); });
   var btnVictoryRestart = document.getElementById('btn-victory-restart');
-  if (btnVictoryRestart) btnVictoryRestart.addEventListener('click', function () { restartGame(); });
+  if (btnVictoryRestart) btnVictoryRestart.addEventListener('click', function () { restartGame(true); });  // 通关 → 回到主菜单
   // 奖励卡片：点击选择对应技能（事件委托，卡片动态重建）
   if (dom.rewardCards) {
     dom.rewardCards.addEventListener('click', function (e) {
