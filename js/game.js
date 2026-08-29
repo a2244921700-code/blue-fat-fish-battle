@@ -176,6 +176,11 @@ var killFirst = 0;               // KILL 首键时间
 var cheatMusicOn = false;        // 作弊被抓搞怪音乐循环开关
 var cheatMusicTimer = 0;         // 音符节奏计时
 var cheatMusicStep = 0;          // 循环音符步进
+// ===== 触屏控制（手机版） =====
+var isTouch = false;             // 触屏设备检测
+var touchJoy = { f: 0, s: 0 };   // 虚拟摇杆向量（f=前后 -1~1, s=左右 -1~1）
+var touchFiring = false;         // 开火按钮按住
+var touchLastX = 0, touchLastY = 0, touchHasLast = false;
 var dbgFireCount = 0;              // 调试：射手发射计数
 var nadeCount = CFG.nadeStartCount;
 var noticeTimer = null;
@@ -2775,6 +2780,93 @@ function onKeyDown(ev) {
   }
 }
 function onKeyUp(ev) { keys[ev.code] = false; }
+
+// ---------------------------------------------------------------- 触屏控制（手机/平板）
+function initTouchControls() {
+  isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  var ui = dom.touchUI;
+  if (!isTouch || !ui) return;
+  ui.classList.add('touch-on');
+  if (document.body) document.body.classList.add('touch-mode');
+
+  // 虚拟摇杆（左下）：移动向量
+  var pad = dom.joyPad, stick = dom.joyStick;
+  function joyUpdate(tx, ty) {
+    var r = pad.getBoundingClientRect();
+    var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    var dx = tx - cx, dy = ty - cy;
+    var max = r.width / 2;
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+    touchJoy.s = dx / max;            // 左右（右为正）
+    touchJoy.f = -dy / max;           // 前后（上为正=前进）
+    if (stick) { stick.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; }
+  }
+  function joyEnd() {
+    touchJoy.f = 0; touchJoy.s = 0;
+    if (stick) stick.style.transform = '';
+  }
+  if (pad) {
+    pad.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+      var t = e.changedTouches[0];
+      joyUpdate(t.clientX, t.clientY);
+    }, { passive: false });
+    pad.addEventListener('touchmove', function (e) {
+      e.preventDefault();
+      var t = e.changedTouches[0];
+      joyUpdate(t.clientX, t.clientY);
+    }, { passive: false });
+    ['touchend', 'touchcancel'].forEach(function (ev) {
+      pad.addEventListener(ev, function (e) { e.preventDefault(); joyEnd(); }, { passive: false });
+    });
+  }
+
+  // 开火按钮（按住连发）
+  function bindFire(el, on, off) {
+    if (!el) return;
+    el.addEventListener('touchstart', function (e) { e.preventDefault(); on(); }, { passive: false });
+    ['touchend', 'touchcancel'].forEach(function (ev) {
+      el.addEventListener(ev, function (e) { e.preventDefault(); off(); }, { passive: false });
+    });
+  }
+  bindFire(dom.btnTchFire, function () { touchFiring = true; }, function () { touchFiring = false; });
+  bindFire(dom.btnTchJump, function () {
+    if (state === 'playing' && player.onGround) { player.velY = CFG.jumpSpeed; player.onGround = false; Sfx.jump(); }
+  }, function () {});
+  bindFire(dom.btnTchReload, function () { requestReload(); }, function () {});
+  bindFire(dom.btnTchNade, function () { throwGrenade(); }, function () {});
+  bindFire(dom.btnTchSkill, function () { if (state === 'playing') openSkills(); }, function () {});
+  bindFire(dom.touchPause, function () {
+    if (state === 'playing') { state = 'paused'; showOverlay('pause'); }
+  }, function () {});
+
+  // 右侧空白区触摸：拖动转向 + 轻点射击（fallback 模式视觉逻辑）
+  document.addEventListener('touchstart', function (e) {
+    if (state !== 'playing') return;
+    if (e.target && e.target.closest && e.target.closest('#touch-ui')) return;  // 按钮/摇杆不转视角
+    var t = e.changedTouches[0];
+    touchLastX = t.clientX; touchLastY = t.clientY; touchHasLast = true;
+  }, { passive: true });
+  document.addEventListener('touchmove', function (e) {
+    if (state !== 'playing' || !touchHasLast) return;
+    var t = e.changedTouches[0];
+    var dx = t.clientX - touchLastX, dy = t.clientY - touchLastY;
+    touchLastX = t.clientX; touchLastY = t.clientY;
+    player.yaw -= dx * 0.0022;
+    player.pitch = clamp(player.pitch - dy * 0.0022, -1.55, 1.55);
+  }, { passive: true });
+  document.addEventListener('touchend', function (e) {
+    if (state !== 'playing') return;
+    var t = e.changedTouches[0];
+    var moved = Math.abs(t.clientX - touchLastX) + Math.abs(t.clientY - touchLastY);
+    if (moved < 10 && touchHasLast && !(e.target && e.target.closest && e.target.closest('#touch-ui'))) {
+      shootOnce();   // 轻点射击（防拖拽误触：位移<10px）
+    }
+    touchHasLast = false;
+  }, { passive: true });
+}
+
 function onMouseDown(ev) {
   if (ev.button !== 0 || state !== 'playing') return;
   if (lockMode === 'locked' && document.pointerLockElement !== dom.canvas) return;
@@ -2829,6 +2921,7 @@ function updatePlayer(dt) {
 
   var f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
   var s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+  if (isTouch) { f += touchJoy.f; s += touchJoy.s; }   // 虚拟摇杆叠加
   var sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
   var mx = -sin * f + cos * s;
   var mz = -cos * f - sin * s;
@@ -2946,7 +3039,7 @@ function update(dt) {
   updatePlayer(dt);
   updateGun(dt);
   if (state === 'playing') {
-    if (fireHeld) shootOnce();
+    if (fireHeld || touchFiring) shootOnce();
     updateEnemies(dt);
     updateItems(dt);
     updateBoss(dt);
@@ -3044,10 +3137,15 @@ function init() {
     finalBossKills: 'final-bosskills',
     skillsOverlay: 'skills-overlay', skillsList: 'skills-list',
     debugLog: 'debug-log', cheatOverlay: 'cheat-overlay',
+    touchUI: 'touch-ui', joyPad: 'joy-pad', joyStick: 'joy-stick',
+    btnTchFire: 'btn-tch-fire', btnTchJump: 'btn-tch-jump',
+    btnTchReload: 'btn-tch-reload', btnTchNade: 'btn-tch-nade',
+    btnTchSkill: 'btn-tch-skill', touchPause: 'touch-pause',
     minimapCanvas: 'minimap-canvas',
     levelOverlay: 'level-overlay',
   };
   Object.keys(idMap).forEach(function (key) { dom[key] = document.getElementById(idMap[key]); });
+  initTouchControls();   // 触屏控件初始化（需在 dom 映射建立后）
 
   var preview = document.getElementById('fish-preview');
   if (preview && window.FISH_TEXTURE_DATA) preview.src = window.FISH_TEXTURE_DATA;
@@ -3116,6 +3214,9 @@ function init() {
       if (id) adjustSkill(id, act === 'plus' ? 1 : -1);
     });
   }
+  // 技能面板"关闭并继续游戏"按钮（触屏设备无键盘时必需）
+  var btnSkillsClose = document.getElementById('btn-skills-close');
+  if (btnSkillsClose) btnSkillsClose.addEventListener('click', function () { closeSkills(); });
   var btnLevelDesert = document.getElementById('btn-level-desert');
   var btnLevelBack = document.getElementById('btn-level-back');
   if (btnLevelDesert) btnLevelDesert.addEventListener('click', function () {

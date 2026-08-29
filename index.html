@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>3D射击 · 蓝色肥鱼大作战 V0.2.0-rc.5</title>
 <script>
 /* 全局错误条：任何未捕获的运行错误都会显示在屏幕底部，便于排查 */
@@ -293,6 +293,36 @@ window.addEventListener('load', function () {
   .reward-card .rw-next { color: #8ef0b0; font-size: 12.5px; margin-top: 8px; }
   .reward-note { color: #8fa3ba; font-size: 12.5px; margin-top: 12px; }
 
+  /* ---------- 触屏控制（手机/平板，横屏） ---------- */
+  #touch-ui { display: none; position: fixed; inset: 0; z-index: 15; pointer-events: none; }
+  #touch-ui.touch-on { display: block; }
+  #joy-pad { position: absolute; left: 26px; bottom: 30px; width: 170px; height: 170px;
+    border-radius: 50%; background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.28);
+    pointer-events: auto; touch-action: none; }
+  #joy-stick { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px;
+    border-radius: 50%; background: rgba(255,255,255,.35); border: 2px solid rgba(255,255,255,.5); }
+  /* 按钮组：开火大按钮在底部，跳/R/G/I 2x2 网格在上方 */
+  #touch-right { position: absolute; right: 22px; bottom: 26px; width: 150px;
+    display: flex; flex-direction: column-reverse; flex-wrap: wrap-reverse;
+    height: 226px; align-content: flex-end; gap: 8px; pointer-events: auto; }
+  .tch-btn { pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none;
+    width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(200,225,255,.55);
+    background: rgba(20,40,70,.55); color: #dff0ff; font-size: 14px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; }
+  .tch-btn:active { background: rgba(47,155,255,.6); }
+  .tch-btn.fire { width: 96px; height: 96px; font-size: 22px;
+    background: rgba(180,40,40,.5); border-color: rgba(255,140,140,.7); }
+  .tch-btn.fire:active { background: rgba(255,80,80,.7); }
+  #touch-pause { position: absolute; right: 190px; bottom: 40px; width: 58px; height: 58px;
+    pointer-events: auto; }
+  /* 触屏模式下 HUD 重排：小地图上移避让摇杆、弹药避让按钮、隐藏键位提示 */
+  body.touch-mode #minimap { left: 26px; bottom: 212px; width: 165px; height: 165px; }
+  body.touch-mode #health-wrap, body.touch-mode #armor-wrap { left: 210px; }
+  body.touch-mode #tip-bar { display: none; }
+  body.touch-mode #ammo-wrap { right: 26px; bottom: 268px; }
+  body.touch-mode #nade-wrap { right: 218px; bottom: 268px; }
+  body.touch-mode #reload-wrap { right: 26px; bottom: 322px; }
+
   /* ---------- 作弊被抓全屏界面 ---------- */
   #cheat-overlay { z-index: 40; background: rgba(30, 8, 12, .88); }
   .cheat-panel { text-align: center; }
@@ -397,6 +427,19 @@ window.addEventListener('load', function () {
   <div id="minimap"><canvas id="minimap-canvas" width="210" height="210"></canvas></div>
 </div>
 
+<!-- 触屏控制层（手机版显示） -->
+<div id="touch-ui">
+  <div id="joy-pad"><div id="joy-stick"></div></div>
+  <div id="touch-right">
+    <button id="btn-tch-fire" class="tch-btn fire">开火</button>
+    <button id="btn-tch-jump" class="tch-btn">跳</button>
+    <button id="btn-tch-reload" class="tch-btn">R</button>
+    <button id="btn-tch-nade" class="tch-btn">G</button>
+    <button id="btn-tch-skill" class="tch-btn">I</button>
+  </div>
+  <button id="touch-pause" class="tch-btn">暂停</button>
+</div>
+
 <div id="boss-bar-wrap">
   <div id="boss-name">超级蓝色大肥鱼<span id="boss-hp-text"><b id="boss-hp-cur">15</b> / <span id="boss-hp-max">15</span></span></div>
   <div id="boss-bar"><div id="boss-fill"></div></div>
@@ -498,6 +541,7 @@ window.addEventListener('load', function () {
     <div class="sub-title">局内强化一览（无尽模式 · 本局有效）</div>
     <div id="skills-list"></div>
     <div class="skills-note">按 <b>I</b> 或 <b>Esc</b> 关闭并继续游戏</div>
+    <button id="btn-skills-close" class="big-btn ghost" style="margin-top:4px">关闭并继续游戏</button>
   </div>
 </div>
 
