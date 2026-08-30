@@ -2792,6 +2792,7 @@ function initTouchControls() {
   // 虚拟摇杆（左下）：移动向量
   var pad = dom.joyPad, stick = dom.joyStick;
   function joyUpdate(tx, ty) {
+    window.__joyCalls = (window.__joyCalls || 0) + 1;
     var r = pad.getBoundingClientRect();
     var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     var dx = tx - cx, dy = ty - cy;
@@ -2841,30 +2842,53 @@ function initTouchControls() {
     if (state === 'playing') { state = 'paused'; showOverlay('pause'); }
   }, function () {});
 
-  // 右侧空白区触摸：拖动转向 + 轻点射击（fallback 模式视觉逻辑）
+  // 多指操控：左 38% 屏第一指 = 摇杆；其余手指 = 视角（按 identifier 独立跟踪，互不干扰）
+  var TOUCH_SENS = 0.006;   // 触屏转视角灵敏度（约为鼠标的 2.7 倍）
+  var joyTouchId = null, lookTouchId = null;
+  // 所有 document 触摸均 preventDefault：阻止浏览器合成 mouse 事件（否则 onMouseMove 会与触屏转向双重驱动）
   document.addEventListener('touchstart', function (e) {
-    if (state !== 'playing') return;
-    if (e.target && e.target.closest && e.target.closest('#touch-ui')) return;  // 按钮/摇杆不转视角
-    var t = e.changedTouches[0];
-    touchLastX = t.clientX; touchLastY = t.clientY; touchHasLast = true;
-  }, { passive: true });
-  document.addEventListener('touchmove', function (e) {
-    if (state !== 'playing' || !touchHasLast) return;
-    var t = e.changedTouches[0];
-    var dx = t.clientX - touchLastX, dy = t.clientY - touchLastY;
-    touchLastX = t.clientX; touchLastY = t.clientY;
-    player.yaw -= dx * 0.0022;
-    player.pitch = clamp(player.pitch - dy * 0.0022, -1.55, 1.55);
-  }, { passive: true });
-  document.addEventListener('touchend', function (e) {
-    if (state !== 'playing') return;
-    var t = e.changedTouches[0];
-    var moved = Math.abs(t.clientX - touchLastX) + Math.abs(t.clientY - touchLastY);
-    if (moved < 10 && touchHasLast && !(e.target && e.target.closest && e.target.closest('#touch-ui'))) {
-      shootOnce();   // 轻点射击（防拖拽误触：位移<10px）
+    if (state !== 'playing') { e.preventDefault(); return; }
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i];
+      if (t.target && t.target.closest && t.target.closest('#touch-ui')) continue;  // 按钮/摇杆自身处理
+      if (joyTouchId === null && t.clientX < window.innerWidth * 0.38) {
+        joyTouchId = t.identifier;                 // 左侧空白：担任摇杆
+        joyUpdate(t.clientX, t.clientY);
+      } else if (lookTouchId === null) {
+        lookTouchId = t.identifier;                // 其余：担任视角
+        touchLastX = t.clientX; touchLastY = t.clientY; touchHasLast = true;
+      }
     }
-    touchHasLast = false;
-  }, { passive: true });
+    e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('touchmove', function (e) {
+    if (state !== 'playing') return;
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i];
+      if (t.identifier === joyTouchId) {
+        joyUpdate(t.clientX, t.clientY);
+      } else if (t.identifier === lookTouchId) {
+        var dx = t.clientX - touchLastX, dy = t.clientY - touchLastY;
+        touchLastX = t.clientX; touchLastY = t.clientY;
+        player.yaw -= dx * TOUCH_SENS;
+        player.pitch = clamp(player.pitch - dy * TOUCH_SENS, -1.55, 1.55);
+      }
+    }
+    e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('touchend', function (e) {
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i];
+      if (t.identifier === joyTouchId) { joyTouchId = null; joyEnd(); }
+      else if (t.identifier === lookTouchId) { lookTouchId = null; }
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  // 触屏调试（联调用）
+  window.__touchDebug = function () {
+    return { isTouch: isTouch, joy: { f: touchJoy.f, s: touchJoy.s }, joyId: joyTouchId, lookId: lookTouchId };
+  };
 }
 
 function onMouseDown(ev) {
