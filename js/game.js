@@ -2845,9 +2845,9 @@ function initTouchControls() {
   // 多指操控：左 38% 屏第一指 = 摇杆；其余手指 = 视角（按 identifier 独立跟踪，互不干扰）
   var TOUCH_SENS = 0.006;   // 触屏转视角灵敏度（约为鼠标的 2.7 倍）
   var joyTouchId = null, lookTouchId = null;
-  // 所有 document 触摸均 preventDefault：阻止浏览器合成 mouse 事件（否则 onMouseMove 会与触屏转向双重驱动）
+  // 仅游戏进行中拦截触摸（preventDefault 会阻止合成 click，菜单/奖励/暂停等界面必须放行才能正常点击按钮）
   document.addEventListener('touchstart', function (e) {
-    if (state !== 'playing') { e.preventDefault(); return; }
+    if (state !== 'playing') return;
     for (var i = 0; i < e.changedTouches.length; i++) {
       var t = e.changedTouches[i];
       if (t.target && t.target.closest && t.target.closest('#touch-ui')) continue;  // 按钮/摇杆自身处理
@@ -2877,6 +2877,7 @@ function initTouchControls() {
     e.preventDefault();
   }, { passive: false });
   document.addEventListener('touchend', function (e) {
+    if (state !== 'playing') return;
     for (var i = 0; i < e.changedTouches.length; i++) {
       var t = e.changedTouches[i];
       if (t.identifier === joyTouchId) { joyTouchId = null; joyEnd(); }
