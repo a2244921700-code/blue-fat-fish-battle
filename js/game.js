@@ -133,6 +133,8 @@ var player = {
   yaw: 0, pitch: 0,
   hp: CFG.maxHp,
 };
+// 摄像机打击反馈：受击抖动 / 跳跃摆动 / 落地回正
+var camFx = { shake: 0, sway: 0, swayT: 0, land: 0, landT: 0, lastLandV: 0 };
 var keys = Object.create(null);
 var fireHeld = false;
 var shootCd = 0, hurtCd = 0, stepTimer = 0;
@@ -952,8 +954,46 @@ function buildPlayer() {
 }
 
 function syncCamera() {
-  camera.position.set(player.pos.x, player.pos.y + CFG.eyeHeight, player.pos.z);
-  camera.rotation.set(player.pitch, player.yaw, 0);
+  var offX = 0, offY = 0, roll = 0, pitchOff = 0;
+
+  // ① 受击抖动：短促的高频位移（命中/被打时）
+  if (camFx.shake > 0.001) {
+    var s = camFx.shake * 0.055;
+    offX += rand(-s, s);
+    offY += rand(-s, s);
+    roll += rand(-s, s) * 0.5;
+  }
+
+  // ② 跳跃摆动：起跳后轻微随机摆动几下，随高度衰减
+  if (camFx.sway > 0.001) {
+    var w = Math.sin(camFx.swayT * 17) * camFx.sway * 0.05;
+    roll += w;
+    pitchOff += w * 0.6;
+    offX += Math.cos(camFx.swayT * 11) * camFx.sway * 0.02;
+  }
+
+  // ③ 落地回正：着地瞬间相机下沉 + 轻微前倾回弹，随后归位
+  if (camFx.land > 0.001) {
+    offY -= camFx.land * 0.13;
+    pitchOff += camFx.land * 0.055;
+    roll += Math.sin(camFx.landT * 24) * camFx.land * 0.03;
+  }
+
+  camera.position.set(player.pos.x + offX, player.pos.y + CFG.eyeHeight + offY, player.pos.z);
+  camera.rotation.set(player.pitch + pitchOff, player.yaw, roll);
+}
+
+// 摄像机反馈衰减（每帧调用）
+function updateCamFx(dt) {
+  if (camFx.shake > 0) camFx.shake = Math.max(0, camFx.shake - dt * 3.2);
+  if (camFx.sway > 0) {
+    camFx.swayT += dt;
+    camFx.sway = Math.max(0, camFx.sway - dt * 2.4);
+  }
+  if (camFx.land > 0) {
+    camFx.landT += dt;
+    camFx.land = Math.max(0, camFx.land - dt * 5.5);
+  }
 }
 
 // ---------------------------------------------------------------- 枪
@@ -1108,8 +1148,11 @@ function spawnFish(pos) {
   e.mesh.position.copy(pos);
   e.mesh.position.y = e.baseY;
   e.gunMesh = makeFishGun();
-  e.gunMesh.visible = ranged;
+  e.gunMesh.visible = ranged;              // 射手鱼持枪
   e.mesh.add(e.gunMesh);
+  e.swordMesh = makeFishSword();
+  e.swordMesh.visible = !ranged;           // 近战鱼持小剑
+  e.mesh.add(e.swordMesh);
   scene.add(e.mesh);
   enemies.push(e);
   return e;
@@ -1383,6 +1426,54 @@ function makeFishGun() {
   gun.add(muzzleTip);
   gun.muzzleTip = muzzleTip;
   return gun;
+}
+
+// ---------------------------------------------------------------- 近战肥鱼（手持小剑）
+// 剑同样挂在贴图右手位置（与射手鱼的枪一致：图片伸出的爪爪 x≈28%, y≈72% → 平面坐标 -0.44,-0.44）
+function makeFishSword() {
+  var sword = new THREE.Group();
+
+  // 剑身：银蓝金属细长条（金属度压到 0.35 —— 场景无环境贴图，纯金属会显示成黑色）
+  var bladeMat = new THREE.MeshStandardMaterial({ color: 0xdce8f5, roughness: 0.34, metalness: 0.35 });
+  var blade = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.5, 0.022), bladeMat);
+  blade.position.y = 0.27;
+
+  // 剑尖：四棱锥（旋转 45° 让棱线对齐剑身）
+  var tip = new THREE.Mesh(new THREE.ConeGeometry(0.052, 0.13, 4), bladeMat);
+  tip.position.y = 0.585;
+  tip.rotation.y = Math.PI / 4;
+
+  // 血槽高光：中间一条更亮的窄条（金属质感）
+  var fuller = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.44, 0.028),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.22, metalness: 0.2 }));
+  fuller.position.y = 0.27;
+
+  // 护手：金色横条 + 两端小圆球
+  var goldMat = new THREE.MeshStandardMaterial({ color: 0xe8c05a, roughness: 0.42, metalness: 0.35 });
+  var guard = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.038, 0.055), goldMat);
+  guard.position.y = 0.01;
+
+  var guardBallL = new THREE.Mesh(new THREE.SphereGeometry(0.028, 7, 5), goldMat);
+  guardBallL.position.set(-0.12, 0.01, 0);
+  var guardBallR = guardBallL.clone();
+  guardBallR.position.x = 0.12;
+
+  // 剑柄：深棕皮革
+  var grip = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.15, 0.048),
+    new THREE.MeshStandardMaterial({ color: 0x4a3728, roughness: 0.88 }));
+  grip.position.y = -0.1;
+
+  // 剑柄末端配重球
+  var pommel = new THREE.Mesh(new THREE.SphereGeometry(0.037, 8, 6), goldMat);
+  pommel.position.y = -0.19;
+
+  sword.add(blade, tip, fuller, guard, guardBallL, guardBallR, grip, pommel);
+
+  // 挂在爪爪上：斜握在身侧、剑尖朝前上方（避免竖直穿过鱼身），整体缩小到合适比例
+  sword.position.set(-0.5, -0.46, 0.3);
+  sword.rotation.set(0.55, 0.28, -0.95);
+  sword.scale.set(1.35, 1.35, 1.35);
+  return sword;
 }
 
 var _fbGeo = null, _fbMat = null;
@@ -2535,6 +2626,8 @@ function damagePlayer(d, src) {
   if (src) debugLog('受到' + src.name + '的' + src.atk + '攻击的 ' + raw + ' 点伤害，经过 ' + armorStacks + ' 层护盾减免，最终受到 ' + d + ' 点伤害', 'dbg-dmg');
   hurtCd = 0.5;
   player.hp = Math.max(0, player.hp - d);
+  // 受击摄像机抖动（伤害越高抖得越明显）
+  camFx.shake = Math.min(1, camFx.shake + 0.45 + Math.min(0.45, d / 120));
   Sfx.hurt();
   if (dom.damageFlash) dom.damageFlash.style.opacity = '0.85';
   updateHUD();
@@ -2775,6 +2868,7 @@ function onKeyDown(ev) {
     if (player.onGround) {
       player.velY = CFG.jumpSpeed;
       player.onGround = false;
+      camFx.sway = 1; camFx.swayT = 0;   // 起跳摄像机轻微摆动
       Sfx.jump();
     }
   }
@@ -2833,7 +2927,11 @@ function initTouchControls() {
   }
   bindFire(dom.btnTchFire, function () { touchFiring = true; }, function () { touchFiring = false; });
   bindFire(dom.btnTchJump, function () {
-    if (state === 'playing' && player.onGround) { player.velY = CFG.jumpSpeed; player.onGround = false; Sfx.jump(); }
+    if (state === 'playing' && player.onGround) {
+      player.velY = CFG.jumpSpeed; player.onGround = false;
+      camFx.sway = 1; camFx.swayT = 0;   // 起跳摄像机轻微摆动
+      Sfx.jump();
+    }
   }, function () {});
   bindFire(dom.btnTchReload, function () { requestReload(); }, function () {});
   bindFire(dom.btnTchNade, function () { throwGrenade(); }, function () {});
@@ -2981,12 +3079,20 @@ function updatePlayer(dt) {
   }
   if (player.pos.y <= supportY) {
     player.pos.y = supportY;
+    // 落地回正：落地速度越大冲击越明显（轻跳轻，高处落地重），随后相机自动归位
+    if (!player.onGround) {
+      var landSpeed = Math.abs(player.velY);
+      camFx.land = Math.min(1, 0.35 + landSpeed / (CFG.jumpSpeed * 1.6));
+      camFx.landT = 0;
+      camFx.sway = 0;            // 落地即结束跳跃摆动，交给回正
+    }
     player.velY = 0;
     player.onGround = true;
   } else {
     player.onGround = false;
   }
 
+  updateCamFx(dt);
   syncCamera();
 }
 
@@ -3263,6 +3369,7 @@ window.FishGame = {
   init: init,
   __debug: {
     getState: function () { return state; },
+    getCamFx: function () { return camFx; },
     getScore: function () { return score; },
     getKills: function () { return kills; },
     getPlayer: function () { return player; },
