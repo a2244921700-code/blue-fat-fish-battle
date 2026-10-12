@@ -958,7 +958,7 @@ function syncCamera() {
 
   // ① 受击抖动：短促的高频位移（命中/被打时）
   if (camFx.shake > 0.001) {
-    var s = camFx.shake * 0.055;
+    var s = camFx.shake * 0.11;   // 受击抖动幅度（v0.3.0 起为原来的 2 倍）
     offX += rand(-s, s);
     offY += rand(-s, s);
     roll += rand(-s, s) * 0.5;
