@@ -133,8 +133,8 @@ var player = {
   yaw: 0, pitch: 0,
   hp: CFG.maxHp,
 };
-// 摄像机打击反馈：受击抖动 / 跳跃摆动 / 落地回正
-var camFx = { shake: 0, sway: 0, swayT: 0, land: 0, landT: 0, lastLandV: 0 };
+// 摄像机打击反馈：受击抖动 / 跳跃摆动 / 落地回正 / 行走晃动
+var camFx = { shake: 0, sway: 0, swayT: 0, land: 0, landT: 0, lastLandV: 0, walk: 0, walkT: 0, lastX: 0, lastZ: 0 };
 var keys = Object.create(null);
 var fireHeld = false;
 var shootCd = 0, hurtCd = 0, stepTimer = 0;
@@ -964,12 +964,20 @@ function syncCamera() {
     roll += rand(-s, s) * 0.5;
   }
 
-  // ② 跳跃摆动：起跳后轻微随机摆动几下，随高度衰减
+  // ② 跳跃摆动：起跳后轻微摆动几下（频率与幅度已在原基础上减半）
   if (camFx.sway > 0.001) {
-    var w = Math.sin(camFx.swayT * 17) * camFx.sway * 0.05;
+    var w = Math.sin(camFx.swayT * 8.5) * camFx.sway * 0.025;
     roll += w;
     pitchOff += w * 0.6;
-    offX += Math.cos(camFx.swayT * 11) * camFx.sway * 0.02;
+    offX += Math.cos(camFx.swayT * 5.5) * camFx.sway * 0.01;
+  }
+
+  // ⑤ 行走晃动：频率与幅度均为跳跃的 1/5（持续轻微摇晃，步伐感）
+  if (camFx.walk > 0.002) {
+    var ww = Math.sin(camFx.walkT * 1.7) * camFx.walk * 0.005;
+    roll += ww;
+    pitchOff += ww * 0.6;
+    offX += Math.cos(camFx.walkT * 1.1) * camFx.walk * 0.002;
   }
 
   // ③ 落地回正：着地瞬间相机下沉 + 轻微前倾回弹，随后归位
@@ -993,6 +1001,19 @@ function updateCamFx(dt) {
   if (camFx.land > 0) {
     camFx.landT += dt;
     camFx.land = Math.max(0, camFx.land - dt * 5.5);
+  }
+
+  // 行走晃动：按实际水平位移判断是否在走动（无需改移动逻辑），走动时淡入、停下淡出
+  var ddx = player.pos.x - camFx.lastX;
+  var ddz = player.pos.z - camFx.lastZ;
+  camFx.lastX = player.pos.x;
+  camFx.lastZ = player.pos.z;
+  var speed = dt > 0 ? Math.sqrt(ddx * ddx + ddz * ddz) / dt : 0;
+  var moving = (speed > 0.4 && player.onGround) ? 1 : 0;
+  camFx.walk += (moving - camFx.walk) * Math.min(1, dt * 9);
+  if (camFx.walk > 0.002) {
+    // 走得快摇晃略快（基准 6 米/秒）
+    camFx.walkT += dt * (0.7 + Math.min(1.3, speed / 6));
   }
 }
 
