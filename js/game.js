@@ -134,7 +134,7 @@ var player = {
   hp: CFG.maxHp,
 };
 // 摄像机打击反馈：受击抖动 / 跳跃摆动 / 落地回正 / 行走晃动
-var camFx = { shake: 0, sway: 0, swayT: 0, land: 0, landT: 0, lastLandV: 0, walk: 0, walkT: 0, lastX: 0, lastZ: 0 };
+var camFx = { shake: 0, sway: 0, swayT: 0, land: 0, landT: 0, lastLandV: 0, walk: 0, walkT: 0, lastX: 0, lastZ: 0, fire: 0, fireT: 0 };
 var keys = Object.create(null);
 var fireHeld = false;
 var shootCd = 0, hurtCd = 0, stepTimer = 0;
@@ -980,6 +980,15 @@ function syncCamera() {
     offX += Math.cos(camFx.walkT * 1.1) * camFx.walk * 0.002;
   }
 
+  // ⑥ 射击后坐：每发一次短促抖动（幅度 = 走路的 1.5 倍，0.1 秒内回正）
+  if (camFx.fire > 0.002) {
+    var fw = Math.sin(camFx.fireT * 34) * camFx.fire * 0.0075;
+    roll += fw;
+    pitchOff += fw * 1.15;                                  // 偏俯仰：更像后坐
+    offX += Math.cos(camFx.fireT * 22) * camFx.fire * 0.003;
+    offY += camFx.fire * 0.0035;                            // 轻微上顶
+  }
+
   // ③ 落地回正：着地瞬间相机下沉 + 轻微前倾回弹，随后归位
   if (camFx.land > 0.001) {
     offY -= camFx.land * 0.13;
@@ -1001,6 +1010,11 @@ function updateCamFx(dt) {
   if (camFx.land > 0) {
     camFx.landT += dt;
     camFx.land = Math.max(0, camFx.land - dt * 5.5);
+  }
+
+  if (camFx.fire > 0) {
+    camFx.fireT += dt;
+    camFx.fire = Math.max(0, camFx.fire - dt * 11);   // 约 0.09 秒回正
   }
 
   // 行走晃动：按实际水平位移判断是否在走动（无需改移动逻辑），走动时淡入、停下淡出
@@ -2566,6 +2580,7 @@ function shootOnce() {
   Sfx.shoot();
   updateAmmoHUD();
   gun.recoil = 0.13;
+  camFx.fire = 1; camFx.fireT = 0;     // 相机后坐：每发一次短促抖动（幅度约为走路的 1.5 倍）
   gun.flashT = 0.055;
   gun.light.intensity = 6;
   gun.flashMesh.visible = true;
