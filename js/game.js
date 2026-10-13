@@ -1188,6 +1188,7 @@ function spawnFish(pos) {
   e.swordMesh = makeFishSword();
   e.swordMesh.visible = !ranged;           // 近战鱼持小剑
   e.mesh.add(e.swordMesh);
+  e.swingT = -1;                           // 挥剑动画计时（-1 = 未在挥剑）
   scene.add(e.mesh);
   enemies.push(e);
   return e;
@@ -1384,8 +1385,18 @@ function updateEnemies(dt) {
       } else if (e.attackTimer <= 0) {
         e.attackTimer = CFG.fishAttackInterval;
         e.pulse = 0.25;
+        // 挥剑 + 剑气（纯视觉表现：伤害仍按原近战距离 CFG.fishAttackRange 判定，不是远程攻击）
+        e.swingT = 0;
+        if (!e.ranged && e.swordMesh && e.swordMesh.visible) {
+          e.swordMesh.getWorldPosition(_tmpSwordPos);
+          _tmpWaveDir.set(
+            player.pos.x - e.mesh.position.x, 0.18,
+            player.pos.z - e.mesh.position.z).normalize();
+          spawnSwordWave(_tmpSwordPos, _tmpWaveDir, 0x3fb0ff);   // 弧形剑气（饱和青蓝）
+          spawnBurst(_tmpSwordPos, 0xcfefff, 6, 2.0);            // 剑刃火花
+        }
         damagePlayer(Math.min(CFG.meleeDmgMax, Math.round(rand(CFG.fishDamageMin, CFG.fishDamageMax)) + meleeAtkBonus),
-          { name: enemyName(e), atk: '撕咬' });
+          { name: enemyName(e), atk: '剑气斩' });
       }
     }
   }
@@ -1417,6 +1428,31 @@ function updateFishVisuals(dt) {
     e.pulse = Math.max(0, e.pulse - dt);
     var s = 1 + e.pulse * 1.4;
     e.mesh.scale.set(s, s, s);
+
+    // 挥剑序列动画（近战攻击）：① 预备后拉 → ② 沿剑刃向玩家方向猛挥 → ③ 收招回位
+    if (e.swordMesh && e.swordMesh.visible) {
+      if (e.swingT >= 0) {
+        e.swingT += dt;
+        var T = e.swingT;
+        var swing;
+        if (T < 0.13) {
+          swing = -(T / 0.13) * 0.5;                     // ① 预备：剑向后上方拉
+        } else if (T < 0.27) {
+          var k1 = (T - 0.13) / 0.14;
+          swing = -0.5 + k1 * 1.85;                      // ② 挥砍：快速前挥到底
+        } else if (T < 0.52) {
+          var k2 = (T - 0.27) / 0.25;
+          swing = 1.35 * (1 - k2) * (1 - k2);            // ③ 收招：缓动回待机
+        } else {
+          swing = 0;
+          e.swingT = -1;                                 // 动画结束
+        }
+        e.swordMesh.rotation.set(
+          SWORD_REST_X + swing * 1.25,
+          SWORD_REST_Y - swing * 0.40,
+          SWORD_REST_Z + swing * 0.60);
+      }
+    }
   }
 }
 
@@ -1506,9 +1542,81 @@ function makeFishSword() {
 
   // 挂在爪爪上：斜握在身侧、剑尖朝前上方（避免竖直穿过鱼身），整体缩小到合适比例
   sword.position.set(-0.5, -0.46, 0.3);
-  sword.rotation.set(0.55, 0.28, -0.95);
+  sword.rotation.set(SWORD_REST_X, SWORD_REST_Y, SWORD_REST_Z);
   sword.scale.set(1.35, 1.35, 1.35);
   return sword;
+}
+
+// 剑的待机姿态（挥剑动画以此为基准）
+var SWORD_REST_X = 0.55, SWORD_REST_Y = 0.28, SWORD_REST_Z = -0.95;
+
+// ---------------------------------------------------------------- 剑气特效
+// 近战攻击的"具象化"：挥剑瞬间从剑刃朝玩家方向冲出一道弧形剑气。
+// 纯视觉表现 —— 伤害判定仍按原有近战距离（CFG.fishAttackRange），不做远程判定。
+var _waveGeo = null;
+var _waveGeoInner = null;
+var swordWaves = [];
+var _tmpSwordPos = new THREE.Vector3();
+var _tmpWaveDir = new THREE.Vector3();
+
+function spawnSwordWave(origin, dir, colorHex) {
+  if (!_waveGeo) {
+    // 弧形扇面（约 80° 弧）：像一道月牙剑气
+    _waveGeo = new THREE.RingGeometry(0.30, 1.15, 20, 1, Math.PI * 0.30, Math.PI * 0.44);
+  }
+  // 用普通混合而不是加色混合：明亮沙漠背景下加色几乎看不见（实测踩坑）
+  var mat = new THREE.MeshBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.88,
+    side: THREE.DoubleSide,
+    blending: THREE.NormalBlending,
+    depthWrite: false,
+  });
+  var group = new THREE.Group();
+  var mesh = new THREE.Mesh(_waveGeo, mat);
+  group.add(mesh);
+
+  // 内层白色高亮（略小）：让剑气在亮背景上也有对比度
+  if (!_waveGeoInner) {
+    _waveGeoInner = new THREE.RingGeometry(0.38, 0.92, 20, 1, Math.PI * 0.32, Math.PI * 0.40);
+  }
+  var matInner = new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.55,
+    side: THREE.DoubleSide, blending: THREE.NormalBlending, depthWrite: false,
+  });
+  group.add(new THREE.Mesh(_waveGeoInner, matInner));
+
+  group.position.copy(origin);
+  group.lookAt(origin.x + dir.x, origin.y + dir.y, origin.z + dir.z);
+  group.rotateZ(Math.PI * 0.5);          // 月牙立起来（弧口朝飞行方向）
+  scene.add(group);
+  swordWaves.push({
+    mesh: group, mat: mat, matInner: matInner,
+    dir: dir.clone(),
+    life: 0.34, t: 0, speed: 7.2,
+  });
+}
+
+function updateSwordWaves(dt) {
+  for (var i = swordWaves.length - 1; i >= 0; i--) {
+    var w = swordWaves[i];
+    w.t += dt;
+    var k = w.t / w.life;
+    w.mesh.position.x += w.dir.x * w.speed * dt;
+    w.mesh.position.y += w.dir.y * w.speed * dt;
+    w.mesh.position.z += w.dir.z * w.speed * dt;
+    var s = 0.72 + k * 0.9;             // 边飞边扩张
+    w.mesh.scale.set(s, s, s);
+    w.mat.opacity = 0.88 * (1 - k * k); // 快速淡出
+    if (w.matInner) w.matInner.opacity = 0.55 * (1 - k * k);
+    if (w.t >= w.life) {
+      scene.remove(w.mesh);
+      w.mat.dispose();
+      if (w.matInner) w.matInner.dispose();
+      swordWaves.splice(i, 1);
+    }
+  }
 }
 
 var _fbGeo = null, _fbMat = null;
@@ -3244,6 +3352,7 @@ function update(dt) {
     }
   }
   updateFishVisuals(dt);
+  updateSwordWaves(dt);   // 剑气特效（弧形能量波飞行与淡出）
   updateParticles(dt);
   updateHUD();
   drawMiniMap();
