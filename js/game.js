@@ -23,7 +23,10 @@ var CFG = {
   waveRestTime: 4.5,       // 清波后的喘息时间（秒）
   // ---- 特殊敌人参数 ----
   bomberChargeSpeed: 7.2,    // 自爆鱼冲锋速度（m/s）
-  bomberTriggerRange: 1.7,   // 自爆触发距离（米）
+  bomberTriggerRange: 2.0,   // 启动自爆的距离（米，爬行者式：贴近后点火）
+  bomberFuseTime: 3.0,       // 引信时长（秒）：点火后定身 3 秒再爆
+  bomberDetectRange: 14.0,   // 索敌范围（米）：玩家在此范围内触发红屏警告
+  bomberMinSpawnDist: 12,    // 自爆鱼出生时距玩家的最小距离（米）
   bomberFatalRange: 1.0,     // 自爆致命范围：1 米内
   bomberBlastRange: 5.0,     // 自爆波及范围：1~5 米
   shieldFishHp: 3,           // 护盾鱼：护盾可承受的子弹数（破盾后才受伤）
@@ -1224,6 +1227,7 @@ function spawnFish(pos, kind) {
     // 自爆鱼：怀抱核弹（不持枪剑）
     e.bombMesh = makeBombMesh();
     e.mesh.add(e.bombMesh);
+    e.fuseTimer = -1;                // -1 = 未点火；>=0 表示引信倒计时中（定身）
   } else if (kind === 'shield') {
     // 护盾鱼：持剑冲锋 + 举盾（需先击破护盾才能造成伤害）
     e.swordMesh = makeFishSword();
@@ -1295,7 +1299,9 @@ function startWave(n) {
   var comp = buildWaveComposition(currentStage());
   wave.total = comp.length;
   for (var i = 0; i < comp.length; i++) {
-    var e = spawnFish(pickSpawnPos(20), comp[i]);
+    // 自爆鱼必须离玩家足够远（否则一出生就贴脸点火）
+    var spawnDist = (comp[i] === 'bomber') ? CFG.bomberMinSpawnDist : 20;
+    var e = spawnFish(pickSpawnPos(spawnDist), comp[i]);
     e.waveTag = n;                                   // 标记归属波次，用于清波判定
   }
   showNotice('第 ' + n + ' 波来袭（' + comp.length + ' 只）');
@@ -1472,8 +1478,14 @@ function updateEnemies(dt) {
       continue;
     }
 
-    // ---- 自爆鱼：直冲玩家，贴身引爆（不走常规巡逻/追击/攻击状态机）----
+    // ---- 自爆鱼：冲锋 → 2 米内点火定身 → 3 秒引信后自爆（爬行者式）----
     if (e.kind === 'bomber') {
+      if (e.fuseTimer >= 0) {
+        // 引信已点燃：原地定身（不再移动），等待爆炸
+        e.fuseTimer -= dt;
+        if (e.fuseTimer <= 0) explodeBomber(e);
+        continue;
+      }
       var bdx = player.pos.x - e.mesh.position.x;
       var bdz = player.pos.z - e.mesh.position.z;
       var bDist = Math.sqrt(bdx * bdx + bdz * bdz);
@@ -1483,7 +1495,8 @@ function updateEnemies(dt) {
         clampFish(e);
       }
       if (bDist <= CFG.bomberTriggerRange) {
-        explodeBomber(e);
+        e.fuseTimer = CFG.bomberFuseTime;   // 点火：进入引信倒计时
+        startBomberFuse(e);
       }
       continue;
     }
@@ -1650,6 +1663,17 @@ function updateFishVisuals(dt) {
     // 攻击脉冲（冲脸咬人）
     e.pulse = Math.max(0, e.pulse - dt);
     var s = 1 + e.pulse * 1.4;
+    // 自爆鱼引信已点燃：本体脉动 + 白色光环高频闪烁
+    if (e.kind === 'bomber' && e.fuseTimer >= 0) {
+      var blink = 0.5 + 0.5 * Math.sin(time * 16);
+      s *= 1.0 + 0.08 * blink;
+      if (e.fuseHalo) {
+        var hs = 1.0 + 0.12 * blink;                 // 光圈脉动
+        e.fuseHalo.scale.set(hs, hs, hs);
+        e.fuseHalo.children[0].material.opacity = 0.2 + 0.75 * blink;
+        if (e.fuseHalo.children[1]) e.fuseHalo.children[1].material.opacity = 0.15 + 0.55 * blink;
+      }
+    }
     e.mesh.scale.set(s, s, s);
 
     // 挥剑序列动画（近战攻击）：① 预备后拉 → ② 沿剑刃向玩家方向猛挥 → ③ 收招回位
@@ -1853,17 +1877,22 @@ function makeBombMesh() {
     g.add(fin);
   }
 
-  // 白色头巾：环 + 两条垂下的巾角
-  var clothMat = new THREE.MeshStandardMaterial({ color: 0xf4f4f6, roughness: 0.92 });
-  var wrap = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.062, 8, 16), clothMat);
-  wrap.position.z = 0.2;
-  wrap.rotation.x = 0;   // 环面朝 +Z，套在弹体上
-  g.add(wrap);
+  // 白色头巾：包裹弹体前段的布罩 + 打结 + 两条飘逸巾角（比环形更醒目）
+  var clothMat = new THREE.MeshStandardMaterial({ color: 0xf7f8fa, roughness: 0.95 });
+  var hood = new THREE.Mesh(new THREE.SphereGeometry(0.28, 14, 12), clothMat);
+  hood.position.z = 0.34;
+  hood.scale.set(1.06, 1.06, 1.2);
+  g.add(hood);
+  // 打结
+  var knot = new THREE.Mesh(new THREE.SphereGeometry(0.085, 8, 6), clothMat);
+  knot.position.set(-0.26, 0.12, 0.3);
+  g.add(knot);
+  // 两条向后飘的巾角
   for (var k = 0; k < 2; k++) {
-    var flap = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.24, 0.02), clothMat);
-    flap.position.set(-0.15 + k * 0.3, -0.26, 0.2);
-    flap.rotation.z = (k === 0 ? 0.28 : -0.28);
-    g.add(flap);
+    var band = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.38, 0.026), clothMat);
+    band.position.set(-0.32 - k * 0.05, -0.08 - k * 0.06, 0.1 - k * 0.12);
+    band.rotation.set(0.45, 0, 0.55 + k * 0.4);
+    g.add(band);
   }
 
   // 辐射警告牌：用 Sprite（始终面向相机，标志不会被拉伸或遮挡）
@@ -2036,6 +2065,51 @@ function updateBlastFx(dt) {
   }
 }
 
+// 自爆鱼索敌警告：玩家处在存活自爆鱼的索敌范围内时，持续闪烁红屏
+var bomberWarnOn = false;
+function updateBomberWarn() {
+  if (!dom.bomberWarn) return;
+  var danger = false;
+  if (state === 'playing') {
+    var r2 = CFG.bomberDetectRange * CFG.bomberDetectRange;
+    for (var i = 0; i < enemies.length; i++) {
+      var e = enemies[i];
+      if (!e.alive || e.kind !== 'bomber') continue;
+      var dx = e.mesh.position.x - player.pos.x;
+      var dz = e.mesh.position.z - player.pos.z;
+      if (dx * dx + dz * dz <= r2) { danger = true; break; }
+    }
+  }
+  if (danger !== bomberWarnOn) {
+    bomberWarnOn = danger;
+    dom.bomberWarn.classList.toggle('on', danger);
+  }
+}
+
+// 自爆鱼点火：挂上白色闪烁光环（爬行者式预警，给玩家 3 秒撤离时间）
+function startBomberFuse(e) {
+  if (e.fuseHalo) return;
+  // 光圈：双层发光圆环环绕鱼身（鱼是 billboard，圆环自然面向相机）
+  var halo = new THREE.Group();
+  var ringOuter = new THREE.Mesh(
+    new THREE.TorusGeometry(1.08, 0.05, 8, 30),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false,
+      blending: THREE.NormalBlending,
+    }));
+  halo.add(ringOuter);
+  var ringInner = new THREE.Mesh(
+    new THREE.TorusGeometry(0.82, 0.03, 8, 26),
+    new THREE.MeshBasicMaterial({
+      color: 0xf2f8ff, transparent: true, opacity: 0.4, depthWrite: false,
+      blending: THREE.NormalBlending,
+    }));
+  halo.add(ringInner);
+  e.mesh.add(halo);
+  e.fuseHalo = halo;
+  debugLog('自爆鱼点燃引信：' + CFG.bomberFuseTime + ' 秒后爆炸，快撤！', 'dbg-hit');
+}
+
 // 自爆：范围伤害（1m 内 100 / 1~5m 50 / 5m 外免伤）+ 蘑菇云
 function explodeBomber(e) {
   var pos = e.mesh.position.clone();
@@ -2052,9 +2126,7 @@ function explodeBomber(e) {
   e.alive = false;
   e.respawnTimer = 99999;
   e.mesh.visible = false;
-  kills += 1;
-  score += 10;
-  addComboPoints(CFG.comboFishPoints);
+  // 自爆是敌人自身行为：不计入玩家击杀/得分/连杀（避免站着不动刷分）
   updateHUD();
   debugLog('自爆肥鱼引爆（距离 ' + d.toFixed(1) + ' 米，造成 ' +
     (d <= CFG.bomberFatalRange ? CFG.bomberDamageClose : d <= CFG.bomberBlastRange ? CFG.bomberDamageFar : 0) + ' 点伤害）', 'dbg-hit');
@@ -3547,8 +3619,10 @@ function onKeyDown(ev) {
     var _devSpawnMap = { Numpad1: 'bomber', Numpad2: 'shield', Numpad3: 'healer', Numpad4: 'splitter' };
     var _devKind = _devSpawnMap[ev.code];
     if (_devKind) {
-      var _dx = player.pos.x - Math.sin(player.yaw) * 6;
-      var _dz = player.pos.z - Math.cos(player.yaw) * 6;
+      // 自爆鱼同样保持安全距离（12 米），其他敌人在前方 6 米
+      var _dist = (_devKind === 'bomber') ? CFG.bomberMinSpawnDist : 6;
+      var _dx = player.pos.x - Math.sin(player.yaw) * _dist;
+      var _dz = player.pos.z - Math.cos(player.yaw) * _dist;
       var _ne = spawnFish(new THREE.Vector3(_dx, 0, _dz), _devKind);
       _ne.waveTag = wave.number;              // 归入本波，避免干扰清波判定
       showNotice('开发者：刷出 ' + (ENEMY_LABEL[_devKind] || _devKind));
@@ -3917,6 +3991,7 @@ function update(dt) {
   updateFishVisuals(dt);
   updateSwordWaves(dt);   // 剑气特效（弧形能量波飞行与淡出）
   updateBlastFx(dt);      // 自爆特效（火球/冲击环/蘑菇云烟团）
+  updateBomberWarn();     // 自爆鱼索敌警告（红屏脉冲）
   updateParticles(dt);
   updateHUD();
   drawMiniMap();
@@ -3961,6 +4036,7 @@ function init() {
     healthFill: 'health-fill', healthText: 'health-text',
     scoreValue: 'score-value', killsValue: 'kills-value',
     damageFlash: 'damage-flash', crosshair: 'crosshair', killfeed: 'killfeed',
+    bomberWarn: 'bomber-warn',
     menuOverlay: 'menu-overlay', pauseOverlay: 'pause-overlay',
     gameoverOverlay: 'gameover-overlay', finalScore: 'final-score', finalKills: 'final-kills',
     gameoverTitle: 'gameover-title',

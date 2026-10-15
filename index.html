@@ -134,6 +134,16 @@ window.addEventListener('load', function () {
   #tip-bar { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
     color: rgba(255,255,255,.55); font-size: 12.5px; letter-spacing: 1px; }
 
+  /* ---------- 自爆鱼索敌警告（红屏脉冲） ---------- */
+  #bomber-warn { position: fixed; inset: 0; z-index: 7; pointer-events: none; opacity: 0;
+    background: radial-gradient(ellipse at center, rgba(255,0,0,0) 38%, rgba(255,26,26,.52) 100%);
+    transition: opacity .16s linear; }
+  #bomber-warn.on { animation: bomberWarnPulse .75s ease-in-out infinite; }
+  @keyframes bomberWarnPulse {
+    0%, 100% { opacity: .18; }
+    50%      { opacity: .82; }
+  }
+
   /* ---------- 受伤红闪 ---------- */
   #damage-flash { position: fixed; inset: 0; z-index: 8; pointer-events: none;
     background: radial-gradient(ellipse at center, rgba(255,0,0,0) 45%, rgba(255,30,30,.55) 100%);
@@ -448,6 +458,7 @@ window.addEventListener('load', function () {
 <div id="combo-pop" class=""></div>
 <div id="notice-pop"></div>
 <div id="error-bar"></div>
+<div id="bomber-warn"></div>
 <div id="damage-flash"></div>
 <div id="debug-log"></div>
 
