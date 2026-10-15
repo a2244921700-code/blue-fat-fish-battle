@@ -16,6 +16,14 @@ var CFG = {
   shootInterval: 0.16,     // 射击间隔（射速）
   shootRange: 200,         // 最大射程
   fishCount: 6,            // 场上肥鱼数量（>=3）
+  // ---- 波次与阶段系统 ----
+  waveBaseCount: 6,        // 第 1 阶段每波敌人数量
+  waveCountPerStage: 2,    // 每升一阶段，每波额外敌人数量
+  wavePrepareTime: 2.2,    // 波次提示到出怪的时间（秒）
+  waveRestTime: 4.5,       // 清波后的喘息时间（秒）
+  bossEveryWaves: 5,       // 每清理 N 波刷新一次 Boss
+  bossesPerStage: 10,      // 每击杀 N 次 Boss 升一个阶段
+  maxStage: 5,             // 阶段上限（共 5 阶段）
   fishSize: 2.0,           // 肥鱼贴图平面宽度（米）
   fishHitRadius: 0.85,     // 命中判定球半径
   fishBaseY: 1.4,          // 肥鱼悬浮基准高度
@@ -153,7 +161,20 @@ var combo = { score: 0, rank: -1, timer: 0 };  // 连杀评级：score=连杀点
 // ===== 局内强化与成长（无尽模式专属） =====
 var upgrades = { dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0 }; // 技能等级 0~10（dmg=子弹伤害, refund=回弹, heal=回血, nade=掉雷, speed=速度）
 var upgradesAllMax = false;      // 缓存：技能全部满级（仅在技能等级变化时检测一次，击杀 Boss 时直接读取，零帧开销）
-var bossKillCount = 0;         // 本局已击杀 Boss 数（驱动敌人成长）
+var bossKillCount = 0;         // 本局已击杀 Boss 数（驱动敌人成长与阶段推进）
+
+// ---- 波次系统状态 ----
+var wave = {
+  number: 0,           // 当前波次编号（1 起）
+  state: 'prepare',    // prepare 准备 | fighting 战斗中 | cleared 已清空 | boss Boss 战
+  timer: 0,
+  total: 0,            // 本波敌人总数
+};
+var stageShown = 1;    // 已播报过的阶段（用于阶段提升提示）
+
+// 各阶段解锁的特殊敌人（阶段 2 起每种 2 个，依次解锁）
+var STAGE_ENEMIES = ['bomber', 'shield', 'healer', 'splitter'];
+var ENEMY_LABEL = { bomber: '自爆鱼', shield: '护盾鱼', healer: '治疗鱼', splitter: '分裂鱼', normal: '常规鱼' };
 var rewardOptions = null;      // 当前奖励窗口可选项 [{id, name, ico, lv, desc, next}]
 
 var enemyHpNow = 1;            // 当前小怪血量（随 Boss 击杀增长，≤10）
@@ -1158,9 +1179,12 @@ function pickSpawnPos(minDistFromPlayer) {
   return new THREE.Vector3(rand(-20, 20), 0, rand(-20, 20));
 }
 
-function spawnFish(pos) {
-  var ranged = Math.random() < CFG.fishRangedChance;   // 50% 成为远程射手
+function spawnFish(pos, kind) {
+  kind = kind || 'normal';
+  // 特殊敌人一律为近战型（自爆/护盾/治疗/分裂），只有常规鱼会随机成射手
+  var ranged = (kind === 'normal') && (Math.random() < CFG.fishRangedChance);
   var e = {
+    kind: kind,
     mesh: new THREE.Mesh(new THREE.PlaneGeometry(CFG.fishSize, CFG.fishSize), makeFishMaterial()),
     alive: true,
     state: 'patrol',
@@ -1194,20 +1218,112 @@ function spawnFish(pos) {
   return e;
 }
 
+// 注：刷怪已由波次系统（startWave / updateWaves）接管；此函数保留仅作标记位设置
 function ensureFishSpawned() {
   if (fishSpawned || !fishTexReady) return;
   fishSpawned = true;
-  for (var i = 0; i < fishCapNow; i++) spawnFish(pickSpawnPos(16));
 }
 
-// 场上小怪数量随 Boss 击杀成长（生成速率 +5%）：存活+待重生少于上限时补生
-function ensureFishPool() {
-  if (!fishSpawned || state !== 'playing') return;
-  var active = 0;
-  for (var i = 0; i < enemies.length; i++) {
-    if (enemies[i].alive || enemies[i].respawnTimer > 0) active += 1;
+// ---------------------------------------------------------------- 波次与阶段系统
+// 说明：波次系统接管刷怪节奏（原来的"固定上限 + 自动补生"已停用），Boss 改为每 N 波出现一次。
+
+/** 当前阶段（1~5）：每击杀 bossesPerStage 次 Boss 升一阶段 */
+function currentStage() {
+  return Math.min(CFG.maxStage, Math.floor(bossKillCount / CFG.bossesPerStage) + 1);
+}
+
+/** 生成本波敌人构成：基础数量 + 每阶段 +2，其中各阶段新解锁的特殊敌人每种 2 个 */
+function buildWaveComposition(stage) {
+  var total = CFG.waveBaseCount + (stage - 1) * CFG.waveCountPerStage;
+  var list = [];
+  var unlocked = Math.min(stage - 1, STAGE_ENEMIES.length);
+  for (var i = 0; i < unlocked; i++) {
+    list.push(STAGE_ENEMIES[i], STAGE_ENEMIES[i]);   // 每种 2 个
   }
-  if (active < fishCapNow) spawnFish(pickSpawnPos(24));
+  while (list.length < total) list.push('normal');
+  return list;
+}
+
+/** 开启第 n 波 */
+function startWave(n) {
+  wave.number = n;
+  wave.state = 'fighting';
+  wave.timer = 0;
+  var comp = buildWaveComposition(currentStage());
+  wave.total = comp.length;
+  for (var i = 0; i < comp.length; i++) {
+    var e = spawnFish(pickSpawnPos(20), comp[i]);
+    e.waveTag = n;                                   // 标记归属波次，用于清波判定
+  }
+  showNotice('第 ' + n + ' 波来袭（' + comp.length + ' 只）');
+}
+
+/** 本波仍存活的敌人数 */
+function countWaveAlive() {
+  var n = 0;
+  for (var i = 0; i < enemies.length; i++) {
+    if (enemies[i].alive && enemies[i].waveTag === wave.number) n += 1;
+  }
+  return n;
+}
+
+/** 阶段提升播报（在成长函数里调用） */
+function checkStageUp() {
+  var st = currentStage();
+  if (st > stageShown) {
+    stageShown = st;
+    var newKind = STAGE_ENEMIES[st - 2];
+    showNotice('★ 进入第 ' + st + ' 阶段！新敌人登场：' + (ENEMY_LABEL[newKind] || ''));
+  }
+}
+
+/** 波次状态机（每帧） */
+function updateWaves(dt) {
+  if (state !== 'playing') return;
+
+  // Boss 存活期间：波次暂停，玩家专心 Boss 战
+  if (boss) {
+    if (wave.state !== 'boss') wave.state = 'boss';
+    return;
+  }
+
+  switch (wave.state) {
+    case 'prepare':
+      wave.timer += dt;
+      if (wave.timer >= CFG.wavePrepareTime) {
+        startWave(wave.number + 1);
+      }
+      break;
+
+    case 'fighting':
+      if (countWaveAlive() <= 0) {
+        wave.state = 'cleared';
+        wave.timer = 0;
+        var isBossWave = (wave.number % CFG.bossEveryWaves === 0);
+        showNotice('第 ' + wave.number + ' 波已清空' + (isBossWave ? ' —— BOSS 来袭！' : ''));
+      }
+      break;
+
+    case 'cleared':
+      wave.timer += dt;
+      if (wave.timer >= CFG.waveRestTime) {
+        if (wave.number % CFG.bossEveryWaves === 0) {
+          spawnBoss();
+          wave.state = 'boss';
+        } else {
+          wave.state = 'prepare';
+          wave.timer = 0;
+        }
+      }
+      break;
+
+    case 'boss':
+      if (!boss) {                 // Boss 被击败 → 继续下一波
+        wave.state = 'prepare';
+        wave.timer = 0;
+      }
+      break;
+  }
 }
 
 // 线段-AABB 相交（用于肥鱼视线遮挡检测）
@@ -1302,7 +1418,10 @@ function updateEnemies(dt) {
         e.ranged = Math.random() < CFG.fishRangedChance;
         e.speedMul = e.ranged ? 1.0 : CFG.fishSpeedMul;
         e.fireTimer = rand(0.2, 0.6);
+        // 枪与剑必须互斥显示：重生会重新随机形态，两者都要同步（曾经只同步枪，导致远程鱼同时握枪持剑）
         if (e.gunMesh) e.gunMesh.visible = e.ranged;
+        if (e.swordMesh) e.swordMesh.visible = !e.ranged;
+        e.swingT = -1;                 // 重生时清理挥剑动画状态
         e.waypoint.set(rand(-43, 43), 0, rand(-43, 43));
         e.waitTimer = 0; e.attackTimer = 0; e.lostTimer = 0;
         e.mesh.visible = true;
@@ -1458,7 +1577,7 @@ function updateFishVisuals(dt) {
 
 function killFish(e, hitPoint) {
   e.alive = false;
-  e.respawnTimer = CFG.fishRespawnTime;
+  e.respawnTimer = 99999;   // 波次制：敌人不重生（下一波由波次系统补足）
   rollKillRewards();              // 击杀概率战利品（技能 2/3/4）
   e.mesh.visible = false;
   kills += 1;
@@ -2102,6 +2221,7 @@ function growEnemies() {
   bossHpNext = Math.min(CFG.bossHpMax, 15 + 5 * bossKillCount);      // 下只 Boss 血量（≤100）
   bossBallDmgNow = Math.min(CFG.bossBallDmgMax, 25 + 2 * bossKillCount); // Boss 炮弹伤害（≤60）
   fishCapNow = Math.round(CFG.fishCount * Math.pow(1 + CFG.fishCapGrowRate, bossKillCount)); // 生成速率 +5%
+  checkStageUp();   // 阶段推进播报（每 bossesPerStage 次 Boss 升一阶段，解锁新敌人）
 }
 
 // 护甲层数校验与 HUD
@@ -2461,32 +2581,8 @@ function updateBossShots(dt) {
 }
 
 function updateBoss(dt) {
-  // 生成判定：每 bossInterval 秒掷一次骰子（场上最多一个）
-  if (!boss) {
-    if (state === 'playing') {
-      bossTimer -= dt;
-      if (bossTimer <= 0) {
-        bossTimer = CFG.bossInterval;
-        // 生成判定：首个 30 秒必出 → 之后 50% 概率 → 连续 N 次未出保底必出
-        var willSpawn = false;
-        if (firstBossPending) {
-          willSpawn = true;
-        } else if (bossMisses >= CFG.bossMissGuarantee) {
-          willSpawn = true;
-        } else if (Math.random() < CFG.bossChance) {
-          willSpawn = true;
-        }
-        if (willSpawn) {
-          spawnBoss();
-          firstBossPending = false;
-          bossMisses = 0;
-        } else {
-          bossMisses += 1;
-        }
-      }
-    }
-    return;
-  }
+  // Boss 刷新已改由波次系统驱动（每清理 bossEveryWaves 波出现一次）
+  if (!boss) return;
   var m = boss.mesh;
   if (state === 'playing') {
     // 追击：距离大于 8 米时靠近，否则原地压制射击
@@ -2859,10 +2955,27 @@ function restartGame(toMenu) {
   player.velY = 0; player.onGround = true;
   player.yaw = 0; player.pitch = 0;
   hurtCd = 0; shootCd = 0; fireHeld = false;
-  // 清空上一局全部怪（不继承成长状态），并按重置后的成长参数立刻刷新一轮
+  // 清空上一局全部怪（不继承成长状态）；波次系统会重新开始第 1 波
   for (var i = 0; i < enemies.length; i++) scene.remove(enemies[i].mesh);
   enemies = [];
-  for (var j = 0; j < fishCapNow; j++) spawnFish(pickSpawnPos(16));
+  wave = { number: 0, state: 'prepare', timer: 0, total: 0 };
+  stageShown = 1;
+  fishSpawned = false;
+  ensureFishSpawned();
+  // 清空上一局遗留的投射物与特效 —— 否则新一局开局会被上一局的子弹打中（看起来像"敌人没消失"）
+  for (var k = 0; k < fishBullets.length; k++) scene.remove(fishBullets[k].mesh);
+  fishBullets = [];
+  for (var w = 0; w < swordWaves.length; w++) {
+    scene.remove(swordWaves[w].mesh);
+    swordWaves[w].mat.dispose();
+    if (swordWaves[w].matInner) swordWaves[w].matInner.dispose();
+  }
+  swordWaves = [];
+  if (particles && particles.data) {
+    for (var pi = 0; pi < particles.data.length; pi++) {
+      if (particles.data[pi]) particles.data[pi].life = 0;   // 残留粒子立即清空
+    }
+  }
   syncCamera();
   updateHUD();
   hideAllOverlays();
@@ -3359,7 +3472,7 @@ function update(dt) {
   updateBgm(dt);
   if (debugMode) updateDebugLog(dt);   // Debug 消息上移/淡出/清理
   updateCheatMusic(dt);                // 作弊被抓搞怪音乐循环
-  ensureFishPool();   // 小怪生成速率成长：场上数量补足上限
+  updateWaves(dt);    // 波次系统：刷怪节奏与 Boss 刷新（每 bossEveryWaves 波一只）
 }
 
 function animate() {
@@ -3515,6 +3628,19 @@ window.FishGame = {
   __debug: {
     getState: function () { return state; },
     getCamFx: function () { return camFx; },
+    getWave: function () { return wave; },
+    getStage: function () { return currentStage(); },
+    getBossKillCount: function () { return bossKillCount; },
+    setBossKillCount: function (n) { bossKillCount = n; checkStageUp(); },
+    getWaveComposition: function (st) {
+      return buildWaveComposition(st || currentStage());
+    },
+    killAllEnemies: function () {
+      // 测试用：清空当前波次全部敌人（模拟玩家清波）
+      for (var i = 0; i < enemies.length; i++) {
+        if (enemies[i].alive) { enemies[i].alive = false; enemies[i].respawnTimer = 99999; enemies[i].mesh.visible = false; }
+      }
+    },
     getScore: function () { return score; },
     getKills: function () { return kills; },
     getPlayer: function () { return player; },
@@ -3649,6 +3775,7 @@ window.FishGame = {
       e.ranged = true;
       e.speedMul = 1.0;
       if (e.gunMesh) e.gunMesh.visible = true;
+      if (e.swordMesh) e.swordMesh.visible = false;   // 射手不持剑（保持互斥）
       return e;
     },
     removeBoss: function () {
