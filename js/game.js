@@ -26,6 +26,7 @@ var CFG = {
   bomberTriggerRange: 1.7,   // 自爆触发距离（米）
   bomberFatalRange: 1.0,     // 自爆致命范围：1 米内
   bomberBlastRange: 5.0,     // 自爆波及范围：1~5 米
+  shieldFishHp: 3,           // 护盾鱼：护盾可承受的子弹数（破盾后才受伤）
   bomberDamageClose: 100,    // 1 米内基础伤害
   bomberDamageFar: 50,       // 1~5 米基础伤害
   bossEveryWaves: 5,       // 每清理 N 波刷新一次 Boss
@@ -1217,6 +1218,14 @@ function spawnFish(pos, kind) {
     // 自爆鱼：怀抱核弹（不持枪剑）
     e.bombMesh = makeBombMesh();
     e.mesh.add(e.bombMesh);
+  } else if (kind === 'shield') {
+    // 护盾鱼：持剑冲锋 + 举盾（需先击破护盾才能造成伤害）
+    e.swordMesh = makeFishSword();
+    e.swordMesh.visible = true;
+    e.mesh.add(e.swordMesh);
+    e.shieldMesh = makeShieldMesh();
+    e.mesh.add(e.shieldMesh);
+    e.shieldHp = CFG.shieldFishHp;
   } else {
     e.gunMesh = makeFishGun();
     e.gunMesh.visible = ranged;            // 射手鱼持枪
@@ -1788,6 +1797,33 @@ function makeBombMesh() {
   g.position.set(-0.44, -0.5, 0.26);
   g.rotation.set(0.32, 0, -0.18);
   g.scale.set(0.82, 0.82, 0.82);
+  return g;
+}
+
+// ---------------------------------------------------------------- 护盾肥鱼（身前举着能量盾）
+function makeShieldMesh() {
+  var g = new THREE.Group();
+  // 主盾面：半透明圆形能量场
+  var face = new THREE.Mesh(
+    new THREE.RingGeometry(0.5, 1.06, 24),
+    new THREE.MeshBasicMaterial({
+      color: 0x6fd0ff, transparent: true, opacity: 0.34,
+      side: THREE.DoubleSide, depthWrite: false, blending: THREE.NormalBlending,
+    }));
+  g.add(face);
+  // 外圈发光边
+  var rim = new THREE.Mesh(
+    new THREE.RingGeometry(1.0, 1.13, 24),
+    new THREE.MeshBasicMaterial({ color: 0xb0eaff, transparent: true, opacity: 0.92, side: THREE.DoubleSide, depthWrite: false }));
+  g.add(rim);
+  // 中心能量核心
+  var core = new THREE.Mesh(
+    new THREE.CircleGeometry(0.17, 14),
+    new THREE.MeshBasicMaterial({ color: 0xe6faff, transparent: true, opacity: 0.9, depthWrite: false }));
+  g.add(core);
+  // 举在身前（约遮住鱼身下半部，露出头部便于辨认）
+  g.position.set(0, -0.12, 0.6);
+  g.scale.set(0.76, 0.76, 0.76);
   return g;
 }
 
@@ -3083,6 +3119,21 @@ function shootOnce() {
     if (boss.hp <= 0) defeatBoss();
   } else if (best) {
     _hitPoint.copy(_rayOrigin).addScaledVector(_rayDir, bestT);
+    // 护盾鱼：护盾未破时吸收子弹（每发 -1 耐久），破盾后才真正受伤
+    if (best.kind === 'shield' && best.shieldHp > 0) {
+      best.shieldHp -= 1;
+      spawnBurst(_hitPoint, 0x9fe4ff, 14, 4.0);       // 格挡火花
+      Sfx.hitFish();
+      flashCrosshair();
+      if (best.shieldHp <= 0) {
+        if (best.shieldMesh) best.shieldMesh.visible = false;
+        spawnBurst(best.mesh.position, 0xb0eaff, 26, 5.5);   // 破盾碎裂
+        showNotice('护盾已击破！');
+      }
+      debugLog('护盾抵挡了子弹（剩余耐久 ' + Math.max(0, best.shieldHp) + '）', 'dbg-hit');
+      updateHUD();
+      return;
+    }
     best.hp = (best.hp || 1) - gunDamageNow();      // 小怪扣血（技能升级 × 连杀评级加成）
     debugLog('你对 ' + enemyName(best) + ' 造成了 ' + gunDamageNow().toFixed(1) + ' 点伤害' + (best.hp > 0 ? '（剩余 ' + best.hp.toFixed(1) + ' 血）' : '（击败！）'), 'dbg-hit');
     Sfx.hitFish();
