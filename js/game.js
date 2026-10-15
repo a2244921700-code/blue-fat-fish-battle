@@ -27,6 +27,12 @@ var CFG = {
   bomberFatalRange: 1.0,     // 自爆致命范围：1 米内
   bomberBlastRange: 5.0,     // 自爆波及范围：1~5 米
   shieldFishHp: 3,           // 护盾鱼：护盾可承受的子弹数（破盾后才受伤）
+  healerInterval: 2.4,       // 治疗鱼：治疗间隔（秒）
+  healerAmount: 1,           // 治疗鱼：每次回复的生命值
+  healerRange: 2.4,          // 治疗鱼：治疗生效距离
+  splitterJumpHeight: 1.7,   // 分裂鱼：跳跃高度（米）
+  splitterJumpPeriod: 0.8,   // 分裂鱼：跳跃周期（秒）
+  splitterSpawnCount: 2,     // 分裂鱼：死亡分裂出的小鱼数量
   bomberDamageClose: 100,    // 1 米内基础伤害
   bomberDamageFar: 50,       // 1~5 米基础伤害
   bossEveryWaves: 5,       // 每清理 N 波刷新一次 Boss
@@ -1226,6 +1232,21 @@ function spawnFish(pos, kind) {
     e.shieldMesh = makeShieldMesh();
     e.mesh.add(e.shieldMesh);
     e.shieldHp = CFG.shieldFishHp;
+  } else if (kind === 'healer') {
+    // 治疗鱼：护士帽 + 大针筒（不主动攻击玩家，优先治疗受伤同伴）
+    e.hatMesh = makeNurseHatMesh();
+    e.hatMesh.position.set(0, 0.6, 0.06);
+    e.hatMesh.scale.set(1.45, 1.45, 1.45);
+    e.mesh.add(e.hatMesh);
+    e.syringeMesh = makeSyringeMesh();
+    e.mesh.add(e.syringeMesh);
+    e.healTimer = CFG.healerInterval;
+  } else if (kind === 'splitter') {
+    // 分裂鱼：外表暂不区分（靠蹦跳动作识别），持剑近战
+    e.swordMesh = makeFishSword();
+    e.swordMesh.visible = true;
+    e.mesh.add(e.swordMesh);
+    e.jumpPhase = rand(0, Math.PI * 2);
   } else {
     e.gunMesh = makeFishGun();
     e.gunMesh.visible = ranged;            // 射手鱼持枪
@@ -1467,6 +1488,45 @@ function updateEnemies(dt) {
       continue;
     }
 
+    // ---- 治疗鱼：奔向受伤的同伴为其回血（不主动攻击，玩家应优先击杀）----
+    if (e.kind === 'healer') {
+      e.healTimer -= dt;
+      var healTarget = null, healDist = 1e9;
+      var maxHpNow = Math.min(CFG.enemyHpMax, enemyHpNow);
+      for (var hi = 0; hi < enemies.length; hi++) {
+        var other = enemies[hi];
+        if (other === e || !other.alive) continue;
+        if ((other.hp || 1) >= maxHpNow) continue;                    // 满血的不治
+        var hd = Math.sqrt(Math.pow(other.mesh.position.x - e.mesh.position.x, 2) +
+                           Math.pow(other.mesh.position.z - e.mesh.position.z, 2));
+        if (hd < healDist) { healDist = hd; healTarget = other; }
+      }
+      if (healTarget) {
+        e.state = 'chase';                                            // 复用追击红色警示
+        if (healDist > CFG.healerRange) {
+          moveFishAvoiding(e, healTarget.mesh.position.x, healTarget.mesh.position.z,
+            CFG.fishChaseSpeed * 0.85, dt, 1.0, 1.6, 0.8);
+          clampFish(e);
+        } else if (e.healTimer <= 0) {
+          e.healTimer = CFG.healerInterval;
+          healTarget.hp = Math.min(maxHpNow, (healTarget.hp || 1) + CFG.healerAmount);
+          spawnBurst(healTarget.mesh.position, 0x7cf08a, 16, 3.4);    // 绿色治疗特效
+          debugLog('治疗鱼为 ' + enemyName(healTarget) + ' 回复了 ' + CFG.healerAmount + ' 点生命', 'dbg-hit');
+        }
+      } else {
+        // 无伤员：远离战斗游荡
+        e.state = 'patrol';
+        e.waitTimer -= dt;
+        if (e.waitTimer <= 0) {
+          e.waypoint.set(rand(-40, 40), 0, rand(-40, 40));
+          e.waitTimer = rand(1.5, 3.0);
+        }
+        moveFishAvoiding(e, e.waypoint.x, e.waypoint.z, CFG.fishPatrolSpeed, dt, 1.05, 1.75, 0.7);
+        clampFish(e);
+      }
+      continue;
+    }
+
     var dx = player.pos.x - e.mesh.position.x;
     var dz = player.pos.z - e.mesh.position.z;
     var dist = Math.sqrt(dx * dx + dz * dz);
@@ -1570,8 +1630,14 @@ function updateFishVisuals(dt) {
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
     if (!e.alive) continue;
-    // 悬浮上下浮动
-    var floatY = Math.sin(time * 2.3 + e.phase) * 0.28;
+    // 悬浮上下浮动（分裂鱼改为史莱姆式蹦跳）
+    var floatY;
+    if (e.kind === 'splitter') {
+      e.jumpPhase = (e.jumpPhase || 0) + dt * (Math.PI * 2 / CFG.splitterJumpPeriod);
+      floatY = Math.abs(Math.sin(e.jumpPhase)) * CFG.splitterJumpHeight - 0.35;
+    } else {
+      floatY = Math.sin(time * 2.3 + e.phase) * 0.28;
+    }
     e.mesh.position.y = e.baseY + floatY;
     // 广告牌：始终面向玩家相机 + 自身轻微摇摆
     var wobble = Math.sin(time * 3.1 + e.phase) * 0.13;
@@ -1618,6 +1684,21 @@ function killFish(e, hitPoint) {
   e.respawnTimer = 99999;   // 波次制：敌人不重生（下一波由波次系统补足）
   rollKillRewards();              // 击杀概率战利品（技能 2/3/4）
   e.mesh.visible = false;
+
+  // 分裂鱼：死亡时分裂出数条小鱼（归入同一波，保证清波判定正确）
+  if (e.kind === 'splitter') {
+    for (var si = 0; si < CFG.splitterSpawnCount; si++) {
+      var sang = rand(0, Math.PI * 2);
+      var sp = spawnFish(new THREE.Vector3(
+        e.mesh.position.x + Math.cos(sang) * 1.3, 0,
+        e.mesh.position.z + Math.sin(sang) * 1.3), 'normal');
+      sp.waveTag = e.waveTag;
+      sp.hp = 1;                      // 分裂出的小鱼只有 1 点生命
+      spawnBurst(sp.mesh.position, 0xa8f0c0, 10, 2.6);
+    }
+    showNotice('分裂鱼分裂成了 ' + CFG.splitterSpawnCount + ' 条小鱼！');
+  }
+
   kills += 1;
   score += 10;
   addComboPoints(CFG.comboFishPoints);   // 连杀 +1 点
@@ -1824,6 +1905,66 @@ function makeShieldMesh() {
   // 举在身前（约遮住鱼身下半部，露出头部便于辨认）
   g.position.set(0, -0.12, 0.6);
   g.scale.set(0.76, 0.76, 0.76);
+  return g;
+}
+
+// ---------------------------------------------------------------- 治疗肥鱼（护士帽 + 大针筒）
+function makeNurseHatMesh() {
+  var g = new THREE.Group();
+  var white = new THREE.MeshStandardMaterial({ color: 0xf7f9fb, roughness: 0.86 });
+  var red = new THREE.MeshStandardMaterial({ color: 0xd83030, roughness: 0.7 });
+
+  // 帽体（小圆盘，略微上窄下宽）
+  var cap = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.26, 0.11, 14), white);
+  g.add(cap);
+  // 红十字（两片薄板交叉）
+  var crossA = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.022, 0.05), red);
+  crossA.position.y = 0.062;
+  var crossB = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.022, 0.16), red);
+  crossB.position.y = 0.062;
+  g.add(crossA, crossB);
+  return g;
+}
+
+function makeSyringeMesh() {
+  var g = new THREE.Group();
+  // 针筒（半透明药剂管，横放）
+  var barrel = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.072, 0.072, 0.34, 10),
+    new THREE.MeshStandardMaterial({ color: 0xd8f0ff, roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.82 }));
+  barrel.rotation.z = Math.PI / 2;
+  g.add(barrel);
+  // 药剂（浅绿，略细）
+  var fluid = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.055, 0.055, 0.24, 10),
+    new THREE.MeshStandardMaterial({ color: 0x8ce6a0, roughness: 0.4, transparent: true, opacity: 0.75 }));
+  fluid.rotation.z = Math.PI / 2;
+  fluid.position.x = 0.03;
+  g.add(fluid);
+  // 活塞杆
+  var rod = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.022, 0.022, 0.2, 8),
+    new THREE.MeshStandardMaterial({ color: 0xb8c2cc, roughness: 0.4, metalness: 0.5 }));
+  rod.rotation.z = Math.PI / 2;
+  rod.position.x = -0.25;
+  g.add(rod);
+  // 推板
+  var plate = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.13, 0.13),
+    new THREE.MeshStandardMaterial({ color: 0xc6d0d8, roughness: 0.45, metalness: 0.4 }));
+  plate.position.x = -0.35;
+  g.add(plate);
+  // 针头
+  var needle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.009, 0.009, 0.2, 6),
+    new THREE.MeshStandardMaterial({ color: 0xe2e9ef, roughness: 0.2, metalness: 0.8 }));
+  needle.rotation.z = Math.PI / 2;
+  needle.position.x = 0.27;
+  g.add(needle);
+
+  // 手持（与剑/枪同锚点：贴图右手爪爪）
+  g.position.set(-0.44, -0.42, 0.3);
+  g.rotation.set(0.16, 0, -0.55);
+  g.scale.set(1.55, 1.55, 1.55);
   return g;
 }
 
@@ -3401,6 +3542,21 @@ function onKeyDown(ev) {
   handleDebugCheat(ev.code);          // 开发者模式秘技检测（任意状态下）
   if (ev.code === 'KeyR' && state === 'playing') { requestReload(); }
   if (ev.code === 'KeyG' && state === 'playing') { throwGrenade(); }
+  // 开发者模式：小键盘 1~4 快速刷出四种特殊敌人（便于测试）
+  if (debugMode && state === 'playing') {
+    var _devSpawnMap = { Numpad1: 'bomber', Numpad2: 'shield', Numpad3: 'healer', Numpad4: 'splitter' };
+    var _devKind = _devSpawnMap[ev.code];
+    if (_devKind) {
+      var _dx = player.pos.x - Math.sin(player.yaw) * 6;
+      var _dz = player.pos.z - Math.cos(player.yaw) * 6;
+      var _ne = spawnFish(new THREE.Vector3(_dx, 0, _dz), _devKind);
+      _ne.waveTag = wave.number;              // 归入本波，避免干扰清波判定
+      showNotice('开发者：刷出 ' + (ENEMY_LABEL[_devKind] || _devKind));
+      debugLog('开发者快捷键刷出 ' + (ENEMY_LABEL[_devKind] || _devKind), 'dbg-hit');
+      ev.preventDefault();
+      return;
+    }
+  }
   if (ev.code === 'KeyI') {
     if (state === 'playing') openSkills();        // 打开技能等级面板
     else if (state === 'skills') closeSkills();   // 再按 I 关闭
