@@ -1583,6 +1583,12 @@ function killFish(e, hitPoint) {
   kills += 1;
   score += 10;
   addComboPoints(CFG.comboFishPoints);   // 连杀 +1 点
+  // 连杀 SSS 增益：击杀回复 2% 最大生命
+  var lifeSteal = comboBonus().lifesteal;
+  if (lifeSteal > 0 && player.hp < CFG.maxHp) {
+    player.hp = Math.min(CFG.maxHp, player.hp + CFG.maxHp * lifeSteal);
+    updateHUD();
+  }
   Sfx.fishDie();
   spawnBurst(hitPoint, 0x79c8ff, 26, 5.2);
   spawnBurst(hitPoint, 0xffffff, 10, 3);
@@ -1861,6 +1867,33 @@ function hideComboPop() {
 }
 
 // 增加连杀点数（击杀时调用）；重置衰减计时，按新旧评级关系选择动画
+// ---------------------------------------------------------------- 连杀评级增益
+// 让「维持连杀」有实际收益：B 移速+5% / A 伤害+10% / S +15% / SS +20% / SSS +25% 且击杀吸血 2%
+function comboBonus() {
+  var r = combo.rank;
+  if (r >= 6) return { speed: 0.12, damage: 0.25, lifesteal: 0.02 };   // SSS
+  if (r >= 5) return { speed: 0.10, damage: 0.20, lifesteal: 0 };      // SS
+  if (r >= 4) return { speed: 0.08, damage: 0.15, lifesteal: 0 };      // S
+  if (r >= 3) return { speed: 0.05, damage: 0.10, lifesteal: 0 };      // A
+  if (r >= 2) return { speed: 0.05, damage: 0, lifesteal: 0 };         // B
+  return { speed: 0, damage: 0, lifesteal: 0 };                        // D / C / 无
+}
+
+/** 当前子弹伤害（技能升级 × 连杀评级加成） */
+function gunDamageNow() {
+  return (1 + upgrades.dmg) * (1 + comboBonus().damage);
+}
+
+/** 连杀增益文案（用于提升时播报） */
+function comboBonusText() {
+  var b = comboBonus();
+  var parts = [];
+  if (b.damage > 0) parts.push('伤害 +' + Math.round(b.damage * 100) + '%');
+  if (b.speed > 0) parts.push('移速 +' + Math.round(b.speed * 100) + '%');
+  if (b.lifesteal > 0) parts.push('击杀吸血 ' + Math.round(b.lifesteal * 100) + '%');
+  return parts.join(' · ');
+}
+
 function addComboPoints(points) {
   combo.score += points;
   combo.timer = CFG.comboDecayTime;
@@ -1871,6 +1904,8 @@ function addComboPoints(points) {
     showComboRank(newRank, 'anim-d');            // 首次获得评级
   } else if (newRank > oldRank) {
     showComboRank(newRank, 'anim-up');           // 升级（含 Boss 跳级）：抖动登场
+    var bonusText = comboBonusText();
+    if (bonusText) showNotice('连杀增益：' + bonusText);
   } else {
     showComboRank(newRank, 'anim-keep');         // 同级（SSS 后继续击杀）：脉冲刷新，字母保持
   }
@@ -2830,8 +2865,8 @@ function shootOnce() {
     }
   } else if (hitBoss) {
     _hitPoint.copy(_rayOrigin).addScaledVector(_rayDir, bestT);
-    boss.hp -= 1 + upgrades.dmg;      // 子弹伤害升级：每发多造成 L 点
-    debugLog('你对 超级蓝色大肥鱼 造成了 ' + (1 + upgrades.dmg) + ' 点伤害（剩余 ' + Math.max(0, boss.hp) + '）', 'dbg-hit');
+    boss.hp -= gunDamageNow();        // 子弹伤害：技能升级 × 连杀评级加成
+    debugLog('你对 超级蓝色大肥鱼 造成了 ' + gunDamageNow().toFixed(1) + ' 点伤害（剩余 ' + Math.max(0, boss.hp).toFixed(1) + '）', 'dbg-hit');
     boss.hurt = 0.15;
     spawnBurst(_hitPoint, 0xffd54a, 10, 3.5);
     Sfx.bossHit();
@@ -2840,8 +2875,8 @@ function shootOnce() {
     if (boss.hp <= 0) defeatBoss();
   } else if (best) {
     _hitPoint.copy(_rayOrigin).addScaledVector(_rayDir, bestT);
-    best.hp = (best.hp || 1) - (1 + upgrades.dmg);  // 小怪扣血（可多级成长）
-    debugLog('你对 ' + enemyName(best) + ' 造成了 ' + (1 + upgrades.dmg) + ' 点伤害' + (best.hp > 0 ? '（剩余 ' + best.hp + ' 血）' : '（击败！）'), 'dbg-hit');
+    best.hp = (best.hp || 1) - gunDamageNow();      // 小怪扣血（技能升级 × 连杀评级加成）
+    debugLog('你对 ' + enemyName(best) + ' 造成了 ' + gunDamageNow().toFixed(1) + ' 点伤害' + (best.hp > 0 ? '（剩余 ' + best.hp.toFixed(1) + ' 血）' : '（击败！）'), 'dbg-hit');
     Sfx.hitFish();
     spawnBurst(_hitPoint, 0x9fd8ff, best.hp > 0 ? 6 : 12, best.hp > 0 ? 2.2 : 3.5);
     flashCrosshair();
@@ -3309,7 +3344,7 @@ function updatePlayer(dt) {
   var moving = len > 0.01;
   if (moving) {
     mx /= len; mz /= len;
-    var spdNow = CFG.walkSpeed * (1 + upgrades.speed * CFG.upgradeSpeedPerLevel); // 疾风步伐：速度 +5%/级
+    var spdNow = CFG.walkSpeed * (1 + upgrades.speed * CFG.upgradeSpeedPerLevel + comboBonus().speed); // 疾风步伐 + 连杀评级增益
     movePlayer(mx * spdNow * dt, mz * spdNow * dt);
     stepTimer += spdNow * dt;
     if (stepTimer > 2.6) { stepTimer = 0; Sfx.step(); }
@@ -3629,6 +3664,10 @@ window.FishGame = {
     getState: function () { return state; },
     getCamFx: function () { return camFx; },
     getWave: function () { return wave; },
+    startWave: startWave,
+    getComboBonus: function () { return comboBonus(); },
+    getGunDamage: function () { return gunDamageNow(); },
+    setComboRank: function (r) { combo.rank = r; combo.score = Math.max(1, (CFG.comboRankPoints[r] || 1)); },
     getStage: function () { return currentStage(); },
     getBossKillCount: function () { return bossKillCount; },
     setBossKillCount: function (n) { bossKillCount = n; checkStageUp(); },

@@ -143,7 +143,9 @@ advance(0.3);
 check('肥鱼贴图已加载', dbg.isFishReady() === true);
 check('开始界面播放来去曼波', dbg.getBgmInfo().menuOn === true && dbg.getBgmInfo().menuVol === 0.18,
   'on=' + dbg.getBgmInfo().menuOn + ' vol=' + dbg.getBgmInfo().menuVol);
-check('生成 6 条肥鱼(>=3)', dbg.getEnemies().length === 6, String(dbg.getEnemies().length));
+// 波次系统：进游戏后由波次状态机出怪（prepare 2.2s），测试里显式开启第 1 波
+dbg.startWave(1);
+check('第 1 波生成 6 条肥鱼(>=3)', dbg.getEnemies().length === 6, String(dbg.getEnemies().length));
 check('场景障碍物已建立', dbg.getObstacles().length >= 10, String(dbg.getObstacles().length));
 
 // 模拟 pointer lock 开始游戏
@@ -372,18 +374,18 @@ dbg.resetProgression();         // 恢复敌人成长基线（本段已真实成
 // ---- Boss 保底生成机制 ----
 // 首刷必出：解除冻结后首个判定必然刷出 Boss
 dbg.removeBoss();
-dbg.setBossTimer(0.12);
-advance(0.4);
-check('首个30秒 Boss 必定刷出', dbg.getBoss() !== null, String(dbg.getBoss() !== null));
+// 波次驱动：第 bossEveryWaves(5) 波清空后必定刷新 Boss
+dbg.startWave(5);
+dbg.killAllEnemies();
+advance(5.0);
+check('第 5 波清空后 Boss 必定出现', dbg.getBoss() !== null, String(dbg.getBoss() !== null));
 dbg.removeBoss();
-// 连续 3 次未刷出 → 保底必定刷出
-dbg.setBossMisses(3);
-dbg.setBossTimer(0.12);
-advance(0.4);
-check('连续3次未刷出后保底必定刷出', dbg.getBoss() !== null, String(dbg.getBoss() !== null));
-dbg.removeBoss();
-dbg.setBossTimer(99999);
-dbg.setBossMisses(0);
+if (dbg.getState() !== 'playing') dbg.setState('playing');
+// 非 Boss 波（第 6 波）清空后不刷新 Boss
+dbg.startWave(6);
+dbg.killAllEnemies();
+advance(5.0);
+check('第 6 波清空后不刷新 Boss', dbg.getBoss() === null, String(dbg.getBoss() !== null));
 if (dbg.getState() !== 'playing') dbg.setState('playing');
 
 // Boss 黄色小球攻击
@@ -750,9 +752,12 @@ check('重开后状态复位', dbg.getState() === 'playing' && dbg.getScore() ==
   dbg.getState() + '/' + dbg.getScore() + '/' + dbg.getPlayer().hp);
 check('重开后战斗曲复位', dbg.getBgmInfo().bossTempo === 0 && dbg.getBgmInfo().bossVol === 0,
   'tempo=' + dbg.getBgmInfo().bossTempo + ' vol=' + dbg.getBgmInfo().bossVol);
+const clearedFishes = dbg.getEnemies();
+check('重开后清空上一局敌人（波次系统接管出怪）', clearedFishes.length === 0, 'count=' + clearedFishes.length);
+advance(3.2);   // 波次 prepare 2.2s 后开始第 1 波
 const newFishes = dbg.getEnemies();
-check('重开后清场刷新6条新怪', newFishes.length === 6 && newFishes.every(e => e.alive && e.hp === 1),
-  'count=' + newFishes.length + ' hps=' + newFishes.map(e => e.hp).join(','));
+check('重开后波次刷新第 1 波(6 条)', newFishes.length === 6 && newFishes.every(e => e.alive),
+  'count=' + newFishes.length);
 check('重开后怪分布在场地(非角落残留)', newFishes.every(e => Math.abs(e.mesh.position.x) < 44 && Math.abs(e.mesh.position.z) < 44),
   'bad-pos=' + newFishes.filter(e => !(Math.abs(e.mesh.position.x) < 44 && Math.abs(e.mesh.position.z) < 44)).length);
 
@@ -883,8 +888,11 @@ check('回到主菜单世界已重置', dbg.getGrowth().bossKillCount === 0 && d
   dbg.getUpgrades().dmg === 0 && dbg.getPlayer().hp === 100,
   'bossKills=' + dbg.getGrowth().bossKillCount + ' maxAll=' + dbg.isMaxAll() + ' hp=' + dbg.getPlayer().hp);
 dbg.enterFallback();            // 从主菜单重新进入游戏（模拟选关进入）
-check('主菜单重新进入游戏正常', dbg.getState() === 'playing' && dbg.getEnemies().length === 6 && dbg.getEnemies()[0].hp === 1,
-  dbg.getState() + '/fish=' + dbg.getEnemies().length);
+check('主菜单重新进入游戏正常', dbg.getState() === 'playing' && dbg.getEnemies().length === 0,
+  dbg.getState() + '/fish=' + dbg.getEnemies().length);   // 波次系统接管：进游戏后 2.2s 才开始第 1 波
+advance(3.2);
+check('重新进入后波次刷新第 1 波(6 条)', dbg.getEnemies().length === 6,
+  'fish=' + dbg.getEnemies().length);
 
 // ---- 作弊被抓（开发者模式胜利后回主菜单） ----
 for (const dc5 of cheatSeq) fakeDocument.fire('keydown', { code: dc5 });
