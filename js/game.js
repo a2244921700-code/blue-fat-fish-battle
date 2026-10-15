@@ -21,6 +21,13 @@ var CFG = {
   waveCountPerStage: 2,    // 每升一阶段，每波额外敌人数量
   wavePrepareTime: 2.2,    // 波次提示到出怪的时间（秒）
   waveRestTime: 4.5,       // 清波后的喘息时间（秒）
+  // ---- 特殊敌人参数 ----
+  bomberChargeSpeed: 7.2,    // 自爆鱼冲锋速度（m/s）
+  bomberTriggerRange: 1.7,   // 自爆触发距离（米）
+  bomberFatalRange: 1.0,     // 自爆致命范围：1 米内
+  bomberBlastRange: 5.0,     // 自爆波及范围：1~5 米
+  bomberDamageClose: 100,    // 1 米内基础伤害
+  bomberDamageFar: 50,       // 1~5 米基础伤害
   bossEveryWaves: 5,       // 每清理 N 波刷新一次 Boss
   bossesPerStage: 10,      // 每击杀 N 次 Boss 升一个阶段
   maxStage: 5,             // 阶段上限（共 5 阶段）
@@ -1206,12 +1213,18 @@ function spawnFish(pos, kind) {
   e.hp = enemyHpNow;              // 小怪血量（随 Boss 击杀成长，≤10）
   e.mesh.position.copy(pos);
   e.mesh.position.y = e.baseY;
-  e.gunMesh = makeFishGun();
-  e.gunMesh.visible = ranged;              // 射手鱼持枪
-  e.mesh.add(e.gunMesh);
-  e.swordMesh = makeFishSword();
-  e.swordMesh.visible = !ranged;           // 近战鱼持小剑
-  e.mesh.add(e.swordMesh);
+  if (kind === 'bomber') {
+    // 自爆鱼：怀抱核弹（不持枪剑）
+    e.bombMesh = makeBombMesh();
+    e.mesh.add(e.bombMesh);
+  } else {
+    e.gunMesh = makeFishGun();
+    e.gunMesh.visible = ranged;            // 射手鱼持枪
+    e.mesh.add(e.gunMesh);
+    e.swordMesh = makeFishSword();
+    e.swordMesh.visible = !ranged;         // 近战鱼持小剑
+    e.mesh.add(e.swordMesh);
+  }
   e.swingT = -1;                           // 挥剑动画计时（-1 = 未在挥剑）
   scene.add(e.mesh);
   enemies.push(e);
@@ -1425,6 +1438,22 @@ function updateEnemies(dt) {
         e.waypoint.set(rand(-43, 43), 0, rand(-43, 43));
         e.waitTimer = 0; e.attackTimer = 0; e.lostTimer = 0;
         e.mesh.visible = true;
+      }
+      continue;
+    }
+
+    // ---- 自爆鱼：直冲玩家，贴身引爆（不走常规巡逻/追击/攻击状态机）----
+    if (e.kind === 'bomber') {
+      var bdx = player.pos.x - e.mesh.position.x;
+      var bdz = player.pos.z - e.mesh.position.z;
+      var bDist = Math.sqrt(bdx * bdx + bdz * bdz);
+      e.state = 'chase';                 // 复用追击配色：身体发红警示玩家
+      if (bDist > 0.5) {
+        moveFishAvoiding(e, player.pos.x, player.pos.z, CFG.bomberChargeSpeed * e.speedMul, dt, 1.0, 1.7, 0.8);
+        clampFish(e);
+      }
+      if (bDist <= CFG.bomberTriggerRange) {
+        explodeBomber(e);
       }
       continue;
     }
@@ -1674,6 +1703,185 @@ function makeFishSword() {
 
 // 剑的待机姿态（挥剑动画以此为基准）
 var SWORD_REST_X = 0.55, SWORD_REST_Y = 0.28, SWORD_REST_Z = -0.95;
+
+// ---------------------------------------------------------------- 自爆肥鱼（怀抱「大伊万」核弹）
+// 核辐射警告标志贴图（程序化绘制：黄底 + 黑色三叶形 + 边框）
+function makeRadiationTexture() {
+  var c = makeCanvas(128, 128);
+  var x = c.getContext('2d');
+  x.fillStyle = '#f2d024'; x.fillRect(0, 0, 128, 128);          // 黄底
+  x.strokeStyle = '#141414'; x.lineWidth = 9; x.strokeRect(4, 4, 120, 120);  // 黑边
+  var cx = 64, cy = 64;
+  x.fillStyle = '#141414';
+  // 三叶形（环形扇区，彼此留缝）
+  for (var i = 0; i < 3; i++) {
+    var mid = -Math.PI / 2 + i * (Math.PI * 2 / 3);
+    var half = 0.52;
+    x.beginPath();
+    x.arc(cx, cy, 46, mid - half, mid + half);
+    x.arc(cx, cy, 19, mid + half, mid - half, true);
+    x.closePath();
+    x.fill();
+  }
+  // 中心圆
+  x.beginPath(); x.arc(cx, cy, 11, 0, Math.PI * 2); x.fill();
+  return c;
+}
+
+// 核弹模型（大伊万）：椭圆柱弹体 + 锥形头部 + 尾翼 + 白色头巾
+function makeBombMesh() {
+  var g = new THREE.Group();
+  var bodyTex = new THREE.CanvasTexture(makeRadiationTexture());
+  bodyTex.colorSpace = THREE.SRGBColorSpace;
+  var bodyMat = new THREE.MeshStandardMaterial({ map: bodyTex, roughness: 0.55, metalness: 0.2 });
+  var metalMat = new THREE.MeshStandardMaterial({ color: 0x9aa4ae, roughness: 0.42, metalness: 0.45 });
+
+  // 弹体（圆柱横放，朝前 +Z）
+  var body = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.92, 14), bodyMat);
+  body.rotation.x = Math.PI / 2;
+  g.add(body);
+
+  // 锥形头部
+  var nose = new THREE.Mesh(new THREE.ConeGeometry(0.23, 0.32, 14), metalMat);
+  nose.rotation.x = Math.PI / 2;
+  nose.position.z = 0.62;
+  g.add(nose);
+
+  // 尾部收口
+  var tail = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.13, 0.22, 12), metalMat);
+  tail.rotation.x = Math.PI / 2;
+  tail.position.z = -0.55;
+  g.add(tail);
+
+  // 四片尾翼
+  var finMat = new THREE.MeshStandardMaterial({ color: 0x6f7880, roughness: 0.5, metalness: 0.4 });
+  for (var i = 0; i < 4; i++) {
+    var fin = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.28, 0.3), finMat);
+    var ang = i * Math.PI / 2 + Math.PI / 4;
+    fin.position.set(Math.cos(ang) * 0.21, Math.sin(ang) * 0.21, -0.45);
+    fin.rotation.z = ang;
+    g.add(fin);
+  }
+
+  // 白色头巾：环 + 两条垂下的巾角
+  var clothMat = new THREE.MeshStandardMaterial({ color: 0xf4f4f6, roughness: 0.92 });
+  var wrap = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.062, 8, 16), clothMat);
+  wrap.position.z = 0.2;
+  wrap.rotation.x = 0;   // 环面朝 +Z，套在弹体上
+  g.add(wrap);
+  for (var k = 0; k < 2; k++) {
+    var flap = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.24, 0.02), clothMat);
+    flap.position.set(-0.15 + k * 0.3, -0.26, 0.2);
+    flap.rotation.z = (k === 0 ? 0.28 : -0.28);
+    g.add(flap);
+  }
+
+  // 辐射警告牌：用 Sprite（始终面向相机，标志不会被拉伸或遮挡）
+  var warnTex = new THREE.CanvasTexture(makeRadiationTexture());
+  warnTex.colorSpace = THREE.SRGBColorSpace;
+  var warn = new THREE.Sprite(new THREE.SpriteMaterial({ map: warnTex, transparent: true, depthWrite: false }));
+  warn.scale.set(0.4, 0.4, 1);
+  warn.position.set(-0.28, 0.1, 0.12);
+  g.add(warn);
+
+  // 抱在身前（像抱着一颗炸弹）—— 尺寸贴近身体，不遮挡鱼脸
+  g.position.set(-0.44, -0.5, 0.26);
+  g.rotation.set(0.32, 0, -0.18);
+  g.scale.set(0.82, 0.82, 0.82);
+  return g;
+}
+
+// 爆炸特效（火球 + 冲击环 + 蘑菇云烟团）
+var blastFx = [];
+
+function spawnMushroomCloud(pos) {
+  // 粒子（减量，避免方块粒子盖过云体）
+  spawnBurst(pos, 0xffd24a, 22, 8.5);
+  spawnBurst(pos, 0xff7a2a, 14, 6.0);
+
+  // ① 火球：中心亮球，膨胀较久（蘑菇云根部）
+  var ball = new THREE.Mesh(
+    new THREE.SphereGeometry(0.7, 14, 12),
+    new THREE.MeshBasicMaterial({ color: 0xffca55, transparent: true, opacity: 0.95, depthWrite: false }));
+  ball.position.set(pos.x, pos.y + 0.3, pos.z);
+  scene.add(ball);
+  blastFx.push({ mesh: ball, mat: ball.material, t: 0, life: 0.85, growth: 2.4, rise: 1.1, growY: 0 });
+
+  // ② 烟柱：垂直圆柱向上抽升（蘑菇柄）
+  var stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.55, 0.85, 2.4, 14, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0xd9c9a8, transparent: true, opacity: 0.72, depthWrite: false,
+      side: THREE.DoubleSide,
+    }));
+  stem.position.set(pos.x, pos.y + 1.2, pos.z);
+  scene.add(stem);
+  blastFx.push({ mesh: stem, mat: stem.material, t: 0, life: 1.5, growth: 0.9, rise: 1.4, growY: 1.1 });
+
+  // ③ 云冠：顶部横向铺开的圆盘（蘑菇伞盖）
+  var cap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.9, 14, 10),
+    new THREE.MeshBasicMaterial({ color: 0xffe6c2, transparent: true, opacity: 0.88, depthWrite: false }));
+  cap.position.set(pos.x, pos.y + 2.5, pos.z);
+  cap.scale.set(1.5, 0.65, 1.5);
+  scene.add(cap);
+  blastFx.push({ mesh: cap, mat: cap.material, t: 0, life: 1.35, growth: 1.8, rise: 0.8, growY: 0 });
+
+  // ④ 地面冲击环：水平扩散并抬升一点（避免完全贴地被忽视）
+  var ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.4, 0.95, 26),
+    new THREE.MeshBasicMaterial({
+      color: 0xffe0b0, transparent: true, opacity: 0.85, side: THREE.DoubleSide,
+      depthWrite: false, blending: THREE.NormalBlending,
+    }));
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.set(pos.x, 0.35, pos.z);
+  scene.add(ring);
+  blastFx.push({ mesh: ring, mat: ring.material, t: 0, life: 0.8, growth: 5.0, rise: 0, growY: 0 });
+}
+
+function updateBlastFx(dt) {
+  for (var i = blastFx.length - 1; i >= 0; i--) {
+    var f = blastFx[i];
+    f.t += dt;
+    var k = f.t / f.life;
+    var s = 1 + k * f.growth;
+    var sy = s * (1 + k * (f.growY || 0));   // 烟柱可额外纵向拉伸
+    f.mesh.scale.set(s, sy, s);
+    f.mesh.position.y += f.rise * dt;
+    f.mat.opacity = Math.max(0, (1 - k) * 0.95);
+    if (f.t >= f.life) {
+      scene.remove(f.mesh);
+      f.mesh.geometry.dispose();
+      f.mat.dispose();
+      blastFx.splice(i, 1);
+    }
+  }
+}
+
+// 自爆：范围伤害（1m 内 100 / 1~5m 50 / 5m 外免伤）+ 蘑菇云
+function explodeBomber(e) {
+  var pos = e.mesh.position.clone();
+  var d = Math.sqrt(Math.pow(player.pos.x - pos.x, 2) + Math.pow(player.pos.z - pos.z, 2));
+
+  if (d <= CFG.bomberFatalRange) {
+    damagePlayer(CFG.bomberDamageClose, { name: '自爆肥鱼', atk: '核弹自爆' });
+  } else if (d <= CFG.bomberBlastRange) {
+    damagePlayer(CFG.bomberDamageFar, { name: '自爆肥鱼', atk: '核弹冲击' });
+  }
+  spawnMushroomCloud(pos);
+  Sfx.fishDie();
+
+  e.alive = false;
+  e.respawnTimer = 99999;
+  e.mesh.visible = false;
+  kills += 1;
+  score += 10;
+  addComboPoints(CFG.comboFishPoints);
+  updateHUD();
+  debugLog('自爆肥鱼引爆（距离 ' + d.toFixed(1) + ' 米，造成 ' +
+    (d <= CFG.bomberFatalRange ? CFG.bomberDamageClose : d <= CFG.bomberBlastRange ? CFG.bomberDamageFar : 0) + ' 点伤害）', 'dbg-hit');
+}
 
 // ---------------------------------------------------------------- 剑气特效
 // 近战攻击的"具象化"：挥剑瞬间从剑刃朝玩家方向冲出一道弧形剑气。
@@ -3501,6 +3709,7 @@ function update(dt) {
   }
   updateFishVisuals(dt);
   updateSwordWaves(dt);   // 剑气特效（弧形能量波飞行与淡出）
+  updateBlastFx(dt);      // 自爆特效（火球/冲击环/蘑菇云烟团）
   updateParticles(dt);
   updateHUD();
   drawMiniMap();
@@ -3808,6 +4017,9 @@ window.FishGame = {
       armorStacks = 0;
       armorTimer = CFG.armorInterval;
       updateArmorHUD();
+    },
+    spawnEnemy: function (kind, x, z) {
+      return spawnFish(new THREE.Vector3(x, 0, z), kind || 'normal');
     },
     spawnShooter: function (x, z) {
       var e = spawnFish(new THREE.Vector3(x, 0, z));
