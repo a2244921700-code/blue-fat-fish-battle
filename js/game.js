@@ -411,10 +411,14 @@ function switchWeapon(id) {
   Sfx.reloadDone();
 }
 
-/** 按当前武器显示对应枪械模型 */
+/** 按当前武器显示对应枪械模型，并把枪口火焰/枪口光移到该枪的枪口处
+    （两把枪枪管长度不同：手枪枪口 z≈-0.30，步枪枪口 z≈-0.96） */
 function applyWeaponVisual() {
   if (gun.pistolGroup) gun.pistolGroup.visible = (currentWeapon === 'pistol');
   if (gun.rifleGroup) gun.rifleGroup.visible = (currentWeapon === 'rifle');
+  var muzzleZ = (currentWeapon === 'rifle') ? -1.05 : -0.36;
+  if (gun.flashMesh) gun.flashMesh.position.set(0, 0.055, muzzleZ);
+  if (gun.light) gun.light.position.set(0, 0.055, muzzleZ - 0.03);
 }
 
 // ---------------------------------------------------------------- 成就系统
@@ -1537,13 +1541,45 @@ function buildGun() {
 
   // 枪口闪光
   gun.light = new THREE.PointLight(0xffc46e, 0, 7);
-  gun.light.position.set(0, 0.05, -0.75);
+  gun.light.position.set(0, 0.055, -0.39);   // 初值对应手枪枪口（切换武器时会重新定位）
   gun.group.add(gun.light);
+  // 枪口光焰贴图：径向光晕 + 十字尖角（比纯色方块更像枪焰）
+  if (!window.__flashTex) {
+    var fc = document.createElement('canvas');
+    fc.width = fc.height = 128;
+    var fx2 = fc.getContext('2d');
+    var fg = fx2.createRadialGradient(64, 64, 0, 64, 64, 64);
+    fg.addColorStop(0, 'rgba(255,255,240,1)');
+    fg.addColorStop(0.22, 'rgba(255,238,150,0.95)');
+    fg.addColorStop(0.55, 'rgba(255,175,60,0.45)');
+    fg.addColorStop(1, 'rgba(255,140,40,0)');
+    fx2.fillStyle = fg;
+    fx2.fillRect(0, 0, 128, 128);
+    fx2.globalCompositeOperation = 'lighter';
+    for (var fi2 = 0; fi2 < 4; fi2++) {
+      fx2.save();
+      fx2.translate(64, 64);
+      fx2.rotate(fi2 * Math.PI / 2);
+      var flg = fx2.createLinearGradient(0, 0, 0, -62);
+      flg.addColorStop(0, 'rgba(255,250,225,0.95)');
+      flg.addColorStop(1, 'rgba(255,205,95,0)');
+      fx2.fillStyle = flg;
+      fx2.beginPath();
+      fx2.moveTo(-6, 0); fx2.lineTo(0, -62); fx2.lineTo(6, 0);
+      fx2.closePath();
+      fx2.fill();
+      fx2.restore();
+    }
+    var ft = new THREE.CanvasTexture(fc);
+    ft.colorSpace = THREE.SRGBColorSpace;
+    window.__flashTex = ft;
+  }
   gun.flashMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.22, 0.22),
-    new THREE.MeshBasicMaterial({ color: 0xffe2a0, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })
+    new THREE.PlaneGeometry(0.34, 0.34),
+    new THREE.MeshBasicMaterial({ map: window.__flashTex, color: 0xffffff, transparent: true, opacity: 0.95,
+      blending: THREE.AdditiveBlending, depthWrite: false })
   );
-  gun.flashMesh.position.set(0, 0.05, -0.72);
+  gun.flashMesh.position.set(0, 0.055, -0.36);   // 初值对应手枪枪口
   gun.flashMesh.visible = false;
   // ===== 双武器模型：手枪组（上面这些）、步枪组 =====
   // 把已有手枪部件收进一个子组，便于整体显隐
@@ -1580,6 +1616,7 @@ function buildGun() {
   gun.rifleGroup.add(rifleBody, rifleBarrel, rifleMuzzle, rifleMag, rifleStock, rifleGrip, rifleSight);
   gun.group.add(gun.rifleGroup);
   gun.rifleGroup.visible = false;
+  applyWeaponVisual();   // 初始化枪口火焰位置（默认手枪）
   gun.group.add(gun.flashMesh);
 }
 
@@ -5083,6 +5120,16 @@ window.FishGame = {
     },
     enterGameWorld: enterGameWorld,       // 测试用：构建游戏世界
     unloadGameScene: unloadGameScene,     // 测试用：卸载游戏世界
+    showMuzzleFlash: function (on) {   // 测试/截图用：强制显示枪口火焰
+      if (!gun.flashMesh) return null;
+      gun.flashMesh.visible = !!on;
+      if (gun.light) gun.light.intensity = on ? 6 : 0;
+      return {
+        weapon: currentWeapon,
+        flashZ: +gun.flashMesh.position.z.toFixed(3),
+        lightZ: gun.light ? +gun.light.position.z.toFixed(3) : null,
+      };
+    },
     getSceneStats: function () {
       var meshes = 0;
       scene.traverse(function (o) { if (o.isMesh || o.isSprite || o.isPoints) meshes++; });
