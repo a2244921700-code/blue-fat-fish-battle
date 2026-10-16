@@ -528,6 +528,7 @@ dbg.resetHurt();
 if (dbg.getState() !== 'playing') dbg.setState('playing');
 
 // ---- 远程射手鱼 ----
+dbg.clearCovers();   // 清空每局随机掩体：避免随机布局挡住射手鱼视线导致其丢失目标
 const shooter = dbg.spawnShooter(0, 20);     // 玩家 (0,40) 前方 20 米（子弹飞行 2.2s）
 shooter.state = 'chase'; shooter.lostTimer = 0;
 for (const fz of dbg.getEnemies()) {

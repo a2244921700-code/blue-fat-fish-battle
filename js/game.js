@@ -290,6 +290,54 @@ function persistSave() {
   try { window.localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
 }
 
+// ---------------------------------------------------------------- 武器系统（双武器切换）
+// 手枪：均衡（30 发 / 0.16s / 1.0 倍伤害）
+// 突击步枪：高射速大弹匣但单发偏低（45 发 / 0.082s / 0.72 倍），带轻微散布
+// 两把武器弹药独立，备弹池各自累计
+var WEAPONS = {
+  pistol: {
+    key: '1', name: '手枪', magSize: 30, shootInterval: 0.16, reloadTime: 1.5,
+    damageMul: 1.0, recoil: 0.13, spread: 0, reserveStart: 180,
+  },
+  rifle: {
+    key: '2', name: '突击步枪', magSize: 45, shootInterval: 0.082, reloadTime: 2.0,
+    damageMul: 0.72, recoil: 0.075, spread: 0.014, reserveStart: 180,
+  },
+};
+var currentWeapon = 'pistol';
+var weaponAmmo = {
+  pistol: { mag: 30, reserve: 180 },
+  rifle: { mag: 45, reserve: 180 },
+};
+function weaponDef() { return WEAPONS[currentWeapon]; }
+
+/** 切换武器（保存当前弹药、载入目标弹药、切模型、刷新 HUD） */
+function switchWeapon(id) {
+  if (!WEAPONS[id] || id === currentWeapon) return;
+  weaponAmmo[currentWeapon].mag = ammo.mag;
+  weaponAmmo[currentWeapon].reserve = ammo.reserve;
+
+  currentWeapon = id;
+  var def = WEAPONS[id];
+  ammo.mag = weaponAmmo[id].mag;
+  ammo.reserve = weaponAmmo[id].reserve;
+  ammo.magSize = def.magSize;
+  ammo.reloading = false;
+  ammo.reloadTimer = 0;
+  if (dom.reloadWrap) dom.reloadWrap.style.display = 'none';
+
+  applyWeaponVisual();
+  updateAmmoHUD();
+  showNotice('切换武器：' + def.name + '（' + def.key + ' 键切换）');
+  Sfx.reloadDone();
+}
+
+/** 按当前武器显示对应枪械模型 */
+function applyWeaponVisual() {
+  if (gun.pistolGroup) gun.pistolGroup.visible = (currentWeapon === 'pistol');
+  if (gun.rifleGroup) gun.rifleGroup.visible = (currentWeapon === 'rifle');
+}
+
 // ---------------------------------------------------------------- 成就系统
 // 解锁状态存在 save.achievements；同一成就只解锁一次，解锁时右上角弹出提示
 var ACHIEVEMENTS = {
@@ -1354,6 +1402,41 @@ function buildGun() {
   );
   gun.flashMesh.position.set(0, 0.05, -0.72);
   gun.flashMesh.visible = false;
+  // ===== 双武器模型：手枪组（上面这些）、步枪组 =====
+  // 把已有手枪部件收进一个子组，便于整体显隐
+  gun.pistolGroup = new THREE.Group();
+  for (var pi = gun.group.children.length - 1; pi >= 0; pi--) {
+    var ch = gun.group.children[pi];
+    if (ch !== gun.light) { gun.pistolGroup.add(ch); }
+  }
+  gun.group.add(gun.pistolGroup);
+
+  // 突击步枪：更长的枪身 + 弹匣 + 枪托 + 散热片
+  gun.rifleGroup = new THREE.Group();
+  var rifleBody = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.15, 0.78), dark);
+  var rifleBarrel = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.055, 0.62), darker);
+  rifleBarrel.position.set(0, 0.05, -0.62);
+  var rifleMuzzle = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.09), darker);
+  rifleMuzzle.position.set(0, 0.05, -0.96);
+  var rifleMag = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.24, 0.13), darker);
+  rifleMag.position.set(0, -0.17, -0.06);
+  rifleMag.rotation.x = -0.12;
+  var rifleStock = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.13, 0.3), grip);
+  rifleStock.position.set(0, -0.03, 0.5);
+  var rifleGrip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.19, 0.11), grip);
+  rifleGrip.position.set(0, -0.15, 0.18);
+  rifleGrip.rotation.x = 0.32;
+  var rifleSight = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.07, 0.24), darker);
+  rifleSight.position.set(0, 0.145, -0.16);
+  // 散热片（3 片薄板，识别度）
+  for (var fi = 0; fi < 3; fi++) {
+    var fin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.02, 0.05), dark);
+    fin.position.set(0, 0.09, -0.34 - fi * 0.13);
+    gun.rifleGroup.add(fin);
+  }
+  gun.rifleGroup.add(rifleBody, rifleBarrel, rifleMuzzle, rifleMag, rifleStock, rifleGrip, rifleSight);
+  gun.group.add(gun.rifleGroup);
+  gun.rifleGroup.visible = false;
   gun.group.add(gun.flashMesh);
 }
 
@@ -2542,6 +2625,11 @@ function updateAmmoHUD() {
   dom.ammoMag.textContent = String(ammo.mag);
   dom.ammoMag.classList.toggle('low', ammo.mag <= 5);
   dom.ammoReserve.textContent = String(ammo.reserve);
+  var wn = document.getElementById('weapon-name');
+  if (wn && WEAPONS[currentWeapon]) {
+    wn.textContent = WEAPONS[currentWeapon].name + '  [' + WEAPONS[currentWeapon].key + ']';
+    wn.style.color = currentWeapon === 'rifle' ? '#8ef0b0' : '#9fb2c8';
+  }
 }
 
 // 换弹请求：R 键或弹夹打空时触发；备用为 0 时提示"弹药耗尽"且不换弹
@@ -2617,15 +2705,15 @@ function gunDamageNow() {
 
 /** 结算一次子弹伤害：含暴击判定（致命打击） */
 function rollGunDamage() {
-  var base = gunDamageNow();
+  var base = gunDamageNow() * weaponDef().damageMul;   // 武器伤害倍率
   var critRate = upgrades.crit * CFG.upgradeCritPerLevel;
   var isCrit = critRate > 0 && Math.random() < critRate;
   return { damage: isCrit ? base * CFG.upgradeCritMul : base, isCrit: isCrit };
 }
 
-/** 当前弹匣容量（扩容弹匣） */
+/** 当前弹匣容量（按武器 + 扩容弹匣技能） */
 function magSizeNow() {
-  return CFG.magSize + upgrades.mag * CFG.upgradeMagPerLevel;
+  return weaponDef().magSize + upgrades.mag * CFG.upgradeMagPerLevel;
 }
 
 /** 当前手雷伤害区间（高爆手雷） */
@@ -3598,11 +3686,12 @@ function shootOnce() {
   if (state !== 'playing' || shootCd > 0) return;
   if (ammo.reloading) return;               // 换弹期间不能射击
   if (ammo.mag <= 0) { requestReload(); return; }          // 弹夹打空：自动换弹（或提示弹药耗尽）
-  shootCd = CFG.shootInterval;
+  var wdef = weaponDef();
+  shootCd = wdef.shootInterval;
   ammo.mag -= 1;
   Sfx.shoot();
   updateAmmoHUD();
-  gun.recoil = 0.13;
+  gun.recoil = wdef.recoil;
   camFx.fire = 1; camFx.fireT = 0;     // 相机后坐：每发一次短促抖动（幅度约为走路的 1.5 倍）
   gun.flashT = 0.055;
   gun.light.intensity = 6;
@@ -3611,6 +3700,13 @@ function shootOnce() {
 
   camera.getWorldPosition(_rayOrigin);
   camera.getWorldDirection(_rayDir);
+  // 突击步枪：轻微散布（方向加随机偏移后再归一化）
+  if (wdef.spread > 0) {
+    _rayDir.x += rand(-1, 1) * wdef.spread;
+    _rayDir.y += rand(-1, 1) * wdef.spread;
+    _rayDir.z += rand(-1, 1) * wdef.spread * 0.5;
+    _rayDir.normalize();
+  }
   _raycaster.set(_rayOrigin, _rayDir);
   _raycaster.far = CFG.shootRange;
   var hits = _raycaster.intersectObjects(wallMeshes, false);
@@ -3796,9 +3892,16 @@ function restartGame(toMenu) {
   cheatMusicStep = 0;
   score = 0; kills = 0; playingTime = 0;
   runTookDamage = false;                // 新一局重置「完美无瑕」标志
-  ammo.mag = CFG.magSize;
-  ammo.reserve = CFG.startReserve;
+  currentWeapon = 'pistol';                            // 重开回到手枪
+  weaponAmmo = {
+    pistol: { mag: WEAPONS.pistol.magSize, reserve: WEAPONS.pistol.reserveStart },
+    rifle:  { mag: WEAPONS.rifle.magSize,  reserve: WEAPONS.rifle.reserveStart },
+  };
+  ammo.mag = WEAPONS.pistol.magSize;
+  ammo.reserve = WEAPONS.pistol.reserveStart;
+  ammo.magSize = WEAPONS.pistol.magSize;
   ammo.reloading = false; ammo.reloadTimer = 0;
+  applyWeaponVisual();
   nadeCount = CFG.nadeStartCount;
   for (var gni = 0; gni < grenades.length; gni++) scene.remove(grenades[gni].mesh);
   grenades = [];
@@ -4107,6 +4210,13 @@ function onKeyDown(ev) {
   handleDebugCheat(ev.code);          // 开发者模式秘技检测（任意状态下）
   if (ev.code === 'KeyR' && state === 'playing') { requestReload(); }
   if (ev.code === 'KeyG' && state === 'playing') { throwGrenade(); }
+  // 武器切换：数字键 1 / 2（小键盘 1/2 在开发者模式下留给刷怪快捷键）
+  if (state === 'playing') {
+    var wKey = (ev.code === 'Digit1' || ev.code === 'Numpad1') ? 'pistol'
+             : (ev.code === 'Digit2' || ev.code === 'Numpad2') ? 'rifle' : null;
+    var isNumpad = (ev.code === 'Numpad1' || ev.code === 'Numpad2');
+    if (wKey && !(isNumpad && debugMode)) { switchWeapon(wKey); return; }
+  }
   // 开发者模式：小键盘 1~4 快速刷出四种特殊敌人（便于测试）
   if (debugMode && state === 'playing') {
     var _devSpawnMap = { Numpad1: 'bomber', Numpad2: 'shield', Numpad3: 'healer', Numpad4: 'splitter' };
@@ -4677,11 +4787,14 @@ window.FishGame = {
     getAchievements: function () { return JSON.parse(JSON.stringify(save.achievements)); },
     getRandomCovers: function () { return randomCovers.map(function (m) { return { x: +m.position.x.toFixed(2), z: +m.position.z.toFixed(2) }; }); },
     respawnCovers: spawnRandomCovers,
+    clearCovers: clearRandomCovers,     // 测试用：清空随机掩体，验证固定地图行为
     getStats: function () { return JSON.parse(JSON.stringify(save.stats || {})); },
     getUpgradeEffects: function () {
       return {
         magSize: magSizeNow(), nade: nadeDamageNow(), armorMax: armorMaxNow(),
-        gunDamage: gunDamageNow(), upgrades: JSON.parse(JSON.stringify(upgrades)),
+        gunDamage: gunDamageNow() * weaponDef().damageMul,
+        weapon: currentWeapon,
+        upgrades: JSON.parse(JSON.stringify(upgrades)),
       };
     },
     setUpgrade: function (id, lv) { upgrades[id] = lv; refreshUpgradesMaxFlag(); },
