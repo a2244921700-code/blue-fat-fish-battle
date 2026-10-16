@@ -5996,6 +5996,9 @@ window.FishGame = {
     },
     setEnvTheme: applyEnvTheme,                          // 测试用：切换环境主题
     getEnvTheme: function () { return { index: envIndex, name: ENV_THEMES[envIndex].name }; },
+    bossFxAt: function (x, z) {                          // 测试用：在指定位置播出场光圈
+      spawnBossEntranceFx(new THREE.Vector3(x, 0, z));
+    },
     spawnBossNow: spawnBoss,                             // 测试用：立即生成一只 Boss
     clearBossNow: function () {                          // 测试用：移除当前 Boss
       if (boss) { scene.remove(boss.mesh); boss = null; hideBossBar(); }
