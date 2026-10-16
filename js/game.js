@@ -286,7 +286,7 @@ var save = {
   bestBoss: 0,       // 单局最多击破 Boss
   unlockedLevel: false,                              // 闯关模式解锁（预留）
   stats: { totalKills: 0, totalBoss: 0, totalGames: 0 },  // 跨局累计统计（成就用）
-  v: 3,                                              // 存档版本（用于一次性迁移）
+  v: 4,                                              // 存档版本（用于一次性迁移）
   settings: {
     bgm: 1.0, boss: 1.0, menu: 1.0, sfx: 1.0,   // 音量倍数（0~1）
     sens: 1.0,                                   // 鼠标灵敏度倍数（0.25~3.0）
@@ -323,7 +323,15 @@ function loadSave() {
         save.bestScore = 0; save.bestTime = 0; save.bestCombo = -1;
         save.bestWave = 0; save.bestStage = 1; save.bestBoss = 0;
       }
-      save.v = 3;
+      // v4：正式发布版本 —— 再次清空成就 / 统计 / 最佳记录，
+      // 保证玩家首次打开时是干净存档（不带任何开发期测试数据）
+      if (!obj.v || obj.v < 4) {
+        save.achievements = {};
+        save.stats = { totalKills: 0, totalBoss: 0, totalGames: 0 };
+        save.bestScore = 0; save.bestTime = 0; save.bestCombo = -1;
+        save.bestWave = 0; save.bestStage = 1; save.bestBoss = 0;
+      }
+      save.v = 4;
       persistSave();
     }
   } catch (e) { /* 隐私模式 / 存储禁用：忽略 */ }
@@ -5970,6 +5978,13 @@ window.FishGame = {
       magTier[weapon] = tier;
       if (weapon === currentWeapon) ammo.magSize = magSizeNow();
       return magSizeNow();
+    },
+    spawnMagAt: function (weapon, tier, x, z) {         // 测试用：在指定坐标生成扩容弹夹道具
+      var p = new THREE.Vector3(x, 0, z);
+      var mesh = buildMagItem(weapon, tier, p);
+      scene.add(mesh);
+      items.push({ mesh: mesh, type: 'mag', weapon: weapon, tier: tier, phase: 0 });
+      return { weapon: weapon, tier: tier };
     },
     spawnMagDrop: function (weapon, tier) {             // 测试用：在玩家附近生成一个扩容弹夹道具
       var p = player.pos.clone();

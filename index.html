@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>3D射击 · 蓝色肥鱼大作战 V0.4.0</title>
+<title>3D射击 · 蓝色肥鱼大作战 V0.5.0</title>
 <script>
 /* 全局错误条：任何未捕获的运行错误都会显示在屏幕底部，便于排查 */
 window.addEventListener('error', function (e) {
@@ -656,7 +656,7 @@ window.addEventListener('load', function () {
 <!-- 主菜单 -->
 <div id="menu-overlay" class="overlay">
   <div class="panel">
-    <h1>蓝色肥鱼大作战<span class="ver-badge">V0.4.0</span></h1>
+    <h1>蓝色肥鱼大作战<span class="ver-badge">V0.5.0</span></h1>
     <div class="sub-title">3D 第一人称射击 · Three.js</div>
     <div class="menu-hero">
       <img id="fish-preview" class="fish-preview" alt="蓝色大肥鱼">
@@ -678,7 +678,7 @@ window.addEventListener('load', function () {
       历史最佳：得分 <b id="best-score">0</b> · 存活 <b id="best-time">0:00</b> · 最高连杀 <b id="best-combo">—</b><br>
       最远到达 第 <b id="best-stage">1</b> 阶段 · 第 <b id="best-wave">0</b> 波 · 击破 Boss <b id="best-boss">0</b> 只
     </div>
-    <div class="note">一群蓝色大肥鱼占领了沙漠城，它们发现你就会冲过来咬人——<br>有的端着枪、有的抱着核弹、还有的举着能量盾！<br>清空一波波鱼潮、猎杀 Boss、推进五个阶段，坚持得越久得分越高！<br><br>点击开始后鼠标会锁定到画面中央；若浏览器阻止指针锁定，<br>游戏将自动切换为「拖动瞄准」模式（移动鼠标转向、点击射击、Esc 暂停）。</div>
+    <div class="note">一群蓝色大肥鱼占领了沙漠城 —— 有的端着枪、有的抱着核弹、还有的举着能量盾！<br><b>手枪 / 步枪 / 匕首</b>三把武器任你切换；每 10 波环境剧变，每推进一个阶段 Boss 就会换一种打法。<br>清空鱼潮、猎杀五类 Boss、在越来越恶劣的环境里活下去！<br><br>点击开始后鼠标会锁定到画面中央；若浏览器阻止指针锁定，<br>游戏将自动切换为「拖动瞄准」模式（移动鼠标转向、点击射击、Esc 暂停）。</div>
   </div>
 </div>
 
@@ -696,7 +696,7 @@ window.addEventListener('load', function () {
         <div class="mode-title">🌊 无尽模式</div>
         <div class="level-card" id="btn-level-desert">
           <div class="card-title">无尽模式 —— 沙漠城</div>
-          <div class="card-tags">中央建筑 · A/B 开阔广场 · 长走廊与 B 洞<br><b>波次推进</b>：清空一波喘口气，每 5 波一场 Boss 战<br><b>五阶段成长</b>：自爆鱼 / 护盾鱼 / 治疗鱼 / 分裂鱼逐步解锁<br>连杀评级带来移速与伤害增益，SSS 更可吸血<br>补给不断刷新，生存得分不限时</div>
+          <div class="card-tags"><b>三武器切换</b>：1 手枪（点射）· 2 步枪（全自动）· 3 匕首（近战）<br><b>弹药紧缺</b>：捡弹药箱、抢扩容弹夹（弹鼓 120 发但降低移速）<br>每 5 波一场 Boss 战 · <b>五类 Boss</b>打法各不相同<br><b>每 10 波环境剧变</b>：黄昏 / 沙尘暴 / 血月 / 深夜<br>连杀评级带来移速与伤害增益，SSS 更可吸血</div>
           <div class="card-go">点击进入 ▶</div>
         </div>
       </div>
