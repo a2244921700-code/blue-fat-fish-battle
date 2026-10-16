@@ -1486,17 +1486,54 @@ function buildGun() {
   var darker = new THREE.MeshStandardMaterial({ color: 0x1c1f24, roughness: 0.35, metalness: 0.7 });
   var grip = new THREE.MeshStandardMaterial({ color: 0x3a2e24, roughness: 0.8 });
 
-  var body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.5), dark);
-  var barrel = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.44), darker);
-  barrel.position.set(0, 0.045, -0.42);
-  var muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.085, 0.07), darker);
-  muzzle.position.set(0, 0.045, -0.66);
-  var gripMesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.12), grip);
-  gripMesh.position.set(0, -0.15, 0.16);
-  gripMesh.rotation.x = 0.35;
-  var sight = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.055, 0.2), darker);
-  sight.position.set(0, 0.13, -0.08);
-  gun.group.add(body, barrel, muzzle, gripMesh, sight);
+  // ===== 手枪（经典比例）：套筒 + 短圆柱枪管 + 明显后倾握把 + 扳机护圈 =====
+  // 套筒（上部主体，扁平长方）
+  var slide = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.075, 0.32), dark);
+  slide.position.set(0, 0.058, -0.06);
+  // 套筒尾部的防滑纹（3 条细槽）
+  for (var gvi = 0; gvi < 3; gvi++) {
+    var gv = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.013, 0.013), darker);
+    gv.position.set(0, 0.058, 0.076 + gvi * 0.023);
+    gun.group.add(gv);
+  }
+  // 枪管（圆柱，从套筒前端露出）
+  var barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.09, 10), darker);
+  barrel.rotation.x = Math.PI / 2;
+  barrel.position.set(0, 0.06, -0.255);
+  // 枪口套
+  var muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.026), darker);
+  muzzle.position.set(0, 0.06, -0.302);
+  // 握把（明显向后倾斜约 17°）
+  var gripMesh = new THREE.Mesh(new THREE.BoxGeometry(0.072, 0.185, 0.095), grip);
+  gripMesh.position.set(0, -0.1, 0.076);
+  gripMesh.rotation.x = -0.3;
+  // 握把防滑纹
+  for (var gvi2 = 0; gvi2 < 3; gvi2++) {
+    var gg = new THREE.Mesh(new THREE.BoxGeometry(0.078, 0.01, 0.01), darker);
+    gg.position.set(0, -0.06 - gvi2 * 0.032, 0.09 + gvi2 * 0.01);
+    gg.rotation.x = -0.3;
+    gun.group.add(gg);
+  }
+  // 弹匣底座（握把末端微微外扩）
+  var magBase = new THREE.Mesh(new THREE.BoxGeometry(0.084, 0.02, 0.108), darker);
+  magBase.position.set(0, -0.194, 0.104);
+  magBase.rotation.x = -0.3;
+  // 扳机护圈（半圆环，开口朝上）
+  var guard = new THREE.Mesh(new THREE.TorusGeometry(0.031, 0.0072, 6, 14, Math.PI), darker);
+  guard.rotation.set(Math.PI / 2, 0, Math.PI);
+  guard.position.set(0, -0.034, -0.03);
+  // 扳机
+  var trigger = new THREE.Mesh(new THREE.BoxGeometry(0.011, 0.03, 0.011), darker);
+  trigger.position.set(0, -0.032, -0.026);
+  // 击锤（套筒尾部小凸起）
+  var hammer = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.036, 0.022), darker);
+  hammer.position.set(0, 0.055, 0.108);
+  // 准星（前）与照门（后）
+  var frontSight = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.019, 0.015), darker);
+  frontSight.position.set(0, 0.103, -0.19);
+  var rearSight = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.019, 0.015), darker);
+  rearSight.position.set(0, 0.103, 0.055);
+  gun.group.add(slide, barrel, muzzle, gripMesh, magBase, guard, trigger, hammer, frontSight, rearSight);
 
   // 枪口闪光
   gun.light = new THREE.PointLight(0xffc46e, 0, 7);
