@@ -1847,7 +1847,18 @@ var _zAxis = new THREE.Vector3(0, 0, 1);
 function updateFishVisuals(dt) {
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
-    if (!e.alive) continue;
+    if (!e.alive) {
+      // 死亡碎裂动画：快速缩小 + 轻微上浮，播完再隐藏
+      if (e.dyingT > 0) {
+        e.dyingT -= dt;
+        var kk = Math.max(0, e.dyingT / 0.28);
+        var dsc = kk * kk;
+        e.mesh.scale.set(dsc, dsc, dsc);
+        e.mesh.position.y += dt * 1.8;
+        if (e.dyingT <= 0) e.mesh.visible = false;
+      }
+      continue;
+    }
     // 悬浮上下浮动（分裂鱼改为史莱姆式蹦跳）
     var floatY;
     if (e.kind === 'splitter') {
@@ -1912,7 +1923,7 @@ function killFish(e, hitPoint) {
   e.alive = false;
   e.respawnTimer = 99999;   // 波次制：敌人不重生（下一波由波次系统补足）
   rollKillRewards();              // 击杀概率战利品（技能 2/3/4）
-  e.mesh.visible = false;
+  e.dyingT = 0.28;                // 死亡碎裂动画：缩小 + 上浮后再隐藏（不再瞬间消失）
 
   // 分裂鱼：死亡时分裂出数条小鱼（归入同一波，保证清波判定正确）
   if (e.kind === 'splitter') {
@@ -3593,6 +3604,7 @@ function shootOnce() {
     boss.hp -= rollB.damage;
     if (rollB.isCrit) {
       spawnBurst(_hitPoint, 0xffe066, 14, 4.5);   // 暴击金色火花
+      showCritFeed(rollB.damage);
       debugLog('暴击！对 Boss 造成 ' + rollB.damage.toFixed(1) + ' 点伤害', 'dbg-hit');
     }
     debugLog('你对 超级蓝色大肥鱼 造成了 ' + gunDamageNow().toFixed(1) + ' 点伤害（剩余 ' + Math.max(0, boss.hp).toFixed(1) + '）', 'dbg-hit');
@@ -3624,6 +3636,7 @@ function shootOnce() {
     if (rollF.isCrit) {
       spawnBurst(_hitPoint, 0xffe066, 12, 4.0);     // 暴击金色火花
       flashCrosshair();
+      showCritFeed(rollF.damage);
       debugLog('暴击！造成 ' + rollF.damage.toFixed(1) + ' 点伤害', 'dbg-hit');
     }
     debugLog('你对 ' + enemyName(best) + ' 造成了 ' + gunDamageNow().toFixed(1) + ' 点伤害' + (best.hp > 0 ? '（剩余 ' + best.hp.toFixed(1) + ' 血）' : '（击败！）'), 'dbg-hit');
@@ -3832,6 +3845,16 @@ function showKillFeed() {
   div.textContent = '+10';
   dom.killfeed.appendChild(div);
   setTimeout(function () { if (div.parentNode) div.parentNode.removeChild(div); }, 1000);
+}
+
+/** 暴击飘字（比普通击杀飘字更醒目，快速缩放） */
+function showCritFeed(dmg) {
+  if (!dom.killfeed) return;
+  var div = document.createElement('div');
+  div.className = 'crit-pop';
+  div.textContent = '暴击 ' + dmg.toFixed(1);
+  dom.killfeed.appendChild(div);
+  setTimeout(function () { if (div.parentNode) div.parentNode.removeChild(div); }, 850);
 }
 
 function flashCrosshair() {

@@ -144,6 +144,17 @@ window.addEventListener('load', function () {
     50%      { opacity: .82; }
   }
 
+  /* ---------- 暴击飘字 ---------- */
+  .crit-pop { color: #ffe066; font-size: 24px; font-weight: 800; letter-spacing: 1.5px;
+    text-shadow: 0 0 12px rgba(255,200,60,.85), 0 2px 4px rgba(0,0,0,.7);
+    animation: critPop 0.85s ease-out forwards; }
+  @keyframes critPop {
+    0%   { opacity: 0; transform: scale(0.6) translateY(10px); }
+    22%  { opacity: 1; transform: scale(1.22) translateY(-4px); }
+    45%  { transform: scale(1.0) translateY(-10px); }
+    100% { opacity: 0; transform: scale(0.94) translateY(-38px); }
+  }
+
   /* ---------- 成就解锁弹窗 ---------- */
   #achievement-pop { position: fixed; right: 20px; top: 96px; z-index: 30; pointer-events: none;
     display: flex; align-items: center; gap: 11px;

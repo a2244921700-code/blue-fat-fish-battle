@@ -175,7 +175,9 @@ advance(0.05);
 dbg.shootOnce();
 if (target.alive) { advance(0.2); dbg.shootOnce(); }  // 保险：静止目标极少情况补射
 check('命中肥鱼得分 +10', dbg.getScore() === 10, String(dbg.getScore()));
-check('肥鱼被击中后消失', target.alive === false && target.mesh.visible === false);
+check('肥鱼被击中后死亡（碎裂动画期间仍可见）', target.alive === false, 'alive=' + target.alive);
+advance(0.4);   // 等碎裂动画播完
+check('碎裂动画结束后隐藏', target.mesh.visible === false, 'visible=' + target.mesh.visible);
 dbg.shootOnce(); // 冷却中
 check('射速冷却生效(不重复击杀)', dbg.getKills() === 1, String(dbg.getKills()));
 
