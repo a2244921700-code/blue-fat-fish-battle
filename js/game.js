@@ -114,6 +114,14 @@ var CFG = {
   upgradeNadeChanceBase: 0.01,// （4）击杀后 1% 概率获得手雷（每级 +1%）
   upgradeNadeChanceInc: 0.01,
   upgradeSpeedPerLevel: 0.05, // （5）速度每级 +5%（L 级 +5L%）
+  // ---- 扩展技能（V0.4.1 新增 6 项：让三选一真正有构筑感） ----
+  upgradeMagPerLevel: 3,      // 扩容弹匣：弹匣容量每级 +3
+  upgradeCritPerLevel: 0.05,  // 致命打击：暴击率每级 +5%（暴击伤害 ×2）
+  upgradeCritMul: 2.0,        // 暴击伤害倍率
+  upgradeNadeDmgPerLevel: 3,  // 高爆手雷：伤害每级 +3
+  upgradeNadeRadiusPerLevel: 0.25, // 高爆手雷：半径每级 +0.25 米
+  upgradeArmorPerLevel: 1,    // 护甲强化：护甲层数上限每级 +1
+  upgradeVampirePerLevel: 0.5,// 杀戮汲取：每次击杀回血每级 +0.5
   // ===== 敌人成长（每击杀一次 Boss 后增强） =====
   enemyHpMax: 10,             // 小怪血量上限（初始 1，每 Boss +1）
   enemyAtkGrowAtHp: 10,       // 小怪血量达到 10 后，每 Boss 攻击力 +1
@@ -176,7 +184,11 @@ var grenades = [];                 // 飞行/待爆手雷 { mesh, pos, vel, land
 var fishBullets = [];              // 射手鱼子弹 { mesh, vel, life }
 var combo = { score: 0, rank: -1, timer: 0 };  // 连杀评级：score=连杀点数, rank=评级索引(-1 无), timer=衰减剩余秒
 // ===== 局内强化与成长（无尽模式专属） =====
-var upgrades = { dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0 }; // 技能等级 0~10（dmg=子弹伤害, refund=回弹, heal=回血, nade=掉雷, speed=速度）
+// 技能等级 0~10：5 项核心（通关判定只看核心）+ 6 项扩展（提供构筑多样性）
+var upgrades = {
+  dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0,
+  mag: 0, crit: 0, pierce: 0, nadedmg: 0, armorup: 0, vampire: 0,
+}; // 旧注释：dmg=子弹伤害, refund=回弹, heal=回血, nade=掉雷, speed=速度）
 var upgradesAllMax = false;      // 缓存：技能全部满级（仅在技能等级变化时检测一次，击杀 Boss 时直接读取，零帧开销）
 var bossKillCount = 0;         // 本局已击杀 Boss 数（驱动敌人成长与阶段推进）
 
@@ -1812,10 +1824,16 @@ function killFish(e, hitPoint) {
   kills += 1;
   score += 10;
   addComboPoints(CFG.comboFishPoints);   // 连杀 +1 点
-  // 连杀 SSS 增益：击杀回复 2% 最大生命
+  // 回血来源①：连杀 SSS 增益（击杀回复 2% 最大生命）
   var lifeSteal = comboBonus().lifesteal;
   if (lifeSteal > 0 && player.hp < CFG.maxHp) {
     player.hp = Math.min(CFG.maxHp, player.hp + CFG.maxHp * lifeSteal);
+    updateHUD();
+  }
+  // 回血来源②：杀戮汲取技能（每次击杀固定回血）
+  var vampHeal = upgrades.vampire * CFG.upgradeVampirePerLevel;
+  if (vampHeal > 0 && player.hp < CFG.maxHp) {
+    player.hp = Math.min(CFG.maxHp, player.hp + vampHeal);
     updateHUD();
   }
   Sfx.fishDie();
@@ -2359,7 +2377,7 @@ function updateAmmoHUD() {
 // 换弹请求：R 键或弹夹打空时触发；备用为 0 时提示"弹药耗尽"且不换弹
 function requestReload() {
   if (state !== 'playing' || ammo.reloading) return;
-  if (ammo.mag >= CFG.magSize) return;
+  if (ammo.mag >= magSizeNow()) return;
   if (ammo.reserve <= 0) {
     showNotice('弹药耗尽');
     Sfx.empty();
@@ -2427,6 +2445,34 @@ function gunDamageNow() {
   return (1 + upgrades.dmg) * (1 + comboBonus().damage);
 }
 
+/** 结算一次子弹伤害：含暴击判定（致命打击） */
+function rollGunDamage() {
+  var base = gunDamageNow();
+  var critRate = upgrades.crit * CFG.upgradeCritPerLevel;
+  var isCrit = critRate > 0 && Math.random() < critRate;
+  return { damage: isCrit ? base * CFG.upgradeCritMul : base, isCrit: isCrit };
+}
+
+/** 当前弹匣容量（扩容弹匣） */
+function magSizeNow() {
+  return CFG.magSize + upgrades.mag * CFG.upgradeMagPerLevel;
+}
+
+/** 当前手雷伤害区间（高爆手雷） */
+function nadeDamageNow() {
+  var bonus = upgrades.nadedmg * CFG.upgradeNadeDmgPerLevel;
+  return {
+    min: CFG.nadeDamageMin + bonus,
+    max: CFG.nadeDamageMax + bonus,
+    radius: CFG.nadeRadius + upgrades.nadedmg * CFG.upgradeNadeRadiusPerLevel,
+  };
+}
+
+/** 当前护甲层数上限（护甲强化） */
+function armorMaxNow() {
+  return CFG.armorMaxStacks + upgrades.armorup * CFG.upgradeArmorPerLevel;
+}
+
 /** 连杀增益文案（用于提升时播报） */
 function comboBonusText() {
   var b = comboBonus();
@@ -2487,8 +2533,18 @@ var UPGRADE_DEFS = {
   heal:   { ico: '❤️', name: '吸血再生', short: '概率回血' },
   nade:   { ico: '💣', name: '手雷补给', short: '概率掉雷' },
   speed:  { ico: '💨', name: '疾风步伐', short: '速度提升' },
+  // ---- 扩展技能（V0.4.1 新增）----
+  mag:     { ico: '📦', name: '扩容弹匣', short: '弹匣 +3' },
+  crit:    { ico: '🎯', name: '致命打击', short: '暴击率 +5%' },
+  pierce:  { ico: '➶', name: '穿甲弹',   short: '子弹穿透 +1' },
+  nadedmg: { ico: '🧨', name: '高爆手雷', short: '手雷更强' },
+  armorup: { ico: '🛡️', name: '护甲强化', short: '护甲上限 +1' },
+  vampire: { ico: '🩸', name: '杀戮汲取', short: '击杀回血' },
 };
-var UPGRADE_ORDER = ['dmg', 'refund', 'heal', 'nade', 'speed'];
+var UPGRADE_ORDER = ['dmg', 'refund', 'heal', 'nade', 'speed',
+  'mag', 'crit', 'pierce', 'nadedmg', 'armorup', 'vampire'];
+// 核心 5 项：通关判定只看它们（扩展技能不强制满级，避免通关周期被拉长到 110 次强化）
+var CORE_UPGRADES = ['dmg', 'refund', 'heal', 'nade', 'speed'];
 
 // 下一级效果描述（lv = 即将达到的等级 1~10）
 function upgradeNextDesc(id, lv) {
@@ -2498,13 +2554,20 @@ function upgradeNextDesc(id, lv) {
     case 'heal':   return '击杀后 ' + Math.round((CFG.upgradeHealChanceBase + (lv - 1) * CFG.upgradeHealChanceInc) * 100) + '% 概率恢复 ' + CFG.upgradeHealAmount + ' 生命';
     case 'nade':   return '击杀后 ' + Math.round((CFG.upgradeNadeChanceBase + (lv - 1) * CFG.upgradeNadeChanceInc) * 100) + '% 概率获得 1 颗手雷';
     case 'speed':  return '移动速度 +' + Math.round(CFG.upgradeSpeedPerLevel * lv * 100) + '%';
+    case 'mag':     return '弹匣容量 +' + (CFG.upgradeMagPerLevel * lv) + ' 发';
+    case 'crit':    return '暴击率 ' + Math.round(CFG.upgradeCritPerLevel * lv * 100) + '%（暴击伤害 ×' + CFG.upgradeCritMul + '）';
+    case 'pierce':  return '子弹可额外穿透 ' + lv + ' 个敌人';
+    case 'nadedmg': return '手雷伤害 +' + (CFG.upgradeNadeDmgPerLevel * lv) + '、半径 +' + (CFG.upgradeNadeRadiusPerLevel * lv).toFixed(1) + ' 米';
+    case 'armorup': return '护甲层数上限 +' + (CFG.upgradeArmorPerLevel * lv) + '（每层仍减 2 伤）';
+    case 'vampire': return '每次击杀回复 ' + (CFG.upgradeVampirePerLevel * lv).toFixed(1) + ' 点生命';
   }
   return '';
 }
 
 function isAllUpgradeMax() {
-  for (var i = 0; i < UPGRADE_ORDER.length; i++) {
-    if (upgrades[UPGRADE_ORDER[i]] < CFG.upgradeMaxLevel) return false;
+  // 通关判定只看核心 5 项（扩展技能是额外构筑选择，不强制满级）
+  for (var i = 0; i < CORE_UPGRADES.length; i++) {
+    if (upgrades[CORE_UPGRADES[i]] < CFG.upgradeMaxLevel) return false;
   }
   return true;
 }
@@ -2905,7 +2968,7 @@ function pickupItem(it, index) {
     Sfx.pickupAmmo();
   } else if (it.type === 'armor') {
     // 每拾取一个护甲道具 = +1 层护盾（每层防御力 = CFG.armorPerPick 点）
-    armorStacks = Math.min(CFG.armorMaxStacks, armorStacks + 1);
+    armorStacks = Math.min(armorMaxNow(), armorStacks + 1);
     showNotice('护甲 +1 层（防御 +' + CFG.armorPerPick + ' · 当前 ' + armorStacks + ' 层）');
     Sfx.pickupHealth();
     updateArmorHUD();
@@ -2923,7 +2986,7 @@ function pickupItem(it, index) {
 }
 
 function spawnArmorItem() {
-  if (armorStacks >= CFG.armorMaxStacks) return;   // 满层后不再生成
+  if (armorStacks >= armorMaxNow()) return;   // 满层后不再生成
   var pos = pickItemPos();
   if (!pos) return;
   var mesh = buildItem('armor', pos);
@@ -2945,7 +3008,7 @@ function updateItems(dt) {
     armorTimer -= dt;                  // 护甲生成判定：每 10 秒 25% 概率
     if (armorTimer <= 0) {
       armorTimer = CFG.armorInterval;
-      if (armorStacks < CFG.armorMaxStacks && Math.random() < CFG.armorChance) spawnArmorItem();
+      if (armorStacks < armorMaxNow() && Math.random() < CFG.armorChance) spawnArmorItem();
     }
   }
   for (var i = items.length - 1; i >= 0; i--) {
@@ -3310,19 +3373,22 @@ function explodeGrenade(gr) {
   spawnBurst(center, 0xffe0a0, 10, 3);
   spawnBurst(new THREE.Vector3(center.x, 0.15, center.z), 0xa08a6a, 12, 2.5);
   Sfx.nadeBoom();
-  // 鱼：爆炸范围内按小怪血量扣伤（初期 1 血一发击杀，后期需多颗）
-  var nadeDmg = Math.round(rand(CFG.nadeDamageMin, CFG.nadeDamageMax));
+  // 手雷数值（高爆手雷技能会提升伤害与半径）
+  var nade = nadeDamageNow();
+  var nadeRadius = nade.radius;
+  // 鱼：爆炸范围内按小怪血量扣伤
+  var nadeDmg = Math.round(rand(nade.min, nade.max));
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
     if (!e.alive) continue;
-    if (e.mesh.position.distanceTo(center) <= CFG.nadeRadius) {
+    if (e.mesh.position.distanceTo(center) <= nadeRadius) {
       e.hp -= nadeDmg;
       if (e.hp <= 0) killFish(e, e.mesh.position.clone());
     }
   }
-  // Boss：按 5~10 随机伤害扣血
-  if (boss && boss.mesh.position.distanceTo(center) <= CFG.nadeRadius) {
-    boss.hp -= Math.round(rand(CFG.nadeDamageMin, CFG.nadeDamageMax));
+  // Boss：同样按当前手雷数值扣血
+  if (boss && boss.mesh.position.distanceTo(center) <= nadeRadius) {
+    boss.hp -= Math.round(rand(nade.min, nade.max));
     boss.hurt = 0.2;
     updateBossBar();
     if (boss.hp <= 0) defeatBoss();
@@ -3331,8 +3397,8 @@ function explodeGrenade(gr) {
   var pdx = center.x - player.pos.x;
   var pdy = center.y - (player.pos.y + 1.0);
   var pdz = center.z - player.pos.z;
-  if (pdx * pdx + pdy * pdy + pdz * pdz <= CFG.nadeRadius * CFG.nadeRadius) {
-    damagePlayer(Math.round(rand(CFG.nadeDamageMin, CFG.nadeDamageMax)), { name: '自己', atk: '手雷爆炸' });
+  if (pdx * pdx + pdy * pdy + pdz * pdz <= nadeRadius * nadeRadius) {
+    damagePlayer(Math.round(rand(nade.min, nade.max)), { name: '自己', atk: '手雷爆炸' });
   }
 }
 
@@ -3411,7 +3477,12 @@ function shootOnce() {
     }
   } else if (hitBoss) {
     _hitPoint.copy(_rayOrigin).addScaledVector(_rayDir, bestT);
-    boss.hp -= gunDamageNow();        // 子弹伤害：技能升级 × 连杀评级加成
+    var rollB = rollGunDamage();       // 子弹伤害：技能升级 × 连杀评级 ×（暴击判定）
+    boss.hp -= rollB.damage;
+    if (rollB.isCrit) {
+      spawnBurst(_hitPoint, 0xffe066, 14, 4.5);   // 暴击金色火花
+      debugLog('暴击！对 Boss 造成 ' + rollB.damage.toFixed(1) + ' 点伤害', 'dbg-hit');
+    }
     debugLog('你对 超级蓝色大肥鱼 造成了 ' + gunDamageNow().toFixed(1) + ' 点伤害（剩余 ' + Math.max(0, boss.hp).toFixed(1) + '）', 'dbg-hit');
     boss.hurt = 0.15;
     spawnBurst(_hitPoint, 0xffd54a, 10, 3.5);
@@ -3436,12 +3507,42 @@ function shootOnce() {
       updateHUD();
       return;
     }
-    best.hp = (best.hp || 1) - gunDamageNow();      // 小怪扣血（技能升级 × 连杀评级加成）
+    var rollF = rollGunDamage();                    // 小怪扣血（含暴击判定）
+    best.hp = (best.hp || 1) - rollF.damage;
+    if (rollF.isCrit) {
+      spawnBurst(_hitPoint, 0xffe066, 12, 4.0);     // 暴击金色火花
+      flashCrosshair();
+      debugLog('暴击！造成 ' + rollF.damage.toFixed(1) + ' 点伤害', 'dbg-hit');
+    }
     debugLog('你对 ' + enemyName(best) + ' 造成了 ' + gunDamageNow().toFixed(1) + ' 点伤害' + (best.hp > 0 ? '（剩余 ' + best.hp.toFixed(1) + ' 血）' : '（击败！）'), 'dbg-hit');
     Sfx.hitFish();
     spawnBurst(_hitPoint, 0x9fd8ff, best.hp > 0 ? 6 : 12, best.hp > 0 ? 2.2 : 3.5);
     flashCrosshair();
     if (best.hp <= 0) killFish(best, _hitPoint);
+
+    // 穿甲弹：沿射线继续伤害主目标之后的敌人（每级 +1 个）
+    if (upgrades.pierce > 0) {
+      var pierceLeft = upgrades.pierce;
+      var fromT = bestT + 0.25;
+      while (pierceLeft > 0) {
+        var nextE = null, nextT = Infinity;
+        for (var pi = 0; pi < enemies.length; pi++) {
+          var pe = enemies[pi];
+          if (!pe.alive || pe === best) continue;
+          var pt = raySphere(_rayOrigin, _rayDir, pe.mesh.position, CFG.fishHitRadius);
+          if (pt > fromT && pt < wallDist && pt < nextT) { nextT = pt; nextE = pe; }
+        }
+        if (!nextE) break;
+        var piercePoint = _rayOrigin.clone().addScaledVector(_rayDir, nextT);
+        var rollP = rollGunDamage();
+        nextE.hp = (nextE.hp || 1) - rollP.damage;
+        spawnBurst(piercePoint, 0xb0e8ff, 8, 3.0);       // 穿透命中特效
+        debugLog('穿甲弹命中 ' + enemyName(nextE) + '，造成 ' + rollP.damage.toFixed(1) + ' 点伤害', 'dbg-hit');
+        if (nextE.hp <= 0) killFish(nextE, piercePoint);
+        pierceLeft -= 1;
+        fromT = nextT + 0.25;
+      }
+    }
   } else if (hits.length) {
     _hitPoint.copy(_rayOrigin).addScaledVector(_rayDir, hits[0].distance);
     spawnBurst(_hitPoint, 0xcfc4ae, 7, 2.6);
@@ -3528,7 +3629,10 @@ function restartGame(toMenu) {
   itemTimer = rand(CFG.itemIntervalMin, CFG.itemIntervalMax);
   resetCombo();   // 新一局连杀评级清零
   // 重置局内强化与成长（无尽模式技能独立：死亡重来/退出重进均不继承）
-  upgrades = { dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0 };
+  upgrades = {
+    dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0,
+    mag: 0, crit: 0, pierce: 0, nadedmg: 0, armorup: 0, vampire: 0,
+  };
   upgradesAllMax = false;
   bossKillCount = 0;
   rewardOptions = null;
@@ -4106,7 +4210,7 @@ function update(dt) {
       dom.reloadFill.style.width = Math.max(0, Math.min(100, (1 - ammo.reloadTimer / CFG.reloadTime) * 100)) + '%';
     }
     if (ammo.reloadTimer <= 0) {
-      var need = CFG.magSize - ammo.mag;
+      var need = magSizeNow() - ammo.mag;
       var take = Math.min(need, ammo.reserve);
       ammo.mag += take;
       ammo.reserve -= take;
@@ -4289,6 +4393,18 @@ window.FishGame = {
     getWave: function () { return wave; },
     startWave: startWave,
     getComboBonus: function () { return comboBonus(); },
+    getUpgradeEffects: function () {
+      return {
+        magSize: magSizeNow(), nade: nadeDamageNow(), armorMax: armorMaxNow(),
+        gunDamage: gunDamageNow(), upgrades: JSON.parse(JSON.stringify(upgrades)),
+      };
+    },
+    setUpgrade: function (id, lv) { upgrades[id] = lv; refreshUpgradesMaxFlag(); },
+    rollDamageSample: function (n) {
+      var crit = 0, total = 0;
+      for (var i = 0; i < (n || 100); i++) { var r = rollGunDamage(); if (r.isCrit) crit++; total += r.damage; }
+      return { crit: crit, avg: total / (n || 100) };
+    },
     getGunDamage: function () { return gunDamageNow(); },
     setComboRank: function (r) { combo.rank = r; combo.score = Math.max(1, (CFG.comboRankPoints[r] || 1)); },
     getStage: function () { return currentStage(); },
@@ -4421,7 +4537,10 @@ window.FishGame = {
     setBossHp: function (v) { if (boss) { boss.hp = v; } },
     simulateGrowth: function () { growEnemies(); },
     resetProgression: function () {
-      upgrades = { dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0 };
+      upgrades = {
+    dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0,
+    mag: 0, crit: 0, pierce: 0, nadedmg: 0, armorup: 0, vampire: 0,
+  };
       upgradesAllMax = false;
       bossKillCount = 0;
       rewardOptions = null;

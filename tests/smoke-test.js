@@ -785,7 +785,7 @@ dbg.setHp(100);
 advance(0.05);
 fakeDocument.fire('keydown', { code: 'KeyI' });
 check('按 I 打开技能面板(暂停)', dbg.isSkillsOpen() === true && dbg.getState() === 'skills', dbg.getState());
-check('技能面板显示5个技能', els['skills-list'].innerHTML.indexOf('skill-row') >= 0 && (els['skills-list'].innerHTML.match(/skill-row/g) || []).length === 5,
+check('技能面板显示11个技能(5核心+6扩展)', els['skills-list'].innerHTML.indexOf('skill-row') >= 0 && (els['skills-list'].innerHTML.match(/skill-row/g) || []).length === 11,
   'rows=' + ((els['skills-list'].innerHTML.match(/skill-row/g) || []).length));
 check('技能面板打开时进步曲开启', dbg.getBgmInfo().progressOn === true);
 fakeDocument.fire('keydown', { code: 'KeyI' });
