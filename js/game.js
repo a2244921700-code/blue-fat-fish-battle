@@ -418,7 +418,18 @@ var WEAPONS = {
     reserveMagMul: 6,            // 备弹上限 = 当前弹夹容量 × 6
     auto: true,                  // 全自动：按住持续射击
   },
+  knife: {
+    key: '3', name: '匕首', melee: true,
+    magSize: 0, reserveStart: 0, reserveMagMul: 0,
+    shootInterval: 0.38,         // 轻击间隔
+    heavyCd: 1.05,               // 重击间隔（明显更慢）
+    range: 1.0,                  // 攻击范围 1 米（手臂 + 匕首长度）
+    damage: 2,                   // 轻击基础伤害
+    heavyMul: 2,                 // 重击伤害恒为轻击的 2 倍
+    auto: false,                 // 需要逐次点击
+  },
 };
+var knifeCd = 0;                 // 匕首攻击冷却
 
 // 扩容弹夹：靠击杀特殊敌人掉落，不叠加 —— 只有「更高级别」拾取后才会替换
 var MAG_TIERS = {
@@ -464,14 +475,21 @@ function weaponDef() { return WEAPONS[currentWeapon]; }
 /** 切换武器（保存当前弹药、载入目标弹药、切模型、刷新 HUD） */
 function switchWeapon(id) {
   if (!WEAPONS[id] || id === currentWeapon) return;
-  weaponAmmo[currentWeapon].mag = ammo.mag;
-  weaponAmmo[currentWeapon].reserve = ammo.reserve;
+  // 保存当前武器的弹药（近战武器没有弹药池）
+  if (!WEAPONS[currentWeapon].melee && weaponAmmo[currentWeapon]) {
+    weaponAmmo[currentWeapon].mag = ammo.mag;
+    weaponAmmo[currentWeapon].reserve = ammo.reserve;
+  }
 
   currentWeapon = id;
   var def = WEAPONS[id];
-  ammo.mag = weaponAmmo[id].mag;
-  ammo.reserve = weaponAmmo[id].reserve;
-  ammo.magSize = def.magSize;
+  if (def.melee) {
+    ammo.mag = 0; ammo.reserve = 0; ammo.magSize = 0;
+  } else {
+    ammo.mag = weaponAmmo[id].mag;
+    ammo.reserve = weaponAmmo[id].reserve;
+    ammo.magSize = magSizeNow();
+  }
   ammo.reloading = false;
   ammo.reloadTimer = 0;
   if (dom.reloadWrap) dom.reloadWrap.style.display = 'none';
@@ -485,11 +503,25 @@ function switchWeapon(id) {
 /** 按当前武器显示对应枪械模型，并把枪口火焰/枪口光移到该枪的枪口处
     （两把枪枪管长度不同：手枪枪口 z≈-0.30，步枪枪口 z≈-0.96） */
 function applyWeaponVisual() {
+  var isMelee = !!(WEAPONS[currentWeapon] && WEAPONS[currentWeapon].melee);
   if (gun.pistolGroup) gun.pistolGroup.visible = (currentWeapon === 'pistol');
   if (gun.rifleGroup) gun.rifleGroup.visible = (currentWeapon === 'rifle');
-  var muzzleZ = (currentWeapon === 'rifle') ? -1.05 : -0.36;
-  if (gun.flashMesh) gun.flashMesh.position.set(0, 0.055, muzzleZ);
-  if (gun.light) gun.light.position.set(0, 0.055, muzzleZ - 0.03);
+  if (gun.knifeGroup) gun.knifeGroup.visible = isMelee;
+  // 近战武器：枪口火焰/枪口光不需要
+  if (gun.flashMesh) {
+    gun.flashMesh.visible = false;
+    var muzzleZ = (currentWeapon === 'rifle') ? -1.05 : -0.36;
+    gun.flashMesh.position.set(0, 0.055, muzzleZ);
+  }
+  if (gun.light) {
+    gun.light.intensity = 0;
+    var mz2 = (currentWeapon === 'rifle') ? -1.05 : -0.36;
+    gun.light.position.set(0, 0.055, mz2 - 0.03);
+  }
+  // 匕首握持位置更贴身
+  if (gun.knifeGroup) {
+    gun.knifeGroup.position.set(isMelee ? 0.26 : 0, isMelee ? -0.20 : 0, isMelee ? -0.42 : 0);
+  }
 }
 
 // ---------------------------------------------------------------- 成就系统
@@ -1779,6 +1811,12 @@ function buildGun() {
   gun.rifleGroup.add(rifleBody, rifleBarrel, rifleMuzzle, rifleMag, rifleStock, rifleGrip, rifleSight);
   gun.group.add(gun.rifleGroup);
   gun.rifleGroup.visible = false;
+
+  // ===== 近战武器：匕首（贴身握持，位置与枪械不同）=====
+  gun.knifeGroup = makeKnifeModel();
+  gun.group.add(gun.knifeGroup);
+  gun.knifeGroup.visible = false;
+
   applyWeaponVisual();   // 初始化枪口火焰位置（默认手枪）
   gun.group.add(gun.flashMesh);
 }
@@ -3005,16 +3043,24 @@ function updateAmmoHUD() {
   dom.ammoMag.textContent = String(ammo.mag);
   dom.ammoMag.classList.toggle('low', ammo.mag <= 5);
   dom.ammoReserve.textContent = String(ammo.reserve);
-  var wn = document.getElementById('weapon-name');
-  if (wn && WEAPONS[currentWeapon]) {
-    wn.textContent = WEAPONS[currentWeapon].name + '  [' + WEAPONS[currentWeapon].key + ']';
-    wn.style.color = currentWeapon === 'rifle' ? '#8ef0b0' : '#9fb2c8';
+  // 武器栏：高亮当前武器；匕首不显示弹药数字
+  var wbar = document.getElementById('weapon-bar');
+  if (wbar && typeof wbar.querySelectorAll === 'function') {   // 无头测试环境的 DOM 桩可能不支持
+    var slots = wbar.querySelectorAll('.wslot');
+    for (var si = 0; si < slots.length; si++) {
+      if (slots[si].classList) {
+        slots[si].classList.toggle('active', slots[si].getAttribute('data-wkey') === WEAPONS[currentWeapon].key);
+      }
+    }
   }
+  var isMeleeNow = !!WEAPONS[currentWeapon].melee;
+  if (dom.ammoWrap) dom.ammoWrap.style.opacity = isMeleeNow ? '0.35' : '1';
 }
 
 // 换弹请求：R 键或弹夹打空时触发；备用为 0 时提示"弹药耗尽"且不换弹
 function requestReload() {
   if (state !== 'playing' || ammo.reloading) return;
+  if (weaponDef().melee) return;             // 近战武器不需要换弹
   if (ammo.mag >= magSizeNow()) return;
   if (ammo.reserve <= 0) {
     showNotice('弹药耗尽');
@@ -3100,6 +3146,7 @@ function magSizeNow() {
 /** 给指定武器加备弹（自动受备弹上限约束）；默认当前武器 */
 function addReserve(n, weapon) {
   var w = weapon || currentWeapon;
+  if (WEAPONS[w] && WEAPONS[w].melee) return 0;   // 近战武器没有备弹
   var cap = reserveMaxNow(w);
   if (w === currentWeapon) {
     ammo.reserve = Math.min(cap, ammo.reserve + n);
@@ -3824,6 +3871,28 @@ function bossVariantNow() {
 }
 
 /** 大剑（狂暴冲锋鱼） */
+/** 匕首模型（刀刃 + 护手 + 握柄 + 柄尾） */
+function makeKnifeModel() {
+  var g = new THREE.Group();
+  var steel = new THREE.MeshStandardMaterial({ color: 0xeaf0fa, roughness: 0.16, metalness: 0.92 });
+  var dark = new THREE.MeshStandardMaterial({ color: 0x2a2e36, roughness: 0.5, metalness: 0.55 });
+  var blade = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.085, 0.40), steel);
+  blade.position.set(0, 0, -0.28);
+  var tip = new THREE.Mesh(new THREE.ConeGeometry(0.048, 0.13, 4), steel);
+  tip.rotation.x = -Math.PI / 2;
+  tip.rotation.z = Math.PI / 4;
+  tip.position.set(0, 0, -0.545);
+  var guard = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.028, 0.045), dark);
+  guard.position.set(0, 0, -0.065);
+  var handle = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.029, 0.19, 8), dark);
+  handle.rotation.x = Math.PI / 2;
+  handle.position.set(0, 0, 0.055);
+  var pommel = new THREE.Mesh(new THREE.SphereGeometry(0.033, 8, 6), dark);
+  pommel.position.set(0, 0, 0.16);
+  g.add(blade, tip, guard, handle, pommel);
+  return g;
+}
+
 function makeBossSword() {
   var g = new THREE.Group();
   var steel = new THREE.MeshStandardMaterial({ color: 0xdfe6f2, roughness: 0.28, metalness: 0.85 });
@@ -4305,6 +4374,7 @@ function defeatBoss() {
   player.hp = CFG.maxHp;          // 击败 Boss：生命回满
   // Boss 弹药奖励：两把枪都补满当前弹夹，并各获得「相当于一个弹夹容量」的备弹（受上限约束）
   for (var bwk in WEAPONS) {
+    if (WEAPONS[bwk].melee || !weaponAmmo[bwk]) continue;   // 近战武器没有弹药
     var binfo = magTierInfo(bwk);
     var bsize = binfo ? binfo.size : WEAPONS[bwk].magSize;
     var bcap = reserveMaxNow(bwk);
@@ -4443,6 +4513,7 @@ function explodeGrenade(gr) {
 // ---------------------------------------------------------------- 射击
 var _rayOrigin = new THREE.Vector3();
 var _rayDir = new THREE.Vector3();
+var _tmpVec = new THREE.Vector3(), _tmpVec2 = new THREE.Vector3();   // 近战判定用临时向量
 var _raycaster = new THREE.Raycaster();
 var _hitPoint = new THREE.Vector3();
 var _tmpV = new THREE.Vector3();
@@ -4460,8 +4531,73 @@ function raySphere(o, d, c, r) {
   return t1 > 0 ? t1 : (t2 > 0 ? t2 : -1);
 }
 
+// ---------------------------------------------------------------- 近战武器（匕首）
+// 轻击：范围 1 米、基础伤害 2；重击：伤害恒为轻击的 2 倍，速度更慢、动作明显不同。
+// 用于弹尽粮绝时「铤而走险」；伤害随「子弹强化」技能与连杀评级一起成长。
+function knifeAttack(heavy) {
+  if (state !== 'playing' || knifeCd > 0) return false;
+  var def = WEAPONS.knife;
+  knifeCd = heavy ? def.heavyCd : def.shootInterval;
+  shootCd = Math.min(0.001, shootCd);              // 与射击冷却解耦
+  gun.knifeAnim = { heavy: !!heavy, t: 0, dur: heavy ? 0.62 : 0.30 };
+
+  // 伤害：基础 + 技能等级，再乘连杀评级加成；重击恒为轻击的 heavyMul 倍
+  var base = (def.damage + upgrades.dmg) * (1 + comboBonus().damage);
+  var dmg = heavy ? base * def.heavyMul : base;
+
+  camera.getWorldPosition(_rayOrigin);
+  camera.getWorldDirection(_rayDir);
+
+  // 命中判定：以准星为轴、身前 range 米内的最近目标
+  var range = def.range;
+  var best = null, bestAlong = Infinity;
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    if (!e.alive) continue;
+    var toE = _tmpVec.copy(e.mesh.position).sub(_rayOrigin);
+    var along = toE.dot(_rayDir);
+    if (along < -0.25 || along > range) continue;
+    var perp = Math.sqrt(Math.max(0, toE.lengthSq() - along * along));
+    if (perp > CFG.fishHitRadius + 0.4) continue;
+    if (along < bestAlong) { bestAlong = along; best = e; }
+  }
+  var bestBoss = false;
+  if (boss) {
+    var toB = _tmpVec.copy(boss.mesh.position).sub(_rayOrigin);
+    var alongB = toB.dot(_rayDir);
+    if (alongB > -0.5 && alongB < range + 1.4) {
+      var perpB = Math.sqrt(Math.max(0, toB.lengthSq() - alongB * alongB));
+      if (perpB < 2.4) bestBoss = true;
+    }
+  }
+
+  var hitAny = false;
+  var fxColor = heavy ? 0xffe8a0 : 0xffffff;
+  if (best) {
+    var hp = _tmpVec2.copy(best.mesh.position);
+    best.hp = (best.hp || 1) - dmg;
+    spawnBurst(hp, fxColor, heavy ? 18 : 10, heavy ? 4.2 : 2.8);
+    debugLog((heavy ? '重击' : '轻击') + '命中 ' + enemyName(best) + '，造成 ' + dmg.toFixed(1) + ' 点伤害', 'dbg-hit');
+    if (best.hp <= 0) killFish(best, hp.clone());
+    hitAny = true;
+  } else if (bestBoss && boss) {
+    boss.hp -= dmg;
+    boss.hurt = 0.2;
+    updateBossBar();
+    spawnBurst(boss.mesh.position, fxColor, heavy ? 20 : 11, heavy ? 4.5 : 3.0);
+    debugLog((heavy ? '重击' : '轻击') + '命中 Boss，造成 ' + dmg.toFixed(1) + ' 点伤害', 'dbg-hit');
+    if (boss.hp <= 0) defeatBoss();
+    hitAny = true;
+  }
+  playSfx('swordHit', heavy ? 0.75 : 0.5);
+  if (hitAny) flashCrosshair();
+  camFx.fire = heavy ? 1 : 0.45; camFx.fireT = 0;   // 挥砍也带一点镜头反馈
+  return true;
+}
+
 function shootOnce() {
   if (state !== 'playing' || shootCd > 0) return;
+  if (weaponDef().melee) { knifeAttack(false); return; }   // 近战武器：左键轻击
   if (ammo.reloading) return;               // 换弹期间不能射击
   if (ammo.mag <= 0) { requestReload(); return; }          // 弹夹打空：自动换弹（或提示弹药耗尽）
   var wdef = weaponDef();
@@ -5087,8 +5223,9 @@ function onKeyDown(ev) {
   // 武器切换：数字键 1 / 2（小键盘 1/2 在开发者模式下留给刷怪快捷键）
   if (state === 'playing') {
     var wKey = (ev.code === 'Digit1' || ev.code === 'Numpad1') ? 'pistol'
-             : (ev.code === 'Digit2' || ev.code === 'Numpad2') ? 'rifle' : null;
-    var isNumpad = (ev.code === 'Numpad1' || ev.code === 'Numpad2');
+             : (ev.code === 'Digit2' || ev.code === 'Numpad2') ? 'rifle'
+             : (ev.code === 'Digit3' || ev.code === 'Numpad3') ? 'knife' : null;
+    var isNumpad = (ev.code === 'Numpad1' || ev.code === 'Numpad2' || ev.code === 'Numpad3');
     if (wKey && !(isNumpad && debugMode)) { switchWeapon(wKey); return; }
   }
   // 开发者模式：小键盘 1~4 快速刷出四种特殊敌人（便于测试）
@@ -5249,7 +5386,13 @@ function initTouchControls() {
 }
 
 function onMouseDown(ev) {
-  if (ev.button !== 0 || state !== 'playing') return;
+  if (state !== 'playing') return;
+  // 右键：近战武器触发重击
+  if (ev.button === 2) {
+    if (weaponDef().melee) knifeAttack(true);
+    return;
+  }
+  if (ev.button !== 0) return;
   if (lockMode === 'locked' && document.pointerLockElement !== dom.canvas) return;
   // 覆盖层/按钮上的点击不射击（HUD 默认 pointer-events:none）
   if (ev.target && ev.target !== dom.canvas && ev.target !== document.body) return;
@@ -5416,10 +5559,49 @@ function movePlayer(dx, dz) {
 
 function updateGun(dt) {
   gun.recoil = Math.max(0, gun.recoil - dt * 1.1);
-  gun.group.position.z = -0.6 + gun.recoil * 1.15;
+  if (knifeCd > 0) knifeCd = Math.max(0, knifeCd - dt);
+
+  var isMelee = !!weaponDef().melee;
+  var baseZ = isMelee ? -0.42 : -0.6;
+  var baseY = isMelee ? -0.20 : -0.28;
+
+  // ===== 匕首攻击动画 =====
+  // 轻击：快速向前刺出再收回（0.30s）；重击：抬手蓄力 → 大幅猛劈（0.62s，动作与轻击明显不同）
+  if (gun.knifeAnim) {
+    var ka = gun.knifeAnim;
+    ka.t += dt;
+    var k = ka.t / ka.dur;
+    if (k >= 1) {
+      gun.knifeAnim = null;
+    } else {
+      var offZ = 0, offY = 0, rotX = 0, rotZ = 0;
+      if (ka.heavy) {
+        if (k < 0.35) {                    // 抬手后仰蓄力
+          var a = k / 0.35;
+          offZ = 0.16 * a; offY = -0.14 * a; rotX = -0.85 * a; rotZ = -0.55 * a;
+        } else if (k < 0.62) {             // 猛劈
+          var b = (k - 0.35) / 0.27;
+          offZ = 0.16 - 0.92 * b; offY = -0.14 + 0.32 * b; rotX = -0.85 + 1.7 * b; rotZ = -0.55 + 1.0 * b;
+        } else {                            // 回位
+          var c = (k - 0.62) / 0.38;
+          offZ = -0.76 * (1 - c); offY = 0.18 * (1 - c); rotX = 0.85 * (1 - c); rotZ = 0.45 * (1 - c);
+        }
+      } else {
+        if (k < 0.4) { var a2 = k / 0.4; offZ = -0.46 * a2; offY = 0.07 * a2; rotX = 0.3 * a2; }
+        else { var c2 = (k - 0.4) / 0.6; offZ = -0.46 * (1 - c2); offY = 0.07 * (1 - c2); rotX = 0.3 * (1 - c2); }
+      }
+      gun.group.position.z = baseZ + offZ;
+      gun.group.position.y = baseY + offY;
+      gun.group.rotation.x = rotX;
+      gun.group.rotation.z = rotZ;
+      return;                              // 动画期间跳过默认摆动
+    }
+  }
+  gun.group.rotation.z = 0;
+  gun.group.position.z = baseZ + gun.recoil * 1.15;
   var moving = (keys.KeyW || keys.KeyS || keys.KeyA || keys.KeyD) && player.onGround && state === 'playing';
   var sway = moving ? 1 : 0;
-  gun.group.position.y = -0.28 + Math.sin(time * 9) * 0.012 * sway;
+  gun.group.position.y = baseY + Math.sin(time * 9) * 0.012 * sway;
   gun.group.rotation.x = Math.sin(time * 9 + 1) * 0.012 * sway;
   if (gun.flashT > 0) {
     gun.flashT -= dt;
@@ -5556,7 +5738,7 @@ function init() {
     gameoverOverlay: 'gameover-overlay', finalScore: 'final-score', finalKills: 'final-kills',
     gameoverTitle: 'gameover-title',
     fallbackHint: 'fallback-hint', errorBar: 'error-bar',
-    ammoMag: 'ammo-mag', ammoReserve: 'ammo-reserve',
+    ammoMag: 'ammo-mag', ammoReserve: 'ammo-reserve', ammoWrap: 'ammo-wrap',
     reloadWrap: 'reload-wrap', reloadFill: 'reload-fill', noticePop: 'notice-pop',
     bossBarWrap: 'boss-bar-wrap', bossName: 'boss-name', bossFill: 'boss-fill',
     bossHpCur: 'boss-hp-cur', bossHpMax: 'boss-hp-max',
@@ -5613,6 +5795,8 @@ function init() {
   document.addEventListener('keydown', onKeyDown);
   document.addEventListener('keyup', onKeyUp);
   document.addEventListener('mousedown', onMouseDown);
+  // 画面上屏蔽右键菜单（右键用于近战重击）
+  if (dom.canvas) dom.canvas.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
   document.addEventListener('mouseup', onMouseUp);
   document.addEventListener('mousemove', onMouseMove);
   document.addEventListener('pointerlockchange', onPointerLockChange);
@@ -5740,6 +5924,9 @@ window.FishGame = {
         lightZ: gun.light ? +gun.light.position.z.toFixed(3) : null,
       };
     },
+    knifeAttack: knifeAttack,                            // 测试用：匕首攻击（true = 重击）
+    getKnifeCd: function () { return knifeCd; },
+    getWeapon: function () { return currentWeapon; },
     getMoveSpeedNow: function () {                       // 测试用：当前有效移速
       var wpen = weaponSpeedPenalty();
       return CFG.walkSpeed * wpen.base * (1 + upgrades.speed * CFG.upgradeSpeedPerLevel + comboBonus().speed) * wpen.final;

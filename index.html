@@ -144,6 +144,18 @@ window.addEventListener('load', function () {
     50%      { opacity: .82; }
   }
 
+  /* ---------- HUD 武器栏（三个槽位，当前武器高亮）---------- */
+  #weapon-bar { position: absolute; right: 24px; bottom: 92px; display: flex; gap: 8px; z-index: 6; }
+  .wslot { font-size: 17px; font-weight: 700; letter-spacing: .6px; padding: 6px 13px;
+    border-radius: 9px; background: rgba(0,0,0,.45); color: rgba(178,196,218,.85);
+    border: 1.5px solid rgba(255,255,255,.14); transition: all .16s ease; white-space: nowrap; }
+  .wslot.active {
+    color: #fff; transform: scale(1.08);
+    background: linear-gradient(135deg, rgba(47,133,221,.9), rgba(26,74,138,.95));
+    border-color: rgba(150,208,255,.9);
+    box-shadow: 0 0 14px rgba(80,170,255,.55);
+  }
+
   /* ---------- 主菜单布局：立绘 + 成就并排，开始游戏居中 ---------- */
   .menu-hero { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 4px 0 2px; }
   .menu-hero .fish-preview { margin: 0; }
@@ -573,7 +585,11 @@ window.addEventListener('load', function () {
     <div id="score-value">0</div>
     <div class="sub">得分 · 击杀 <span id="kills-value">0</span></div>
   </div>
-  <div id="weapon-name" style="position:absolute;right:26px;bottom:96px;color:#9fb2c8;font-size:12px;letter-spacing:1.5px;background:rgba(0,0,0,.35);padding:3px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.12)">手枪</div>
+  <div id="weapon-bar">
+    <span class="wslot" data-wkey="1">1 手枪</span>
+    <span class="wslot" data-wkey="2">2 步枪</span>
+    <span class="wslot" data-wkey="3">3 匕首</span>
+  </div>
 <div id="ammo-wrap"><b id="ammo-mag">30</b><span class="ammo-sep">/</span><span id="ammo-reserve">180</span><span class="ammo-lbl">弹药</span></div>
   <div id="nade-wrap"><span class="nade-ico">💣</span><b id="nade-count">1</b><span class="ammo-lbl">手雷</span></div>
   <div id="reload-wrap">
