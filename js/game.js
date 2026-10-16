@@ -872,6 +872,52 @@ function addWallBox(cx, cz, sx, sz, h, noCollide) {
   }
   return m;
 }
+// ---------------------------------------------------------------- 每局随机掩体
+// 每局在场地内随机散布若干箱子作为掩体；全部走 addWallBox，
+// 因此自带碰撞体（obstacles）与射击遮挡（wallMeshes），玩家可跳上去、子弹会被挡住。
+var randomCovers = [];
+
+function clearRandomCovers() {
+  for (var i = 0; i < randomCovers.length; i++) {
+    var m = randomCovers[i];
+    scene.remove(m);
+    for (var j = obstacles.length - 1; j >= 0; j--) if (obstacles[j].mesh === m) obstacles.splice(j, 1);
+    for (var k = wallMeshes.length - 1; k >= 0; k--) if (wallMeshes[k] === m) wallMeshes.splice(k, 1);
+  }
+  randomCovers = [];
+}
+
+/** 每局随机散布掩体：数量、位置、尺寸都随机，但保证不堵死出生点与通路 */
+function spawnRandomCovers() {
+  clearRandomCovers();
+  var wanted = Math.floor(rand(5, 10));          // 5~9 个额外掩体
+  var spX = CFG.spawnPoint[0], spZ = CFG.spawnPoint[1];
+  var placed = 0, tries = 0;
+  while (placed < wanted && tries < 90) {
+    tries++;
+    var sx = rand(1.1, 1.9), sz = rand(1.1, 1.9), h = rand(1.1, 1.9);
+    var x = rand(-CFG.arena + 8, CFG.arena - 8);
+    var z = rand(-CFG.arena + 8, CFG.arena - 8);
+
+    // 保护①：不靠出生点太近（6 米内不放，避免开局被堵）
+    if (Math.sqrt((x - spX) * (x - spX) + (z - spZ) * (z - spZ)) < 6) continue;
+
+    // 保护②：不与已有障碍重叠（留 1.3 米通行缓冲）
+    var clear = true;
+    for (var i = 0; i < obstacles.length; i++) {
+      var o = obstacles[i];
+      if (x + sx / 2 + 1.3 > o.min.x && x - sx / 2 - 1.3 < o.max.x &&
+          z + sz / 2 + 1.3 > o.min.z && z - sz / 2 - 1.3 < o.max.z) { clear = false; break; }
+    }
+    if (!clear) continue;
+
+    var m = addWallBox(x, z, sx, sz, h);         // 自带碰撞体 + 可被子弹击中
+    randomCovers.push(m);
+    placed++;
+  }
+  debugLog('本局随机掩体：' + placed + ' 个（均带碰撞体积）', 'dbg-hit');
+}
+
 // 分段墙：沿 X 方向的墙，gaps = 开口区间 [[g0,g1],...]
 function hWall(z, x0, x1, h, gaps) {
   var cur = Math.min(x0, x1), end = Math.max(x0, x1);
@@ -1062,6 +1108,9 @@ function buildEnvironment() {
     grass.rotation.y = rand(0, 6.28);
     scene.add(grass);
   }
+
+  // ===== 每局随机掩体（首次构建时生成，重开时重新随机）=====
+  spawnRandomCovers();
 
   // ===== 云朵 =====
   var cloudTex = new THREE.CanvasTexture(makeCloudTexture());
@@ -3794,6 +3843,7 @@ function restartGame(toMenu) {
   wave = { number: 0, state: 'prepare', timer: 0, total: 0 };
   stageShown = 1;
   fishSpawned = false;
+  spawnRandomCovers();                 // 新一局重新随机掩体布局
   ensureFishSpawned();
   // 清空上一局遗留的投射物与特效 —— 否则新一局开局会被上一局的子弹打中（看起来像"敌人没消失"）
   for (var k = 0; k < fishBullets.length; k++) scene.remove(fishBullets[k].mesh);
@@ -4625,6 +4675,8 @@ window.FishGame = {
     startWave: startWave,
     getComboBonus: function () { return comboBonus(); },
     getAchievements: function () { return JSON.parse(JSON.stringify(save.achievements)); },
+    getRandomCovers: function () { return randomCovers.map(function (m) { return { x: +m.position.x.toFixed(2), z: +m.position.z.toFixed(2) }; }); },
+    respawnCovers: spawnRandomCovers,
     getStats: function () { return JSON.parse(JSON.stringify(save.stats || {})); },
     getUpgradeEffects: function () {
       return {
