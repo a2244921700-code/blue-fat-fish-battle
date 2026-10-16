@@ -89,6 +89,7 @@ var CFG = {
   bossShellRadius: 2.0,    // 炮弹爆炸半径（落地爆 / 空爆）
   bossShootInterval: 2.2,  // Boss 射击间隔（秒）
   bossBallDamage: 25,      // 小球命中伤害
+  magDropChance: 0.32,     // 击杀特殊敌人时掉落扩容弹夹的概率
   // ---- Boss 变体参数（按阶段切换类型）----
   bossChargeSpeed: 15,       // 狂暴冲锋鱼：冲锋速度（米/秒）
   bossChargeDamage: 30,      // 狂暴冲锋鱼：冲撞伤害
@@ -197,7 +198,7 @@ function hurtKindOf(src) {
   return 'melee';
 }
 var playingTime = 0;              // 本局游戏进行时长（秒）
-var ammo = { mag: 0, reserve: 0, magSize: CFG.magSize, reloading: false, reloadTimer: 0 };
+var ammo = { mag: 0, reserve: 0, magSize: 7, reloading: false, reloadTimer: 0 };  // magSize 由 magSizeNow() 按武器与扩容等级维护
 var items = [];                    // 补给物品 { mesh, type: 'ammo'|'health', phase }
 var itemTimer = 0;
 var boss = null;                   // Boss { mesh, hp, maxHp, baseY, phase, fireTimer, hurt }
@@ -212,7 +213,7 @@ var combo = { score: 0, rank: -1, timer: 0 };  // 连杀评级：score=连杀点
 // 技能等级 0~10：5 项核心（通关判定只看核心）+ 6 项扩展（提供构筑多样性）
 var upgrades = {
   dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0,
-  mag: 0, crit: 0, pierce: 0, nadedmg: 0, armorup: 0, vampire: 0,
+  crit: 0, pierce: 0, nadedmg: 0, armorup: 0, vampire: 0,
 }; // 旧注释：dmg=子弹伤害, refund=回弹, heal=回血, nade=掉雷, speed=速度）
 var upgradesAllMax = false;      // 缓存：技能全部满级（仅在技能等级变化时检测一次，击杀 Boss 时直接读取，零帧开销）
 var bossKillCount = 0;         // 本局已击杀 Boss 数（驱动敌人成长与阶段推进）
@@ -406,21 +407,58 @@ function playEnemyVoice(e, key, volume) {
 // 两把武器弹药独立，备弹池各自累计
 var WEAPONS = {
   pistol: {
-    key: '1', name: '手枪', magSize: 30, shootInterval: 0.16, reloadTime: 1.5,
-    damageMul: 1.0, recoil: 0.13, spread: 0, reserveStart: 180,
+    key: '1', name: '手枪', magSize: 7, shootInterval: 0.16, reloadTime: 1.5,
+    damageMul: 1.0, recoil: 0.13, spread: 0, reserveStart: 42,
+    reserveMagMul: 8,            // 备弹上限 = 当前弹夹容量 × 8
     auto: false,                 // 点射：按一下打一发，按住不放不会连发
   },
   rifle: {
-    key: '2', name: '突击步枪', magSize: 45, shootInterval: 0.082, reloadTime: 2.0,
-    damageMul: 0.72, recoil: 0.075, spread: 0.014, reserveStart: 180,
+    key: '2', name: '突击步枪', magSize: 25, shootInterval: 0.082, reloadTime: 2.0,
+    damageMul: 0.72, recoil: 0.075, spread: 0.014, reserveStart: 100,
+    reserveMagMul: 6,            // 备弹上限 = 当前弹夹容量 × 6
     auto: true,                  // 全自动：按住持续射击
   },
 };
+
+// 扩容弹夹：靠击杀特殊敌人掉落，不叠加 —— 只有「更高级别」拾取后才会替换
+var MAG_TIERS = {
+  pistol: [
+    { name: '标准弹夹',       size: 7 },
+    { name: '手枪小扩容弹夹', size: 10 },
+    { name: '手枪中扩容弹夹', size: 12 },
+    { name: '手枪大扩容弹夹', size: 15 },
+  ],
+  rifle: [
+    { name: '标准弹夹',       size: 25 },
+    { name: '步枪小扩容弹夹', size: 35 },
+    { name: '步枪中扩容弹夹', size: 48 },
+    { name: '步枪大扩容弹夹', size: 60 },
+    { name: '步枪弹鼓',       size: 120 },
+  ],
+};
+var magTier = { pistol: 0, rifle: 0 };   // 每把枪当前装备的扩容等级（0 = 标准）
+
 var currentWeapon = 'pistol';
 var weaponAmmo = {
-  pistol: { mag: 30, reserve: 180 },
-  rifle: { mag: 45, reserve: 180 },
+  pistol: { mag: 7, reserve: 42 },
+  rifle: { mag: 25, reserve: 100 },
 };
+
+/** 当前武器弹夹容量（按已装备的扩容等级） */
+function magTierInfo(weapon, tier) {
+  var list = MAG_TIERS[weapon];
+  if (!list) return null;
+  return list[clamp(tier === undefined ? (magTier[weapon] || 0) : tier, 0, list.length - 1)];
+}
+
+/** 备弹上限（手枪 ×8 / 步枪 ×6，按当前弹夹容量计算） */
+function reserveMaxNow(weapon) {
+  var w = weapon || currentWeapon;
+  var def = WEAPONS[w];
+  if (!def) return 999;
+  var mag = magTierInfo(w) ? magTierInfo(w).size : def.magSize;
+  return mag * (def.reserveMagMul || 6);
+}
 function weaponDef() { return WEAPONS[currentWeapon]; }
 
 /** 切换武器（保存当前弹药、载入目标弹药、切模型、刷新 HUD） */
@@ -2378,6 +2416,12 @@ function killFish(e, hitPoint) {
   e.alive = false;
   e.respawnTimer = 99999;   // 波次制：敌人不重生（下一波由波次系统补足）
   if (!e.isChild) rollKillRewards();   // 子鱼不掉战利品
+  // 特殊敌人概率掉落扩容弹夹（手枪/步枪，级别随机）
+  if (!e.isChild && (e.kind === 'bomber' || e.kind === 'shield' || e.kind === 'healer' || e.kind === 'splitter') &&
+      Math.random() < CFG.magDropChance) {
+    spawnMagItem(e.mesh.position.clone());
+    debugLog(enemyName(e) + ' 掉落了扩容弹夹', 'dbg-hit');
+  }
   stopEnemyVoice(e);              // 死亡立即掐断该敌人的语音（如射手鱼的 biu biu）
   e.dyingT = 0.28;                // 死亡碎裂动画：缩小 + 上浮后再隐藏（不再瞬间消失）
 
@@ -3047,9 +3091,33 @@ function rollGunDamage() {
   return { damage: isCrit ? base * CFG.upgradeCritMul : base, isCrit: isCrit };
 }
 
-/** 当前弹匣容量（按武器 + 扩容弹匣技能） */
+/** 当前弹匣容量（按武器已装备的扩容等级） */
 function magSizeNow() {
-  return weaponDef().magSize + upgrades.mag * CFG.upgradeMagPerLevel;
+  var info = magTierInfo(currentWeapon);
+  return info ? info.size : weaponDef().magSize;
+}
+
+/** 给指定武器加备弹（自动受备弹上限约束）；默认当前武器 */
+function addReserve(n, weapon) {
+  var w = weapon || currentWeapon;
+  var cap = reserveMaxNow(w);
+  if (w === currentWeapon) {
+    ammo.reserve = Math.min(cap, ammo.reserve + n);
+    return ammo.reserve;
+  }
+  weaponAmmo[w].reserve = Math.min(cap, weaponAmmo[w].reserve + n);
+  return weaponAmmo[w].reserve;
+}
+
+/** 武器负重对移速的影响：
+    步枪大扩容弹夹 -5% 基础移速；步枪弹鼓 -10% 当前移速 */
+function weaponSpeedPenalty() {
+  if (currentWeapon !== 'rifle') return { base: 1, final: 1 };
+  var t = magTier.rifle || 0;
+  return {
+    base: t >= 3 ? 0.95 : 1,     // 在基础移速上扣
+    final: t >= 4 ? 0.90 : 1,    // 在最终（含技能与连杀加成）移速上扣
+  };
 }
 
 /** 当前手雷伤害区间（高爆手雷） */
@@ -3128,7 +3196,6 @@ var UPGRADE_DEFS = {
   nade:   { ico: '💣', name: '手雷补给', short: '概率掉雷' },
   speed:  { ico: '💨', name: '疾风步伐', short: '速度提升' },
   // ---- 扩展技能（V0.4.1 新增）----
-  mag:     { ico: '📦', name: '扩容弹匣', short: '弹匣 +3' },
   crit:    { ico: '🎯', name: '致命打击', short: '暴击率 +5%' },
   pierce:  { ico: '➶', name: '穿甲弹',   short: '子弹穿透 +1' },
   nadedmg: { ico: '🧨', name: '高爆手雷', short: '手雷更强' },
@@ -3136,7 +3203,8 @@ var UPGRADE_DEFS = {
   vampire: { ico: '🩸', name: '杀戮汲取', short: '击杀回血' },
 };
 var UPGRADE_ORDER = ['dmg', 'refund', 'heal', 'nade', 'speed',
-  'mag', 'crit', 'pierce', 'nadedmg', 'armorup', 'vampire'];
+  'crit', 'pierce', 'nadedmg', 'armorup', 'vampire'];
+// 注：「扩容弹夹」已从技能改为击杀特殊敌人掉落的道具（见 MAG_TIERS / magTier）
 // 核心 5 项：通关判定只看它们（扩展技能不强制满级，避免通关周期被拉长到 110 次强化）
 var CORE_UPGRADES = ['dmg', 'refund', 'heal', 'nade', 'speed'];
 
@@ -3148,7 +3216,6 @@ function upgradeNextDesc(id, lv) {
     case 'heal':   return '击杀后 ' + Math.round((CFG.upgradeHealChanceBase + (lv - 1) * CFG.upgradeHealChanceInc) * 100) + '% 概率恢复 ' + CFG.upgradeHealAmount + ' 生命';
     case 'nade':   return '击杀后 ' + Math.round((CFG.upgradeNadeChanceBase + (lv - 1) * CFG.upgradeNadeChanceInc) * 100) + '% 概率获得 1 颗手雷';
     case 'speed':  return '移动速度 +' + Math.round(CFG.upgradeSpeedPerLevel * lv * 100) + '%';
-    case 'mag':     return '弹匣容量 +' + (CFG.upgradeMagPerLevel * lv) + ' 发';
     case 'crit':    return '暴击率 ' + Math.round(CFG.upgradeCritPerLevel * lv * 100) + '%（暴击伤害 ×' + CFG.upgradeCritMul + '）';
     case 'pierce':  return '子弹可额外穿透 ' + lv + ' 个敌人';
     case 'nadedmg': return '手雷伤害 +' + (CFG.upgradeNadeDmgPerLevel * lv) + '、半径 +' + (CFG.upgradeNadeRadiusPerLevel * lv).toFixed(1) + ' 米';
@@ -3430,7 +3497,7 @@ function enemyName(e) { return e.ranged ? '射手肥鱼' : '近战肥鱼'; }
 function rollKillRewards() {
   var msgs = [];
   if (upgrades.refund > 0 && Math.random() < CFG.upgradeRefundChance) {
-    ammo.reserve += CFG.upgradeRefundPerLevel * upgrades.refund;
+    addReserve(CFG.upgradeRefundPerLevel * upgrades.refund);   // 弹药回收（受备弹上限约束）
     msgs.push('+' + (CFG.upgradeRefundPerLevel * upgrades.refund) + ' 子弹');
   }
   if (upgrades.heal > 0 && Math.random() < CFG.upgradeHealChanceBase + (upgrades.heal - 1) * CFG.upgradeHealChanceInc) {
@@ -3552,6 +3619,69 @@ function pickItemPos() {
   return null;
 }
 
+/** 扩容弹夹道具的外观：弹夹本体 + 子弹头，颜色按级别区分 */
+function buildMagItem(weapon, tier, pos) {
+  var g = new THREE.Group();
+  var isRifle = weapon === 'rifle';
+  var colors = isRifle ? [0x8ad8b0, 0x6ec8ff, 0xc8a0ff, 0xffb060, 0xff7a7a]
+                       : [0x8ad8b0, 0x6ec8ff, 0xc8a0ff, 0xffb060];
+  var col = colors[clamp(tier, 0, colors.length - 1)];
+  var isDrum = (isRifle && tier >= 4);
+  // 底座光环（区分道具类型）
+  var ringMat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+  var ring = new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.04, 8, 26), ringMat);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.06;
+  g.add(ring);
+  var matBody = new THREE.MeshStandardMaterial({ color: 0x3a4250, roughness: 0.45, metalness: 0.7 });
+  var matAcc = new THREE.MeshStandardMaterial({ color: col, roughness: 0.3, metalness: 0.55, emissive: col, emissiveIntensity: 0.18 });
+  if (isDrum) {
+    // 弹鼓：圆柱形大弹鼓
+    var drum = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.26, 22), matBody);
+    drum.rotation.x = Math.PI / 2;
+    drum.position.y = 0.42;
+    var drumFace = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.28, 18), matAcc);
+    drumFace.rotation.x = Math.PI / 2;
+    drumFace.position.y = 0.42;
+    g.add(drum, drumFace);
+  } else {
+    // 弹夹：长方体 + 顶部子弹头
+    var body = new THREE.Mesh(new THREE.BoxGeometry(isRifle ? 0.26 : 0.2, 0.5, isRifle ? 0.5 : 0.34), matBody);
+    body.position.y = 0.32;
+    body.castShadow = true;
+    g.add(body);
+    var band = new THREE.Mesh(new THREE.BoxGeometry(isRifle ? 0.29 : 0.23, 0.1, isRifle ? 0.53 : 0.37), matAcc);
+    band.position.y = 0.46;
+    g.add(band);
+    for (var bi = 0; bi < 3; bi++) {
+      var bullet = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.14, 8), matAcc);
+      bullet.position.set((bi - 1) * 0.08, 0.62, 0);
+      g.add(bullet);
+    }
+  }
+  g.position.set(pos.x, 0, pos.z);
+  return g;
+}
+
+/** 击杀特殊敌人时按概率掉落扩容弹夹 */
+function spawnMagItem(pos) {
+  // 枪种：优先当前武器；级别偏向“略高于当前”，保证大多数掉落有效
+  var weapon = (Math.random() < (currentWeapon === 'rifle' ? 0.6 : 0.4)) ? 'rifle' : 'pistol';
+  var list = MAG_TIERS[weapon];
+  var maxT = list.length - 1;
+  var cur = magTier[weapon] || 0;
+  var roll = Math.random();
+  var tier;
+  if (roll < 0.45)      tier = Math.min(maxT, cur + 1);
+  else if (roll < 0.72) tier = Math.min(maxT, cur + 2);
+  else if (roll < 0.88) tier = Math.min(maxT, Math.max(1, cur));       // 同级（不会生效）
+  else                  tier = Math.max(1, cur - 1);                   // 低级（不会生效）
+  if (tier <= 0) tier = 1;
+  var mesh = buildMagItem(weapon, tier, pos);
+  scene.add(mesh);
+  items.push({ mesh: mesh, type: 'mag', weapon: weapon, tier: tier, phase: rand(0, Math.PI * 2) });
+}
+
 function spawnItem() {
   if (items.length >= CFG.itemMax) return;
   var pos = pickItemPos();
@@ -3563,9 +3693,34 @@ function spawnItem() {
 }
 
 function pickupItem(it, index) {
-  if (it.type === 'ammo') {
-    ammo.reserve += CFG.ammoPack;
-    showNotice('+' + CFG.ammoPack + ' 子弹');
+  if (it.type === 'mag') {
+    // 扩容弹夹：只有更高级别才会替换；同级或更低不生效，也不消耗道具（留在原地）
+    var cur = magTier[it.weapon] || 0;
+    var info = MAG_TIERS[it.weapon][it.tier];
+    var curInfo = MAG_TIERS[it.weapon][cur];
+    var wname = it.weapon === 'rifle' ? '步枪' : '手枪';
+    if (it.tier <= cur) {
+      showNotice(info.name + ' 不低于当前装备（' + curInfo.name + '），已忽略');
+      return;                          // 不拾取：不播放音效、不移除道具
+    }
+    magTier[it.weapon] = it.tier;
+    if (it.weapon === currentWeapon) {
+      ammo.magSize = magSizeNow();
+      ammo.mag = ammo.magSize;         // 换上新弹夹：直接装满
+    } else {
+      weaponAmmo[it.weapon].mag = info.size;
+    }
+    showNotice('装备 ' + info.name + ' —— ' + wname + '弹夹容量 ' + info.size +
+      (it.weapon === 'rifle' && it.tier >= 4 ? '（移速 -10%）' : (it.weapon === 'rifle' && it.tier === 3 ? '（移速 -5%）' : '')));
+    Sfx.pickupAmmo();
+  } else if (it.type === 'ammo') {
+    var capA = reserveMaxNow(currentWeapon);
+    if (ammo.reserve >= capA) {
+      showNotice('备弹已满（上限 ' + capA + '）');
+      return;
+    }
+    ammo.reserve = Math.min(capA, ammo.reserve + CFG.ammoPack);
+    showNotice('+' + CFG.ammoPack + ' 子弹（' + ammo.reserve + '/' + capA + '）');
     Sfx.pickupAmmo();
   } else if (it.type === 'armor') {
     // 每拾取一个护甲道具 = +1 层护盾（每层防御力 = CFG.armorPerPick 点）
@@ -4148,10 +4303,23 @@ function defeatBoss() {
   addComboPoints(CFG.comboBossPoints); // 击败 Boss：连杀 +5 点，快速提升评级
   rollKillRewards();              // Boss 击杀同样触发概率战利品
   player.hp = CFG.maxHp;          // 击败 Boss：生命回满
-  ammo.reserve += CFG.bossAmmoReward; // 奖励备用子弹
+  // Boss 弹药奖励：两把枪都补满当前弹夹，并各获得「相当于一个弹夹容量」的备弹（受上限约束）
+  for (var bwk in WEAPONS) {
+    var binfo = magTierInfo(bwk);
+    var bsize = binfo ? binfo.size : WEAPONS[bwk].magSize;
+    var bcap = reserveMaxNow(bwk);
+    if (bwk === currentWeapon) {
+      ammo.mag = bsize;
+      ammo.reserve = Math.min(bcap, ammo.reserve + bsize);
+    } else {
+      weaponAmmo[bwk].mag = bsize;
+      weaponAmmo[bwk].reserve = Math.min(bcap, weaponAmmo[bwk].reserve + bsize);
+    }
+  }
+  updateAmmoHUD();
   var nadeBonus = 1 + Math.floor(Math.random() * CFG.nadeBossBonusMax); // 随机 1~3 颗手雷
   nadeCount += nadeBonus;
-  showNotice('BOSS 击破！生命回满 +' + CFG.bossAmmoReward + ' 子弹 +' + nadeBonus + ' 手雷');
+  showNotice('BOSS 击破！生命回满 · 两把枪弹夹补满 + 各一弹夹备弹 · +' + nadeBonus + ' 手雷');
   Sfx.bossDie();
   hideBossBar();
   updateHUD();
@@ -4506,6 +4674,7 @@ function restartGame(toMenu) {
   score = 0; kills = 0; playingTime = 0;
   runTookDamage = false;                // 新一局重置「完美无瑕」标志
   currentWeapon = 'pistol';                            // 重开回到手枪
+  magTier = { pistol: 0, rifle: 0 };                   // 扩容弹夹不继承，回到标准弹夹
   weaponAmmo = {
     pistol: { mag: WEAPONS.pistol.magSize, reserve: WEAPONS.pistol.reserveStart },
     rifle:  { mag: WEAPONS.rifle.magSize,  reserve: WEAPONS.rifle.reserveStart },
@@ -4526,7 +4695,7 @@ function restartGame(toMenu) {
   // 重置局内强化与成长（无尽模式技能独立：死亡重来/退出重进均不继承）
   upgrades = {
     dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0,
-    mag: 0, crit: 0, pierce: 0, nadedmg: 0, armorup: 0, vampire: 0,
+    crit: 0, pierce: 0, nadedmg: 0, armorup: 0, vampire: 0,
   };
   upgradesAllMax = false;
   bossKillCount = 0;
@@ -5152,7 +5321,9 @@ function updatePlayer(dt) {
   var moving = len > 0.01;
   if (moving) {
     mx /= len; mz /= len;
-    var spdNow = CFG.walkSpeed * (1 + upgrades.speed * CFG.upgradeSpeedPerLevel + comboBonus().speed); // 疾风步伐 + 连杀评级增益
+    // 移速：基础 ×（技能 + 连杀加成）；步枪大扩容弹夹在基础移速上扣 5%，弹鼓在最终移速上再扣 10%
+    var wpen = weaponSpeedPenalty();
+    var spdNow = CFG.walkSpeed * wpen.base * (1 + upgrades.speed * CFG.upgradeSpeedPerLevel + comboBonus().speed) * wpen.final;
     movePlayer(mx * spdNow * dt, mz * spdNow * dt);
     stepTimer += spdNow * dt;
     if (stepTimer > 2.6) { stepTimer = 0; Sfx.step(); }
@@ -5421,8 +5592,15 @@ function init() {
   mark('particles');
   loadFishTexture();
   mark('texture');
-  ammo.mag = CFG.magSize;
-  ammo.reserve = CFG.startReserve;
+  // 开局弹药：手枪 7/42（扩容弹夹靠掉落，不继承）
+  magTier = { pistol: 0, rifle: 0 };
+  ammo.magSize = magSizeNow();
+  ammo.mag = magSizeNow();
+  ammo.reserve = WEAPONS.pistol.reserveStart;
+  weaponAmmo = {
+    pistol: { mag: WEAPONS.pistol.magSize, reserve: WEAPONS.pistol.reserveStart },
+    rifle:  { mag: WEAPONS.rifle.magSize,  reserve: WEAPONS.rifle.reserveStart },
+  };
   itemTimer = rand(CFG.itemIntervalMin, CFG.itemIntervalMax);
   // 血条数值由 HTML 静态 span 承载；仅在无子元素时兜底设置名字（避免 textContent 覆盖清除数字子元素）
   if (dom.bossName && dom.bossName.children.length === 0) dom.bossName.textContent = '超级蓝色大肥鱼';
@@ -5561,6 +5739,36 @@ window.FishGame = {
         flashZ: +gun.flashMesh.position.z.toFixed(3),
         lightZ: gun.light ? +gun.light.position.z.toFixed(3) : null,
       };
+    },
+    getMoveSpeedNow: function () {                       // 测试用：当前有效移速
+      var wpen = weaponSpeedPenalty();
+      return CFG.walkSpeed * wpen.base * (1 + upgrades.speed * CFG.upgradeSpeedPerLevel + comboBonus().speed) * wpen.final;
+    },
+    getAmmoLimits: function () {
+      var def = weaponDef();
+      var info = magTierInfo(currentWeapon);
+      return {
+        weapon: currentWeapon,
+        magSize: magSizeNow(),
+        reserveMax: reserveMaxNow(currentWeapon),
+        reserveStart: def.reserveStart,
+        tier: magTier[currentWeapon] || 0,
+        tierName: info ? info.name : '标准弹夹',
+        magTiers: MAG_TIERS[currentWeapon].map(function (x) { return { name: x.name, size: x.size }; }),
+      };
+    },
+    giveMagTier: function (weapon, tier) {              // 测试用：直接设置扩容等级
+      magTier[weapon] = tier;
+      if (weapon === currentWeapon) ammo.magSize = magSizeNow();
+      return magSizeNow();
+    },
+    spawnMagDrop: function (weapon, tier) {             // 测试用：在玩家附近生成一个扩容弹夹道具
+      var p = player.pos.clone();
+      p.x += 1.2;
+      spawnMagItem(p);
+      var last = items[items.length - 1];
+      if (last && last.type === 'mag' && weapon) { last.weapon = weapon; last.tier = tier; }
+      return last ? { weapon: last.weapon, tier: last.tier } : null;
     },
     setEnvTheme: applyEnvTheme,                          // 测试用：切换环境主题
     getEnvTheme: function () { return { index: envIndex, name: ENV_THEMES[envIndex].name }; },
@@ -5744,7 +5952,7 @@ window.FishGame = {
     resetProgression: function () {
       upgrades = {
     dmg: 0, refund: 0, heal: 0, nade: 0, speed: 0,
-    mag: 0, crit: 0, pierce: 0, nadedmg: 0, armorup: 0, vampire: 0,
+    crit: 0, pierce: 0, nadedmg: 0, armorup: 0, vampire: 0,
   };
       upgradesAllMax = false;
       bossKillCount = 0;

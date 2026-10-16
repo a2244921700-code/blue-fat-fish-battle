@@ -184,8 +184,11 @@ dbg.shootOnce(); // 冷却中
 check('射速冷却生效(不重复击杀)', dbg.getKills() === 1, String(dbg.getKills()));
 
 // ---- 弹药与换弹 ----
+const ALIM = dbg.getAmmoLimits();
 const ammoA = dbg.getAmmo();
-check('射击后弹药(弹夹<30/备用180)', ammoA.mag < 30 && ammoA.reserve === 180, ammoA.mag + '/' + ammoA.reserve);
+check('射击后弹药(弹夹<容量且备弹=开局值)',
+  ammoA.mag < ALIM.magSize && ammoA.reserve === ALIM.reserveStart,
+  ammoA.mag + '/' + ammoA.reserve + ' magSize=' + ALIM.magSize);
 const magBeforeReload = ammoA.mag;
 fakeDocument.fire('keydown', { code: 'KeyR' });
 check('R 键触发换弹', dbg.getAmmo().reloading === true);
@@ -197,13 +200,15 @@ check('换弹期间不能射击(弹药不变)', dbg.getAmmo().mag === magBeforeR
   'before=' + magBeforeReload + ' after=' + dbg.getAmmo().mag + ' reloading=' + dbg.getAmmo().reloading);
 advance(1.7);
 check('换弹完成(满弹夹+扣足备弹)',
-  dbg.getAmmo().mag === 30 && dbg.getAmmo().reserve === 180 - (30 - magBeforeReload),
-  dbg.getAmmo().mag + '/' + dbg.getAmmo().reserve + ' expect-reserve=' + (180 - (30 - magBeforeReload)));
+  dbg.getAmmo().mag === ALIM.magSize && dbg.getAmmo().reserve === ALIM.reserveStart - (ALIM.magSize - magBeforeReload),
+  dbg.getAmmo().mag + '/' + dbg.getAmmo().reserve + ' expect-reserve=' + (ALIM.reserveStart - (ALIM.magSize - magBeforeReload)));
 dbg.setAmmo(5, 10);
 fakeDocument.fire('keydown', { code: 'KeyR' });
 advance(1.7);
-check('备用不足时全部入夹 15/0', dbg.getAmmo().mag === 15 && dbg.getAmmo().reserve === 0,
-  dbg.getAmmo().mag + '/' + dbg.getAmmo().reserve);
+// 5 发 + 备弹 10 发：受弹夹容量限制，只能装到容量上限，剩余留作备弹
+const expMag1 = Math.min(ALIM.magSize, 15);
+check('备用不足时全部入夹', dbg.getAmmo().mag === expMag1 && dbg.getAmmo().reserve === 15 - expMag1,
+  dbg.getAmmo().mag + '/' + dbg.getAmmo().reserve + ' exp=' + expMag1 + '/' + (15 - expMag1));
 dbg.setAmmo(5, 0);
 fakeDocument.fire('keydown', { code: 'KeyR' });
 check('备用为0不触发换弹', dbg.getAmmo().reloading === false);
@@ -213,8 +218,9 @@ dbg.setAmmo(0, 30);
 dbg.shootOnce();
 check('弹夹打空自动换弹', dbg.getAmmo().reloading === true && dbg.getAmmo().mag === 0);
 advance(1.7);
-check('自动换弹完成 30/0', dbg.getAmmo().mag === 30 && dbg.getAmmo().reserve === 0,
-  dbg.getAmmo().mag + '/' + dbg.getAmmo().reserve);
+check('自动换弹完成(装满弹夹并扣除备弹)',
+  dbg.getAmmo().mag === ALIM.magSize && dbg.getAmmo().reserve === Math.max(0, 30 - ALIM.magSize),
+  dbg.getAmmo().mag + '/' + dbg.getAmmo().reserve + ' exp=' + ALIM.magSize + '/' + Math.max(0, 30 - ALIM.magSize));
 dbg.setAmmo(12, 77);
 check('弹药 HUD 更新', els['ammo-mag'].textContent === '12');
 
@@ -231,7 +237,8 @@ const plPos = dbg.getPlayer().pos;
 const rBefore = dbg.getAmmo().reserve;
 dbg.spawnTestItem('ammo', plPos.x, plPos.z);
 advance(0.2);
-check('走近拾取子弹包 +15', dbg.getAmmo().reserve === rBefore + 15,
+check('走近拾取子弹包(受备弹上限约束)',
+  dbg.getAmmo().reserve === Math.min(Math.max(rBefore, ALIM.reserveMax), rBefore + 15),
   rBefore + ' -> ' + dbg.getAmmo().reserve);
 // 钉住鱼：位置与巡逻点相同的角落，避免干扰
 for (const fp of dbg.getEnemies()) {
@@ -352,7 +359,11 @@ for (let bi = 0; bi < 15; bi++) {
 }
 check('命中15发后击败 Boss', dbg.getBoss() === null, 'hits=' + hitConfirm);
 check('击败 Boss 生命回满', dbg.getPlayer().hp === 100, 'hp=' + dbg.getPlayer().hp);
-check('击败 Boss 奖励 +60 子弹', dbg.getAmmo().reserve === 160, String(dbg.getAmmo().reserve));
+// Boss 奖励改为：两把枪弹夹补满 + 各获得「一个弹夹容量」的备弹（受备弹上限约束）
+check('击败 Boss 补满弹夹并奖励一个弹夹的备弹',
+  dbg.getAmmo().mag === ALIM.magSize && dbg.getAmmo().reserve <= ALIM.reserveMax &&
+  dbg.getAmmo().reserve > 0,
+  'mag=' + dbg.getAmmo().mag + ' reserve=' + dbg.getAmmo().reserve + ' cap=' + ALIM.reserveMax);
 check('击败 Boss 奖励 +50 分', dbg.getScore() === scBefore + 50, String(dbg.getScore()));
 check('Boss 血条隐藏', els['boss-bar-wrap'].style.display === 'none');
 check('击败 Boss 奖励 1~3 颗手雷',
@@ -368,7 +379,8 @@ dbg.chooseReward(0);
 // 每只 Boss 有 rewardsPerBoss 次强化：选完最后一次才恢复游戏
 if (dbg.getState() === 'reward') { dbg.chooseReward(0); }
 check('选择奖励后恢复游戏（本 Boss 的强化次数用尽）', dbg.getState() === 'playing', dbg.getState());
-check('所选技能升级+1级', dbg.getUpgrades()[rwId] === 1, rwId + '=' + dbg.getUpgrades()[rwId]);
+// 每只 Boss 有 2 次强化机会，同一技能可能被连续选中，因此只断言"至少 +1 级"
+check('所选技能已升级', dbg.getUpgrades()[rwId] >= 1, rwId + '=' + dbg.getUpgrades()[rwId]);
 const gr1 = dbg.getGrowth();
 check('首次击杀成长：小怪血量+1(2)', gr1.enemyHpNow === 2, JSON.stringify(gr1));
 check('首次击杀成长：下一Boss血20', gr1.bossHpNext === 20, String(gr1.bossHpNext));
@@ -792,7 +804,7 @@ dbg.setHp(100);
 advance(0.05);
 fakeDocument.fire('keydown', { code: 'KeyI' });
 check('按 I 打开技能面板(暂停)', dbg.isSkillsOpen() === true && dbg.getState() === 'skills', dbg.getState());
-check('技能面板显示11个技能(5核心+6扩展)', els['skills-list'].innerHTML.indexOf('skill-row') >= 0 && (els['skills-list'].innerHTML.match(/skill-row/g) || []).length === 11,
+check('技能面板显示10个技能(5核心+5扩展，扩容弹夹已改为掉落道具)', els['skills-list'].innerHTML.indexOf('skill-row') >= 0 && (els['skills-list'].innerHTML.match(/skill-row/g) || []).length === 10,
   'rows=' + ((els['skills-list'].innerHTML.match(/skill-row/g) || []).length));
 check('技能面板打开时进步曲开启', dbg.getBgmInfo().progressOn === true);
 fakeDocument.fire('keydown', { code: 'KeyI' });
