@@ -290,6 +290,56 @@ function persistSave() {
   try { window.localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
 }
 
+// ---------------------------------------------------------------- 真实音效（assets/sfx/）
+// 命名里带 1 / 2 的音效会在触发时随机播放其中一个（如 Boss 检测语音）
+var SFX_FILES = {
+  bossDetect:  ['sfx_boss_detect_1.mp3', 'sfx_boss_detect_2.mp3'],   // 随机二选一
+  pistolShot:  'sfx_pistol_shot.mp3',
+  rifleShot:   'sfx_rifle_shot.mp3',
+  fishShoot:   'sfx_fish_shoot.mp3',
+  meleeNear:   'sfx_melee_near.mp3',
+  shieldNear:  'sfx_shield_near.mp3',
+  bomberAlert: 'sfx_bomber_alert.mp3',
+  heal:        'sfx_heal.mp3',
+  split:       'sfx_split.mp3',
+  grenade:     'sfx_grenade.mp3',
+  boom:        'sfx_boom.mp3',
+  swordHit:    'sfx_sword_hit.mp3',
+  gameOver:    'sfx_gameover.mp3',
+};
+
+// 池化播放：每个音效准备若干 Audio 实例轮换，支持连发时重叠播放
+var SFX_POOL_SIZE = 6;
+var sfxPool = {};
+
+function playSfx(key, volume) {
+  if (typeof Audio === 'undefined') return;   // 无头测试环境没有 Audio，直接跳过
+  var files = SFX_FILES[key];
+  if (!files) return;
+  var vol = (volume === undefined ? 1 : volume) * (save.settings ? save.settings.sfx : 1);
+  vol = Math.max(0, Math.min(1, vol));
+  if (vol <= 0) return;
+
+  if (!sfxPool[key]) {
+    var arr = [];
+    for (var i = 0; i < SFX_POOL_SIZE; i++) {
+      // 多文件音效把不同池位分到不同文件上，播放时随机取池位即等于随机文件
+      var f = Array.isArray(files) ? files[i % files.length] : files;
+      var a = new Audio('assets/sfx/' + f);
+      a.preload = 'auto';
+      arr.push(a);
+    }
+    sfxPool[key] = { idx: Math.floor(Math.random() * SFX_POOL_SIZE), audios: arr };
+  }
+  var pool = sfxPool[key];
+  var audio = pool.audios[pool.idx];
+  pool.idx = (pool.idx + 1) % pool.audios.length;
+  audio.volume = vol;
+  try { audio.currentTime = 0; } catch (e) {}
+  var pr = audio.play();
+  if (pr && pr.catch) pr.catch(function () {});
+}
+
 // ---------------------------------------------------------------- 武器系统（双武器切换）
 // 手枪：均衡（30 发 / 0.16s / 1.0 倍伤害）
 // 突击步枪：高射速大弹匣但单发偏低（45 发 / 0.082s / 0.72 倍），带轻微散布
@@ -1834,6 +1884,7 @@ function updateEnemies(dt) {
       if (bDist <= CFG.bomberTriggerRange) {
         e.fuseTimer = CFG.bomberFuseTime;   // 点火：进入引信倒计时
         startBomberFuse(e);
+        playSfx('bomberAlert', 0.7);        // 点火播报：「奶奶滴，我跟你爆了！」
       }
       continue;
     }
@@ -1861,6 +1912,7 @@ function updateEnemies(dt) {
           e.healTimer = CFG.healerInterval;
           healTarget.hp = Math.min(maxHpNow, (healTarget.hp || 1) + CFG.healerAmount);
           spawnBurst(healTarget.mesh.position, 0x7cf08a, 16, 3.4);    // 绿色治疗特效
+          playSfx('heal', 0.5);                                       // 治疗鱼台词
           debugLog('治疗鱼为 ' + enemyName(healTarget) + ' 回复了 ' + CFG.healerAmount + ' 点生命', 'dbg-hit');
         }
       } else {
@@ -2000,6 +2052,19 @@ function updateFishVisuals(dt) {
       floatY = Math.sin(time * 2.3 + e.phase) * 0.28;
     }
     e.mesh.position.y = e.baseY + floatY;
+    // 接近提示：不同敌人进入 6 米范围时播一次台词（离开 8 米后可再次触发）
+    var dpx = e.mesh.position.x - player.pos.x;
+    var dpz = e.mesh.position.z - player.pos.z;
+    var distP = Math.sqrt(dpx * dpx + dpz * dpz);
+    if (!e.nearAnnounced && distP <= 6.0) {
+      e.nearAnnounced = true;
+      if (e.kind === 'shield') playSfx('shieldNear', 0.55);
+      else if (e.kind === 'bomber') playSfx('bomberAlert', 0.6);
+      else if (!e.ranged) playSfx('meleeNear', 0.5);
+    } else if (e.nearAnnounced && distP > 8.0) {
+      e.nearAnnounced = false;
+    }
+
     // 广告牌：始终面向玩家相机 + 自身轻微摇摆
     var wobble = Math.sin(time * 3.1 + e.phase) * 0.13;
     _fishQ.setFromAxisAngle(_zAxis, wobble);
@@ -2068,6 +2133,7 @@ function killFish(e, hitPoint) {
       sp.hp = 1;                      // 分裂出的小鱼只有 1 点生命
       spawnBurst(sp.mesh.position, 0xa8f0c0, 10, 2.6);
     }
+    playSfx('split', 0.7);   // 分裂鱼台词：「oh-no，我裂开了喵」
     showNotice('分裂鱼分裂成了 ' + CFG.splitterSpawnCount + ' 条小鱼！');
   }
 
@@ -2478,6 +2544,7 @@ function explodeBomber(e) {
   }
   spawnMushroomCloud(pos);
   if (d > CFG.bomberBlastRange) unlockAchievement('ghost');   // 成就：5 米外全身而退
+  playSfx('boom', 0.9);      // 自爆爆炸（比 Boss 炸弹更响）
   Sfx.fishDie();
 
   e.alive = false;
@@ -2580,6 +2647,7 @@ function fireFishBullet(e) {
   b.position.copy(from).addScaledVector(dir, 0.7);
   scene.add(b);
   fishBullets.push({ mesh: b, vel: dir.clone().multiplyScalar(CFG.rangedBulletSpeed), life: 6 });
+  playSfx('fishShoot', 0.42);   // 射手鱼开火（可与玩家枪声共存）
   dbgFireCount += 1;
   Sfx.fishShoot();
 }
@@ -3343,6 +3411,7 @@ function spawnBoss() {
   };
   showNotice('BOSS 出现！超级蓝色大肥鱼');
   Sfx.bossAlarm();
+  playSfx('bossDetect', 0.72);   // Boss 台词：「桀桀桀，我看到你了」（1/2 随机）
   updateBossBar();
   // Boss 战曲：从 0 音量淡入（主 BGM 由 updateBgm 暂停，进度保留）
   bossMusicVol = 0;
@@ -3399,7 +3468,7 @@ function explodeShell(s, index, byPlayer) {
   bossShots.splice(index, 1);
   spawnBurst(center, 0xffb060, 24, 5.5);
   spawnBurst(center, 0xfff2d0, 10, 3.2);
-  Sfx.nadeBoom();
+  playSfx('boom', byPlayer ? 0.5 : 0.38);   // Boss 炸弹爆炸（音量偏小于自爆）
   var dmg = byPlayer ? bossBallDmgNow : Math.round(bossBallDmgNow * CFG.bossBallGroundFalloff);
   var R = CFG.bossShellRadius;
   // 玩家（所有爆炸类型都伤）
@@ -3632,7 +3701,7 @@ function explodeGrenade(gr) {
   spawnBurst(center, 0xffa040, 26, 5.5);
   spawnBurst(center, 0xffe0a0, 10, 3);
   spawnBurst(new THREE.Vector3(center.x, 0.15, center.z), 0xa08a6a, 12, 2.5);
-  Sfx.nadeBoom();
+  playSfx('grenade', 0.72);   // 真实手雷爆炸声
   // 手雷数值（高爆手雷技能会提升伤害与半径）
   var nade = nadeDamageNow();
   var nadeRadius = nade.radius;
@@ -3689,7 +3758,8 @@ function shootOnce() {
   var wdef = weaponDef();
   shootCd = wdef.shootInterval;
   ammo.mag -= 1;
-  Sfx.shoot();
+  // 真实枪声：每发子弹播放一次（连发与点射都一样）
+  playSfx(currentWeapon === 'rifle' ? 'rifleShot' : 'pistolShot', currentWeapon === 'rifle' ? 0.5 : 0.6);
   updateAmmoHUD();
   gun.recoil = wdef.recoil;
   camFx.fire = 1; camFx.fireT = 0;     // 相机后坐：每发一次短促抖动（幅度约为走路的 1.5 倍）
@@ -3862,7 +3932,7 @@ function gameOver(reason) {
   if (bgmEl && !bgmEl.paused) bgmEl.pause();   // 战败：默认 BGM 立刻停止
   if (overEl) { overEl.currentTime = 0; }       // 战败曲从头播（autoplay 限制下由首次点击触发）
   armGameoverBgm();
-  Sfx.gameover();
+  playSfx('gameOver', 0.85);   // 真实失败语音：「你被大肥鱼吃掉了喵！」
   if (document.exitPointerLock) document.exitPointerLock();
   if (reason === 'suicide' && dom.gameoverTitle) dom.gameoverTitle.textContent = '你选择了自我了断…';
   dom.finalScore.textContent = String(score);
