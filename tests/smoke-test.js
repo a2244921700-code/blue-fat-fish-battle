@@ -365,7 +365,9 @@ const rwOps = dbg.getRewardOptions();
 check('奖励窗口提供3个技能选项', rwOps && rwOps.length === 3, rwOps ? String(rwOps.length) : 'null');
 const rwId = rwOps[0].id;
 dbg.chooseReward(0);
-check('选择奖励后恢复游戏', dbg.getState() === 'playing');
+// 每只 Boss 有 rewardsPerBoss 次强化：选完最后一次才恢复游戏
+if (dbg.getState() === 'reward') { dbg.chooseReward(0); }
+check('选择奖励后恢复游戏（本 Boss 的强化次数用尽）', dbg.getState() === 'playing', dbg.getState());
 check('所选技能升级+1级', dbg.getUpgrades()[rwId] === 1, rwId + '=' + dbg.getUpgrades()[rwId]);
 const gr1 = dbg.getGrowth();
 check('首次击杀成长：小怪血量+1(2)', gr1.enemyHpNow === 2, JSON.stringify(gr1));
@@ -822,7 +824,7 @@ dbg.adjustSkill('dmg', 3);
 check('加号提升技能等级(+3)', dbg.getUpgrades().dmg === 3, 'dmg=' + dbg.getUpgrades().dmg);
 check('面板实时刷新Lv.3', els['skills-list'].innerHTML.indexOf('Lv.3') >= 0);
 dbg.adjustSkill('dmg', 7);
-check('加号到10级封顶', dbg.getUpgrades().dmg === 10, 'dmg=' + dbg.getUpgrades().dmg);
+check('加号到8级封顶(上限已下调)', dbg.getUpgrades().dmg === 8, 'dmg=' + dbg.getUpgrades().dmg);
 dbg.adjustSkill('speed', -5);
 check('减号降级', dbg.getUpgrades().speed === 0 && dbg.getUpgrades().speed >= 0, 'speed=' + dbg.getUpgrades().speed);
 dbg.adjustSkill('refund', -1);

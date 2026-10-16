@@ -31,7 +31,8 @@ var CFG = {
   bomberBlastRange: 5.0,     // 自爆波及范围：1~5 米
   shieldFishHp: 3,           // 护盾鱼：护盾可承受的子弹数（破盾后才受伤）
   healerInterval: 2.4,       // 治疗鱼：治疗间隔（秒）
-  healerAmount: 1,           // 治疗鱼：每次回复的生命值
+  healerAmount: 1,           // 治疗鱼：每次回复的生命值下限
+  healerHealPercent: 0.18,   // 治疗鱼：每次按目标生命上限的百分比回复（取两者较大值）
   healerRange: 2.4,          // 治疗鱼：治疗生效距离
   splitterJumpHeight: 1.7,   // 分裂鱼：跳跃高度（米）
   splitterJumpPeriod: 0.8,   // 分裂鱼：跳跃周期（秒）
@@ -39,7 +40,8 @@ var CFG = {
   bomberDamageClose: 100,    // 1 米内基础伤害
   bomberDamageFar: 50,       // 1~5 米基础伤害
   bossEveryWaves: 5,       // 每清理 N 波刷新一次 Boss
-  bossesPerStage: 10,      // 每击杀 N 次 Boss 升一个阶段
+  bossesPerStage: 4,       // 每击杀 N 次 Boss 升一个阶段（阶段 5 在第 16 只 Boss 出现）
+  rewardsPerBoss: 2,       // 每击败一只 Boss 获得的强化次数（两次三选一）
   maxStage: 5,             // 阶段上限（共 5 阶段）
   fishSize: 2.0,           // 肥鱼贴图平面宽度（米）
   fishHitRadius: 0.85,     // 命中判定球半径
@@ -104,7 +106,9 @@ var CFG = {
   comboFishPoints: 1,      // 击杀普通鱼/射手鱼的连杀点数
   comboBossPoints: 5,      // 击败 Boss 的连杀点数（更快提升评级）
   // ===== 局内强化（无尽模式专属：击杀 Boss 后 3 选 1，独立不继承） =====
-  upgradeMaxLevel: 10,        // 每种奖励技能最高等级
+  upgradeMaxLevel: 8,         // 每种奖励技能最高等级
+                              // 核心 5 项 = 40 次强化，配合每 Boss 2 次 ≈ 第 20 只 Boss 通关
+                              // （原来 10 级 / 每 Boss 1 次 = 需要 50 只 Boss ≈ 250 波，实际不可达）
   upgradeDmgPerLevel: 1,      // （1）子弹伤害：每级 +L 点
   upgradeRefundChance: 0.10,  // （2）击杀后 10% 概率恢复子弹
   upgradeRefundPerLevel: 2,   // （2）每级恢复量 +2 颗（L 级回 2L 颗）
@@ -171,6 +175,17 @@ var camFx = { shake: 0, sway: 0, swayT: 0, land: 0, landT: 0, lastLandV: 0, walk
 var keys = Object.create(null);
 var fireHeld = false;
 var shootCd = 0, hurtCd = 0, stepTimer = 0;
+// 受伤无敌帧按来源分组：近战 / 远程 / 爆炸各算各的 ——
+// 否则 A 怪的伤害会屏蔽 B 怪（例如刚被咬过时，自爆鱼的 100 点核弹伤害会被整发吞掉）
+var hurtCdByKind = { melee: 0, ranged: 0, blast: 0 };
+
+/** 根据攻击方式判定伤害来源类型（用于分组无敌帧） */
+function hurtKindOf(src) {
+  var atk = (src && src.atk) ? String(src.atk) : '';
+  if (atk.indexOf('爆炸') >= 0 || atk.indexOf('自爆') >= 0) return 'blast';
+  if (atk.indexOf('子弹') >= 0 || atk.indexOf('射击') >= 0) return 'ranged';
+  return 'melee';
+}
 var playingTime = 0;              // 本局游戏进行时长（秒）
 var ammo = { mag: 0, reserve: 0, magSize: CFG.magSize, reloading: false, reloadTimer: 0 };
 var items = [];                    // 补给物品 { mesh, type: 'ammo'|'health', phase }
@@ -204,7 +219,8 @@ var stageShown = 1;    // 已播报过的阶段（用于阶段提升提示）
 // 各阶段解锁的特殊敌人（阶段 2 起每种 2 个，依次解锁）
 var STAGE_ENEMIES = ['bomber', 'shield', 'healer', 'splitter'];
 var ENEMY_LABEL = { bomber: '自爆鱼', shield: '护盾鱼', healer: '治疗鱼', splitter: '分裂鱼', normal: '常规鱼' };
-var rewardOptions = null;      // 当前奖励窗口可选项 [{id, name, ico, lv, desc, next}]
+var rewardOptions = null;
+var rewardRoundsLeft = 0;   // 当前 Boss 剩余的强化选择次数（每只 Boss rewardsPerBoss 次）      // 当前奖励窗口可选项 [{id, name, ico, lv, desc, next}]
 
 var enemyHpNow = 1;            // 当前小怪血量（随 Boss 击杀增长，≤10）
 var meleeAtkBonus = 0;         // 近战小怪攻击加成（血量到 10 后增长）
@@ -259,7 +275,7 @@ var save = {
   bestBoss: 0,       // 单局最多击破 Boss
   unlockedLevel: false,                              // 闯关模式解锁（预留）
   stats: { totalKills: 0, totalBoss: 0, totalGames: 0 },  // 跨局累计统计（成就用）
-  v: 2,                                              // 存档版本（用于一次性迁移）
+  v: 3,                                              // 存档版本（用于一次性迁移）
   settings: {
     bgm: 1.0, boss: 1.0, menu: 1.0, sfx: 1.0,   // 音量倍数（0~1）
     sens: 1.0,                                   // 鼠标灵敏度倍数（0.25~3.0）
@@ -289,7 +305,14 @@ function loadSave() {
         save.achievements = {};
         save.stats = { totalKills: 0, totalBoss: 0, totalGames: 0 };
       }
-      save.v = 2;
+      // v3：清空成就、游玩统计与最佳记录（设置保留，玩家可手动清）
+      if (!obj.v || obj.v < 3) {
+        save.achievements = {};
+        save.stats = { totalKills: 0, totalBoss: 0, totalGames: 0 };
+        save.bestScore = 0; save.bestTime = 0; save.bestCombo = -1;
+        save.bestWave = 0; save.bestStage = 1; save.bestBoss = 0;
+      }
+      save.v = 3;
       persistSave();
     }
   } catch (e) { /* 隐私模式 / 存储禁用：忽略 */ }
@@ -2040,10 +2063,12 @@ function updateEnemies(dt) {
           clampFish(e);
         } else if (e.healTimer <= 0) {
           e.healTimer = CFG.healerInterval;
-          healTarget.hp = Math.min(maxHpNow, (healTarget.hp || 1) + CFG.healerAmount);
+          // 按目标生命上限的百分比治疗（下限 healerAmount），否则永远追不上玩家的输出节奏
+          var healAmt = Math.max(CFG.healerAmount, Math.ceil(maxHpNow * CFG.healerHealPercent));
+          healTarget.hp = Math.min(maxHpNow, (healTarget.hp || 1) + healAmt);
           spawnBurst(healTarget.mesh.position, 0x7cf08a, 16, 3.4);    // 绿色治疗特效
           playEnemyVoice(e, 'heal', 0.5);                             // 治疗鱼台词（绑定到治疗鱼）
-          debugLog('治疗鱼为 ' + enemyName(healTarget) + ' 回复了 ' + CFG.healerAmount + ' 点生命', 'dbg-hit');
+          debugLog('治疗鱼为 ' + enemyName(healTarget) + ' 回复了 ' + healAmt + ' 点生命', 'dbg-hit');
         }
       } else {
         // 无伤员：远离战斗游荡
@@ -2249,7 +2274,7 @@ function updateFishVisuals(dt) {
 function killFish(e, hitPoint) {
   e.alive = false;
   e.respawnTimer = 99999;   // 波次制：敌人不重生（下一波由波次系统补足）
-  rollKillRewards();              // 击杀概率战利品（技能 2/3/4）
+  if (!e.isChild) rollKillRewards();   // 子鱼不掉战利品
   stopEnemyVoice(e);              // 死亡立即掐断该敌人的语音（如射手鱼的 biu biu）
   e.dyingT = 0.28;                // 死亡碎裂动画：缩小 + 上浮后再隐藏（不再瞬间消失）
 
@@ -2262,6 +2287,10 @@ function killFish(e, hitPoint) {
         e.mesh.position.z + Math.sin(sang) * 1.3), 'normal');
       sp.waveTag = e.waveTag;
       sp.hp = 1;                      // 分裂出的小鱼只有 1 点生命
+      sp.isChild = true;              // 子鱼：不计分、不计连杀、不掉战利品
+      sp.ranged = false;              // 且禁止随机成远程射手（否则一条分裂鱼等于 3 次击杀还带枪）
+      if (sp.gunMesh) sp.gunMesh.visible = false;
+      if (sp.swordMesh) sp.swordMesh.visible = true;
       spawnBurst(sp.mesh.position, 0xa8f0c0, 10, 2.6);
     }
     playSfx('split', 0.7);   // 分裂鱼台词：「oh-no，我裂开了喵」
@@ -2269,10 +2298,14 @@ function killFish(e, hitPoint) {
   }
 
   kills += 1;
-  score += 10;
-  unlockAchievement('firstBlood');       // 成就：初次猎杀
-  bumpStat('totalKills', 1);             // 累计击杀（千鱼斩）
-  addComboPoints(CFG.comboFishPoints);   // 连杀 +1 点
+  // 分裂子鱼：只计击杀数，不计分 / 不计连杀 / 不计成就与统计
+  //（否则一条分裂鱼相当于 3 次击杀，成为刷分与刷评级的燃料）
+  if (!e.isChild) {
+    score += 10;
+    unlockAchievement('firstBlood');     // 成就：初次猎杀
+    bumpStat('totalKills', 1);           // 累计击杀（千鱼斩）
+    addComboPoints(CFG.comboFishPoints); // 连杀 +1 点
+  }
   // 回血来源①：连杀 SSS 增益（击杀回复 2% 最大生命）
   var lifeSteal = comboBonus().lifesteal;
   if (lifeSteal > 0 && player.hp < CFG.maxHp) {
@@ -3066,7 +3099,7 @@ function showRewardWindow() {
       html += '<div class="reward-card" data-idx="' + i + '">' +
         '<div class="rw-ico">' + o.def.ico + '</div>' +
         '<div class="rw-name">' + o.def.name + '</div>' +
-        '<div class="rw-lv">' + (o.lv > 0 ? '当前 Lv.' + o.lv + ' / 10' : '新强化') + '</div>' +
+        '<div class="rw-lv">' + (o.lv > 0 ? '当前 Lv.' + o.lv + ' / ' + CFG.upgradeMaxLevel : '新强化') + '</div>' +
         '<div class="rw-desc">' + upgradeNextDesc(o.id, o.lv + 1) + '</div>' +
         '<div class="rw-next">选择后立即生效 ▶</div>' +
         '</div>';
@@ -3087,6 +3120,13 @@ function chooseReward(idx) {
   upgrades[opt.id] = Math.min(CFG.upgradeMaxLevel, upgrades[opt.id] + 1);
   refreshUpgradesMaxFlag();                  // 升级时检测一次满级缓存
   rewardOptions = null;
+  rewardRoundsLeft -= 1;
+  // 每只 Boss 有多次强化机会：还有次数且仍有可升级技能时继续弹下一次
+  if (rewardRoundsLeft > 0 && pickRewardOptions().length > 0) {
+    showRewardWindow();
+    return;
+  }
+  rewardRoundsLeft = 0;
   progressMusicOn = false;                   // 选择奖励后关闭"进步的小曲"
   if (progressEl) { progressEl.pause(); progressEl.currentTime = 0; }
   hideAllOverlays();
@@ -3753,6 +3793,7 @@ function defeatBoss() {
   if (upgradesAllMax) {
     victory();                    // 通关判定：读取升级时的满级缓存（全部技能满级后击杀 Boss 即通关）
   } else {
+    rewardRoundsLeft = CFG.rewardsPerBoss;   // 每只 Boss 两次三选一
     showRewardWindow();           // 弹出 3 选 1 奖励窗口（选择前游戏暂停）
   }
 }
@@ -4027,7 +4068,8 @@ function shootOnce() {
 // ---------------------------------------------------------------- 伤害 / 结算
 // src = { name: 怪物名, atk: 攻击方式 }（Debug 日志用，可缺省）
 function damagePlayer(d, src) {
-  if (state !== 'playing' || hurtCd > 0) return;
+  var hurtKind = hurtKindOf(src);
+  if (state !== 'playing' || hurtCdByKind[hurtKind] > 0) return;
   var raw = d;
   d = Math.max(0, d - armorStacks * CFG.armorPerPick);   // 护甲：每层减免 2 点伤害
   if (d <= 0) {
@@ -4036,6 +4078,7 @@ function damagePlayer(d, src) {
   }
   if (src) debugLog('受到' + src.name + '的' + src.atk + '攻击的 ' + raw + ' 点伤害，经过 ' + armorStacks + ' 层护盾减免，最终受到 ' + d + ' 点伤害', 'dbg-dmg');
   hurtCd = 0.5;
+  hurtCdByKind[hurtKind] = 0.5;
   runTookDamage = true;                 // 「完美无瑕」成就：本局已受伤
   player.hp = Math.max(0, player.hp - d);
   // 受击摄像机抖动（伤害越高抖得越明显）
@@ -4120,6 +4163,7 @@ function restartGame(toMenu) {
   upgradesAllMax = false;
   bossKillCount = 0;
   rewardOptions = null;
+  rewardRoundsLeft = 0;
   enemyHpNow = 1;
   meleeAtkBonus = 0;
   rangedAtkBonus = 0;
@@ -4294,6 +4338,19 @@ function openAchievements() {
 function closeAchievements() {
   state = 'menu';
   showOverlay('menu');
+}
+
+/** 清空全部本地数据：成就 / 跨局统计 / 最佳记录（设置与解锁标志保留） */
+function wipeLocalData() {
+  if (!window.confirm('确定清空成就、游玩记录与最佳成绩吗？此操作不可撤销（设置会保留）。')) return;
+  save.achievements = {};
+  save.stats = { totalKills: 0, totalBoss: 0, totalGames: 0 };
+  save.bestScore = 0; save.bestTime = 0; save.bestCombo = -1;
+  save.bestWave = 0; save.bestStage = 1; save.bestBoss = 0;
+  persistSave();
+  refreshBestRecords();
+  if (dom.achievementsOverlay && !dom.achievementsOverlay.classList.contains('hidden')) renderAchievements();
+  showNotice('本地数据已清空');
 }
 
 function resetAchievements() {
@@ -4836,6 +4893,7 @@ function update(dt) {
   if (state === 'playing') playingTime += dt;
   shootCd = Math.max(0, shootCd - dt);
   hurtCd = Math.max(0, hurtCd - dt);
+  for (var hk in hurtCdByKind) { if (hurtCdByKind[hk] > 0) hurtCdByKind[hk] = Math.max(0, hurtCdByKind[hk] - dt); }
   if (dom.damageFlash && dom.damageFlash.style.opacity !== '0') {
     var op = parseFloat(dom.damageFlash.style.opacity || '0') - dt * 3;
     dom.damageFlash.style.opacity = op > 0 ? String(op) : '0';
@@ -5069,6 +5127,9 @@ function init() {
   if (btnAchReset) btnAchReset.addEventListener('click', function () { resetAchievements(); });
   var btnQuit = document.getElementById('btn-quit');
   if (btnQuit) btnQuit.addEventListener('click', function () { quitGame(); });
+  // 设置面板：一键清空本地数据（成就 / 游玩记录 / 最佳记录，设置保留）
+  var btnWipe = document.getElementById('btn-wipe-data');
+  if (btnWipe) btnWipe.addEventListener('click', function () { wipeLocalData(); });
   bindSettingsInputs();
   applySettings();          // 读档后立即应用音量 / 灵敏度 / 画质
   var btnLevelDesert = document.getElementById('btn-level-desert');
@@ -5129,6 +5190,17 @@ window.FishGame = {
         flashZ: +gun.flashMesh.position.z.toFixed(3),
         lightZ: gun.light ? +gun.light.position.z.toFixed(3) : null,
       };
+    },
+    setEnemyHpMax: function (v) { enemyHpNow = v; },     // 测试用
+    getEnemyHpMax: function () { return enemyHpNow; },
+    killKindForTest: function (kind) {                   // 测试用：击杀指定种类的敌人
+      for (var i = 0; i < enemies.length; i++) {
+        if (enemies[i].alive && enemies[i].kind === kind) {
+          killFish(enemies[i], enemies[i].mesh.position.clone());
+          return true;
+        }
+      }
+      return false;
     },
     getSceneStats: function () {
       var meshes = 0;
@@ -5332,7 +5404,7 @@ window.FishGame = {
     },
     reload: requestReload,
     setHp: function (v) { player.hp = v; updateHUD(); },
-    resetHurt: function () { hurtCd = 0; },
+    resetHurt: function () { hurtCd = 0; hurtCdByKind = { melee: 0, ranged: 0, blast: 0 }; },
     setState: function (s) { state = s; },
     enterFallback: enterFallbackMode,
     requestLock: requestLockWithFallback,
