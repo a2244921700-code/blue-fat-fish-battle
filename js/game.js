@@ -1211,6 +1211,17 @@ var ENV_THEMES = [
     skyTop: '#050a18', skyMid: '#0e1a34', skyLow: '#1c2c4c', skyBot: '#26385c' },
 ];
 var envIndex = 0;
+var envTitleTimer = null;
+
+/** 屏幕中央的半屏大字（渐显 → 停留 → 渐隐） */
+function showEnvTitle(name) {
+  var el = document.getElementById('env-title');
+  if (!el) return;
+  el.textContent = name;
+  el.classList.add('show');
+  clearTimeout(envTitleTimer);
+  envTitleTimer = setTimeout(function () { el.classList.remove('show'); }, 2000);
+}
 
 /** 程序化环境贴图：全景渐变（天空 / 地平线 / 地面）+ 太阳亮斑。
     作为 scene.environment 为金属材质提供环境反射 ——
@@ -1257,7 +1268,10 @@ function applyEnvTheme(idx, announce) {
   hemiLight.intensity = t.hemiInt;
   sunLight.color.setHex(t.sun);
   sunLight.intensity = t.sunInt;
-  if (announce) showNotice('环境变化 —— ' + t.name);
+  if (announce) {
+    showNotice('环境变化 —— ' + t.name);
+    showEnvTitle(t.name);              // 屏幕中央半屏大字（渐显渐隐）
+  }
 }
 
 /** 每 10 波推进一次环境（循环 5 种主题） */
@@ -5795,8 +5809,16 @@ function init() {
   document.addEventListener('keydown', onKeyDown);
   document.addEventListener('keyup', onKeyUp);
   document.addEventListener('mousedown', onMouseDown);
-  // 画面上屏蔽右键菜单（右键用于近战重击）
-  if (dom.canvas) dom.canvas.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
+  // 彻底屏蔽右键菜单与浏览器手势（右键未来会承载更多操作）
+  // 1) document 级屏蔽 contextmenu —— 覆盖画面、HUD、面板等所有区域
+  document.addEventListener('contextmenu', function (ev) { ev.preventDefault(); return false; });
+  // 2) 屏蔽鼠标侧键（浏览器前进/后退）
+  document.addEventListener('mousedown', function (ev) {
+    if (ev.button === 3 || ev.button === 4) ev.preventDefault();
+  });
+  // 3) 屏蔽长按菜单与拖拽选择（触屏/触控板）
+  document.addEventListener('dragstart', function (ev) { ev.preventDefault(); });
+  document.addEventListener('selectstart', function (ev) { ev.preventDefault(); });
   document.addEventListener('mouseup', onMouseUp);
   document.addEventListener('mousemove', onMouseMove);
   document.addEventListener('pointerlockchange', onPointerLockChange);

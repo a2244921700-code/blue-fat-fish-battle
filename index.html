@@ -144,6 +144,22 @@ window.addEventListener('load', function () {
     50%      { opacity: .82; }
   }
 
+  /* ---------- 环境主题大字（半屏、渐显渐隐）---------- */
+  #env-title {
+    position: fixed; left: 50%; top: 44%; z-index: 25; pointer-events: none;
+    transform: translate(-50%, -50%) scale(0.92);
+    font-size: 11vw; font-weight: 900; letter-spacing: 10px;
+    color: rgba(255,255,255,.94); white-space: nowrap;
+    text-shadow: 0 0 34px rgba(120,200,255,.85), 0 0 80px rgba(70,150,255,.55), 0 4px 18px rgba(0,0,0,.7);
+    opacity: 0;
+    transition: opacity 1.15s ease, letter-spacing 1.7s ease, transform 1.7s ease;
+  }
+  #env-title.show { opacity: 1; letter-spacing: 22px; transform: translate(-50%, -50%) scale(1.0); }
+
+  /* 彻底屏蔽右键菜单与长按菜单（右键留给游戏操作） */
+  html, body { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  #game-canvas { -webkit-touch-callout: none; }
+
   /* ---------- HUD 武器栏（三个槽位，当前武器高亮）---------- */
   #weapon-bar { position: absolute; right: 24px; bottom: 92px; display: flex; gap: 8px; z-index: 6; }
   .wslot { font-size: 17px; font-weight: 700; letter-spacing: .6px; padding: 6px 13px;
@@ -621,6 +637,7 @@ window.addEventListener('load', function () {
 <div id="combo-pop" class=""></div>
 <div id="notice-pop"></div>
 <div id="error-bar"></div>
+<div id="env-title"></div>
 <div id="achievement-pop" class="hidden"></div>
 <div id="bomber-warn"></div>
 <div id="damage-flash"></div>
