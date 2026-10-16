@@ -338,6 +338,24 @@ function playSfx(key, volume) {
   try { audio.currentTime = 0; } catch (e) {}
   var pr = audio.play();
   if (pr && pr.catch) pr.catch(function () {});
+  return audio;
+}
+
+// ---------------------------------------------------------------- 敌人语音绑定
+// 敌人语音（台词 / 射手鱼 biu）与具体敌人绑定：该敌人死亡时立即掐断，
+// 避免鱼已经消失但台词还在继续播放。
+function stopEnemyVoice(e) {
+  if (e && e.voiceAudio) {
+    try { e.voiceAudio.pause(); e.voiceAudio.currentTime = 0; } catch (er) {}
+    e.voiceAudio = null;
+  }
+}
+
+function playEnemyVoice(e, key, volume) {
+  stopEnemyVoice(e);                       // 同一敌人同一时刻只留一条语音
+  var a = playSfx(key, volume);
+  if (a && e) e.voiceAudio = a;
+  return a;
 }
 
 // ---------------------------------------------------------------- 武器系统（双武器切换）
@@ -348,10 +366,12 @@ var WEAPONS = {
   pistol: {
     key: '1', name: '手枪', magSize: 30, shootInterval: 0.16, reloadTime: 1.5,
     damageMul: 1.0, recoil: 0.13, spread: 0, reserveStart: 180,
+    auto: false,                 // 点射：按一下打一发，按住不放不会连发
   },
   rifle: {
     key: '2', name: '突击步枪', magSize: 45, shootInterval: 0.082, reloadTime: 2.0,
     damageMul: 0.72, recoil: 0.075, spread: 0.014, reserveStart: 180,
+    auto: true,                  // 全自动：按住持续射击
   },
 };
 var currentWeapon = 'pistol';
@@ -1884,7 +1904,7 @@ function updateEnemies(dt) {
       if (bDist <= CFG.bomberTriggerRange) {
         e.fuseTimer = CFG.bomberFuseTime;   // 点火：进入引信倒计时
         startBomberFuse(e);
-        playSfx('bomberAlert', 0.7);        // 点火播报：「奶奶滴，我跟你爆了！」
+        playEnemyVoice(e, 'bomberAlert', 0.7);   // 点火播报：「奶奶滴，我跟你爆了！」
       }
       continue;
     }
@@ -1912,7 +1932,7 @@ function updateEnemies(dt) {
           e.healTimer = CFG.healerInterval;
           healTarget.hp = Math.min(maxHpNow, (healTarget.hp || 1) + CFG.healerAmount);
           spawnBurst(healTarget.mesh.position, 0x7cf08a, 16, 3.4);    // 绿色治疗特效
-          playSfx('heal', 0.5);                                       // 治疗鱼台词
+          playEnemyVoice(e, 'heal', 0.5);                             // 治疗鱼台词（绑定到治疗鱼）
           debugLog('治疗鱼为 ' + enemyName(healTarget) + ' 回复了 ' + CFG.healerAmount + ' 点生命', 'dbg-hit');
         }
       } else {
@@ -2058,9 +2078,9 @@ function updateFishVisuals(dt) {
     var distP = Math.sqrt(dpx * dpx + dpz * dpz);
     if (!e.nearAnnounced && distP <= 6.0) {
       e.nearAnnounced = true;
-      if (e.kind === 'shield') playSfx('shieldNear', 0.55);
-      else if (e.kind === 'bomber') playSfx('bomberAlert', 0.6);
-      else if (!e.ranged) playSfx('meleeNear', 0.5);
+      if (e.kind === 'shield') playEnemyVoice(e, 'shieldNear', 0.55);
+      else if (e.kind === 'bomber') playEnemyVoice(e, 'bomberAlert', 0.6);
+      else if (!e.ranged) playEnemyVoice(e, 'meleeNear', 0.5);
     } else if (e.nearAnnounced && distP > 8.0) {
       e.nearAnnounced = false;
     }
@@ -2120,6 +2140,7 @@ function killFish(e, hitPoint) {
   e.alive = false;
   e.respawnTimer = 99999;   // 波次制：敌人不重生（下一波由波次系统补足）
   rollKillRewards();              // 击杀概率战利品（技能 2/3/4）
+  stopEnemyVoice(e);              // 死亡立即掐断该敌人的语音（如射手鱼的 biu biu）
   e.dyingT = 0.28;                // 死亡碎裂动画：缩小 + 上浮后再隐藏（不再瞬间消失）
 
   // 分裂鱼：死亡时分裂出数条小鱼（归入同一波，保证清波判定正确）
@@ -2543,6 +2564,7 @@ function explodeBomber(e) {
     damagePlayer(CFG.bomberDamageFar, { name: '自爆肥鱼', atk: '核弹冲击' });
   }
   spawnMushroomCloud(pos);
+  stopEnemyVoice(e);         // 自爆鱼语音立即掐断
   if (d > CFG.bomberBlastRange) unlockAchievement('ghost');   // 成就：5 米外全身而退
   playSfx('boom', 0.9);      // 自爆爆炸（比 Boss 炸弹更响）
   Sfx.fishDie();
@@ -2647,7 +2669,7 @@ function fireFishBullet(e) {
   b.position.copy(from).addScaledVector(dir, 0.7);
   scene.add(b);
   fishBullets.push({ mesh: b, vel: dir.clone().multiplyScalar(CFG.rangedBulletSpeed), life: 6 });
-  playSfx('fishShoot', 0.42);   // 射手鱼开火（可与玩家枪声共存）
+  playEnemyVoice(e, 'fishShoot', 0.42);   // 射手鱼开火（绑定到该鱼，死亡即掐断）
   dbgFireCount += 1;
   Sfx.fishShoot();
 }
@@ -4450,6 +4472,7 @@ function onMouseDown(ev) {
   // 覆盖层/按钮上的点击不射击（HUD 默认 pointer-events:none）
   if (ev.target && ev.target !== dom.canvas && ev.target !== document.body) return;
   fireHeld = true;
+  shootOnce();   // 按下即发射第一发（手枪点射完全靠这里；步枪之后由主循环连发）
 }
 function onMouseUp(ev) {
   if (ev.button === 0) fireHeld = false;
@@ -4634,7 +4657,8 @@ function update(dt) {
   updatePlayer(dt);
   updateGun(dt);
   if (state === 'playing') {
-    if (fireHeld || touchFiring) shootOnce();
+    // 手枪为点射（只有按下瞬间发射，见 onMouseDown），步枪为按住连发
+    if ((fireHeld || touchFiring) && weaponDef().auto) shootOnce();
     updateEnemies(dt);
     updateItems(dt);
     updateBoss(dt);
@@ -4855,6 +4879,26 @@ window.FishGame = {
     startWave: startWave,
     getComboBonus: function () { return comboBonus(); },
     getAchievements: function () { return JSON.parse(JSON.stringify(save.achievements)); },
+    killNearest: function () {
+      var best = null, bd = Infinity;
+      for (var i = 0; i < enemies.length; i++) {
+        var en = enemies[i];
+        if (!en.alive) continue;
+        var dx = en.mesh.position.x - player.pos.x, dz = en.mesh.position.z - player.pos.z;
+        var d = dx * dx + dz * dz;
+        if (d < bd) { bd = d; best = en; }
+      }
+      if (best) { killFish(best, best.mesh.position.clone()); return true; }
+      return false;
+    },
+    getVoiceState: function (idx) {
+      var list = [];
+      for (var i = 0; i < enemies.length; i++) {
+        var en = enemies[i];
+        list.push({ i: i, alive: en.alive, hasVoice: !!en.voiceAudio, paused: en.voiceAudio ? en.voiceAudio.paused : null });
+      }
+      return list;
+    },
     getRandomCovers: function () { return randomCovers.map(function (m) { return { x: +m.position.x.toFixed(2), z: +m.position.z.toFixed(2) }; }); },
     respawnCovers: spawnRandomCovers,
     clearCovers: clearRandomCovers,     // 测试用：清空随机掩体，验证固定地图行为
