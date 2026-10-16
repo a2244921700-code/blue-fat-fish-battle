@@ -89,6 +89,16 @@ var CFG = {
   bossShellRadius: 2.0,    // 炮弹爆炸半径（落地爆 / 空爆）
   bossShootInterval: 2.2,  // Boss 射击间隔（秒）
   bossBallDamage: 25,      // 小球命中伤害
+  // ---- Boss 变体参数（按阶段切换类型）----
+  bossChargeSpeed: 15,       // 狂暴冲锋鱼：冲锋速度（米/秒）
+  bossChargeDamage: 30,      // 狂暴冲锋鱼：冲撞伤害
+  bossChargeInterval: 4.5,   // 狂暴冲锋鱼：两次冲锋的间隔
+  bossChargeTime: 1.0,       // 狂暴冲锋鱼：单次冲锋持续
+  bossSummonInterval: 6.0,   // 召唤祭司鱼：召唤间隔
+  bossSummonCount: 3,        // 召唤祭司鱼：每次召唤数量
+  bossBarrageInterval: 3.2,  // 重炮台鱼：齐射间隔
+  bossBarrageSpread: 0.15,   // 重炮台鱼：三连炮角度偏移（弧度）
+  bossSplitCount: 3,         // 分裂母鱼：半血分裂的小怪数量
   bossShootInterval: 2.2,  // Boss 射击间隔（秒）
   bossScore: 50,           // 击败 Boss 得分
   bossAmmoReward: 60,      // 击败 Boss 奖励备用子弹
@@ -866,16 +876,32 @@ function makeWoodTexture() {
   });
   return c;
 }
-function makeSkyTexture() {
+function makeSkyTexture(theme) {
   var c = makeCanvas(4, 512);
   var x = c.getContext('2d');
   var g = x.createLinearGradient(0, 0, 0, 512);
-  g.addColorStop(0.0, '#2a63c8');
-  g.addColorStop(0.45, '#6ea9e8');
-  g.addColorStop(0.78, '#cfe6f5');
-  g.addColorStop(1.0, '#dceef2');
+  // 默认晴日天空；传主题时用主题的配色（血月/深夜等）
+  var top = (theme && theme.skyTop) || '#2a63c8';
+  var mid = (theme && theme.skyMid) || '#6ea9e8';
+  var low = (theme && theme.skyLow) || '#cfe6f5';
+  var bot = (theme && theme.skyBot) || '#dceef2';
+  g.addColorStop(0.0, top);
+  g.addColorStop(0.45, mid);
+  g.addColorStop(0.78, low);
+  g.addColorStop(1.0, bot);
   x.fillStyle = g; x.fillRect(0, 0, 4, 512);
   return c;
+}
+
+/** 按主题生成天空背景贴图（缓存，避免重复绘制） */
+var _skyTexCache = {};
+function skyTextureFor(idx, theme) {
+  if (!_skyTexCache[idx]) {
+    var t = toTex(makeSkyTexture(theme));
+    t.colorSpace = THREE.SRGBColorSpace;
+    _skyTexCache[idx] = t;
+  }
+  return _skyTexCache[idx];
 }
 function makeCloudTexture() {
   var c = makeCanvas(128, 64);
@@ -1098,6 +1124,77 @@ function vWall(x, z0, z1, h, gaps) {
 // 这样主菜单不是"游戏场景已加载"的状态，也省下地图占用的内存与显存。
 var envObjects = [];    // 本次构建出的环境对象
 var envBuilt = false;   // 是否已构建（幂等保护）
+var hemiLight = null, sunLight = null;   // 环境灯光（环境主题会调整它们）
+
+// ---------------------------------------------------------------- 环境主题（每 10 波变化）
+// 只调整雾与两盏灯光的色调/强度（天空贴图保留原样），变化明显但成本极低
+var ENV_THEMES = [
+  { name: '晴日沙漠', fog: 0xd8c9a8, fogNear: 45, fogFar: 165, hemiSky: 0xfff2dc, hemiGnd: 0x8a7a55, hemiInt: 0.9, sun: 0xfff0d0, sunInt: 1.7,
+    skyTop: '#2a63c8', skyMid: '#6ea9e8', skyLow: '#cfe6f5', skyBot: '#dceef2' },
+  { name: '黄昏',     fog: 0xd9a06a, fogNear: 32, fogFar: 130, hemiSky: 0xffd0a0, hemiGnd: 0x6a5038, hemiInt: 0.8, sun: 0xff9a50, sunInt: 1.35,
+    skyTop: '#2c3f7a', skyMid: '#a86a9a', skyLow: '#f0a860', skyBot: '#ffd08a' },
+  { name: '沙尘暴',   fog: 0xc8a860, fogNear: 14, fogFar: 72,  hemiSky: 0xe0c898, hemiGnd: 0x7a6844, hemiInt: 0.85, sun: 0xf0d090, sunInt: 1.05,
+    skyTop: '#8a7038', skyMid: '#c8a860', skyLow: '#e0c890', skyBot: '#d8c088' },
+  { name: '血月',     fog: 0x4a2030, fogNear: 26, fogFar: 105, hemiSky: 0xb07080, hemiGnd: 0x40202a, hemiInt: 0.6, sun: 0xff6070, sunInt: 0.85,
+    skyTop: '#1a0c18', skyMid: '#4a1830', skyLow: '#8a2c38', skyBot: '#c04850' },
+  { name: '深夜',     fog: 0x121c30, fogNear: 22, fogFar: 95,  hemiSky: 0x5070b0, hemiGnd: 0x202838, hemiInt: 0.55, sun: 0x90a0d0, sunInt: 0.7,
+    skyTop: '#050a18', skyMid: '#0e1a34', skyLow: '#1c2c4c', skyBot: '#26385c' },
+];
+var envIndex = 0;
+
+/** 程序化环境贴图：全景渐变（天空 / 地平线 / 地面）+ 太阳亮斑。
+    作为 scene.environment 为金属材质提供环境反射 ——
+    否则枪械与火箭筒（金属度 0.65~0.8）在逆光下会退化成黑色剪影 */
+function makeEnvMapTexture() {
+  var c = document.createElement('canvas');
+  c.width = 512; c.height = 256;
+  var x = c.getContext('2d');
+  var sky = x.createLinearGradient(0, 0, 0, 128);
+  sky.addColorStop(0, '#5878b0');
+  sky.addColorStop(0.55, '#a8ccf0');
+  sky.addColorStop(1, '#f0e2c4');
+  x.fillStyle = sky;
+  x.fillRect(0, 0, 512, 128);
+  var gnd = x.createLinearGradient(0, 128, 0, 256);
+  gnd.addColorStop(0, '#e0c898');
+  gnd.addColorStop(1, '#8a7a58');
+  x.fillStyle = gnd;
+  x.fillRect(0, 128, 512, 128);
+  // 太阳亮斑（金属高光来源）
+  var sun = x.createRadialGradient(140, 62, 0, 140, 62, 78);
+  sun.addColorStop(0, 'rgba(255,255,245,1)');
+  sun.addColorStop(0.35, 'rgba(255,248,220,0.5)');
+  sun.addColorStop(1, 'rgba(255,245,210,0)');
+  x.fillStyle = sun;
+  x.fillRect(0, 0, 512, 200);
+  var tex = new THREE.CanvasTexture(c);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** 应用环境主题（idx 会自动取模）；announce = 是否播报 */
+function applyEnvTheme(idx, announce) {
+  if (!scene.fog || !hemiLight || !sunLight) return;
+  envIndex = ((idx % ENV_THEMES.length) + ENV_THEMES.length) % ENV_THEMES.length;
+  var t = ENV_THEMES[envIndex];
+  scene.background = skyTextureFor(envIndex, t);   // 天空也跟随主题（血月/深夜等）
+  scene.fog.color.setHex(t.fog);
+  scene.fog.near = t.fogNear;
+  scene.fog.far = t.fogFar;
+  hemiLight.color.setHex(t.hemiSky);
+  hemiLight.groundColor.setHex(t.hemiGnd);
+  hemiLight.intensity = t.hemiInt;
+  sunLight.color.setHex(t.sun);
+  sunLight.intensity = t.sunInt;
+  if (announce) showNotice('环境变化 —— ' + t.name);
+}
+
+/** 每 10 波推进一次环境（循环 5 种主题） */
+function updateEnvByWave() {
+  var want = Math.floor(wave.number / 10) % ENV_THEMES.length;
+  if (want !== envIndex) applyEnvTheme(want, true);
+}
 
 function buildEnvironment() {
   if (envBuilt) return;
@@ -1105,18 +1202,18 @@ function buildEnvironment() {
   scene.background = toTex(makeSkyTexture());
   scene.fog = new THREE.Fog(0xd8c9a8, 45, 165);
 
-  var hemi = new THREE.HemisphereLight(0xfff2dc, 0x8a7a55, 0.9);
-  scene.add(hemi);
-  var sun = new THREE.DirectionalLight(0xfff0d0, 1.7);
-  sun.position.set(40, 55, 28);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -55; sun.shadow.camera.right = 55;
-  sun.shadow.camera.top = 55; sun.shadow.camera.bottom = -55;
-  sun.shadow.camera.near = 4; sun.shadow.camera.far = 140;
-  sun.shadow.bias = -0.0004;
-  sun.shadow.normalBias = 0.02;
-  scene.add(sun);
+  hemiLight = new THREE.HemisphereLight(0xfff2dc, 0x8a7a55, 0.9);
+  scene.add(hemiLight);
+  sunLight = new THREE.DirectionalLight(0xfff0d0, 1.7);
+  sunLight.position.set(40, 55, 28);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(2048, 2048);
+  sunLight.shadow.camera.left = -55; sunLight.shadow.camera.right = 55;
+  sunLight.shadow.camera.top = 55; sunLight.shadow.camera.bottom = -55;
+  sunLight.shadow.camera.near = 4; sunLight.shadow.camera.far = 140;
+  sunLight.shadow.bias = -0.0004;
+  sunLight.shadow.normalBias = 0.02;
+  scene.add(sunLight);
 
   // 沙地
   var ground = new THREE.Mesh(
@@ -1284,6 +1381,10 @@ function buildEnvironment() {
     scene.add(cloud);
   }
 
+  // 环境反射贴图：让金属材质（枪械/火箭筒/炮弹）有东西可反射，避免逆光变剪影
+  if (!window.__envMapTex) window.__envMapTex = makeEnvMapTexture();
+  scene.environment = window.__envMapTex;
+
   // 记录本次新建的对象，供卸载时整体移除
   envObjects = scene.children.filter(function (o) { return beforeChildren.indexOf(o) < 0; });
   envBuilt = true;
@@ -1297,6 +1398,7 @@ function unloadGameScene() {
     // 只释放几何；材质（砖墙/沙地等）是模块级共享缓存，重建时要复用
     if (o.geometry && o.geometry.dispose) o.geometry.dispose();
   }
+  scene.environment = null;   // 解除环境反射
   envObjects = [];
   envBuilt = false;
   wallMeshes = [];        // 子弹遮挡列表
@@ -1890,6 +1992,7 @@ function updateWaves(dt) {
         wave.timer = 0;
         var isBossWave = (wave.number % CFG.bossEveryWaves === 0);
         showNotice('第 ' + wave.number + ' 波已清空' + (isBossWave ? ' —— BOSS 来袭！' : ''));
+        updateEnvByWave();   // 每 10 波切换一次环境主题（晴日/黄昏/沙尘暴/血月/深夜）
       }
       break;
 
@@ -3549,6 +3652,102 @@ function makeBossLauncher() {
   return gun;
 }
 
+// ---------------------------------------------------------------- Boss 变体
+// 按阶段切换 Boss 类型：复用同一立绘，换武器模型与 AI 模式（共 5 种）
+var BOSS_VARIANTS = [
+  { name: '超级蓝色大肥鱼', mode: 'rocket',  hpMul: 1.0,  speedMul: 1.0,  tint: 0xffffff, tip: '半跟踪火箭弹' },
+  { name: '狂暴冲锋鱼',     mode: 'charge',  hpMul: 1.15, speedMul: 1.75, tint: 0xffd8d8, tip: '高速冲撞' },
+  { name: '召唤祭司鱼',     mode: 'summon',  hpMul: 0.9,  speedMul: 0.85, tint: 0xd8c8ff, tip: '召唤鱼群' },
+  { name: '重炮台鱼',       mode: 'barrage', hpMul: 1.25, speedMul: 0.55, tint: 0xc8d8ff, tip: '三连扇形炮' },
+  { name: '分裂母鱼',       mode: 'split',   hpMul: 1.2,  speedMul: 1.0,  tint: 0xc8ffd8, tip: '半血分裂' },
+];
+
+/** 当前阶段对应的 Boss 变体（阶段 1~5 依次对应 5 种） */
+function bossVariantNow() {
+  var idx = clamp(currentStage() - 1, 0, BOSS_VARIANTS.length - 1);
+  return BOSS_VARIANTS[idx];
+}
+
+/** 大剑（狂暴冲锋鱼） */
+function makeBossSword() {
+  var g = new THREE.Group();
+  var steel = new THREE.MeshStandardMaterial({ color: 0xdfe6f2, roughness: 0.28, metalness: 0.85 });
+  var dark = new THREE.MeshStandardMaterial({ color: 0x2f3540, roughness: 0.5, metalness: 0.5 });
+  var blade = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.09, 3.4), steel);   // 剑身
+  var tip = new THREE.Mesh(new THREE.ConeGeometry(0.21, 0.6, 4), steel);        // 剑尖
+  tip.rotation.x = -Math.PI / 2; tip.position.set(0, 0, -1.95);
+  var guard = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.17, 0.24), dark);     // 护手
+  guard.position.set(0, 0, 1.6);
+  var handle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.0, 8), dark);
+  handle.rotation.x = Math.PI / 2; handle.position.set(0, 0, 2.15);
+  g.add(blade, tip, guard, handle);
+  g.position.set(-1.35, -1.3, 0.5);
+  var tipAnchor = new THREE.Object3D();
+  tipAnchor.position.set(0, 0, -2.2);
+  g.add(tipAnchor);
+  g.muzzleTip = tipAnchor;
+  return g;
+}
+
+/** 法杖（召唤祭司鱼） */
+function makeBossStaff() {
+  var g = new THREE.Group();
+  var wood = new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: 0.85 });
+  var orb = new THREE.MeshStandardMaterial({ color: 0xb08cff, emissive: 0x7a4cff, emissiveIntensity: 0.9, roughness: 0.2 });
+  var rod = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 3.4, 10), wood);
+  rod.rotation.x = Math.PI / 2;
+  var head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), orb);
+  head.position.set(0, 0, -1.85);
+  var halo = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.05, 8, 24),
+    new THREE.MeshBasicMaterial({ color: 0xc8a8ff, transparent: true, opacity: 0.75 }));
+  halo.position.set(0, 0, -1.85);
+  var ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.05, 8, 24),
+    new THREE.MeshBasicMaterial({ color: 0xc8a8ff, transparent: true, opacity: 0.75 }));
+  ring2.position.set(0, 0, -1.85);
+  ring2.rotation.y = Math.PI / 2;
+  g.add(rod, head, halo, ring2);
+  g.position.set(-1.35, -1.3, 0.5);
+  var tipAnchor = new THREE.Object3D();
+  tipAnchor.position.set(0, 0, -2.1);
+  g.add(tipAnchor);
+  g.muzzleTip = tipAnchor;
+  g.orb = head;
+  return g;
+}
+
+/** 三管重炮（重炮台鱼） */
+function makeBossCannon() {
+  var g = new THREE.Group();
+  var dark = new THREE.MeshStandardMaterial({ color: 0x232830, roughness: 0.42, metalness: 0.7 });
+  var steel = new THREE.MeshStandardMaterial({ color: 0x3a4250, roughness: 0.35, metalness: 0.8 });
+  for (var i = -1; i <= 1; i++) {
+    var tube = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.19, 2.6, 10), steel);
+    tube.rotation.x = Math.PI / 2;
+    tube.position.set(i * 0.42, 0, -0.7);
+    var mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.22, 10), dark);
+    mouth.rotation.x = Math.PI / 2;
+    mouth.position.set(i * 0.42, 0, -2.0);
+    g.add(tube, mouth);
+  }
+  var base = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.7, 0.9), dark);
+  base.position.set(0, 0, 0.6);
+  g.add(base);
+  g.position.set(-1.35, -1.3, 0.5);
+  var tipAnchor = new THREE.Object3D();
+  tipAnchor.position.set(0, 0, -2.2);
+  g.add(tipAnchor);
+  g.muzzleTip = tipAnchor;
+  return g;
+}
+
+/** 按变体造武器 */
+function makeBossWeapon(variant) {
+  if (variant.mode === 'charge') return makeBossSword();
+  if (variant.mode === 'summon') return makeBossStaff();
+  if (variant.mode === 'barrage') return makeBossCannon();
+  return makeBossLauncher();     // rocket / split 用火箭筒
+}
+
 function spawnBoss() {
   if (boss) return;
   // 从四个固定空旷区域中随机选一个，区域内随机偏移（距离玩家至少 12 米避免贴脸）
@@ -3562,26 +3761,38 @@ function spawnBoss() {
   }
   if (!pick) pick = new THREE.Vector3(pts[0][0], 0, pts[0][1]);
   var pos = pick;
+  var variant = bossVariantNow();        // 按当前阶段选择 Boss 类型
   var mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(CFG.fishSize * CFG.bossSizeMul, CFG.fishSize * CFG.bossSizeMul),
     makeFishMaterial()
   );
   mesh.castShadow = true;
   mesh.position.set(pos.x, 3.0, pos.z);
-  var launcher = makeBossLauncher();
-  launcher.scale.set(3, 3, 3);
-  mesh.add(launcher);
+  var weapon = makeBossWeapon(variant);
+  weapon.scale.set(3, 3, 3);
+  mesh.add(weapon);
   scene.add(mesh);
+  var bossHpNow = Math.round(bossHpNext * variant.hpMul);
   boss = {
-    launcher: launcher,
+    variant: variant,
+    mode: variant.mode,
+    tint: variant.tint,
+    weapon: weapon,
+    launcher: weapon,                    // 兼容既有引用（炮弹从 weapon.muzzleTip 发射）
     mesh: mesh,
-    hp: bossHpNext, maxHp: bossHpNext,   // BOSS 血量随成长曲线（15 起，每只 +5，≤100）
+    hp: bossHpNow, maxHp: bossHpNow,     // BOSS 血量：成长曲线 × 变体系数
     baseY: 3.0,
     phase: rand(0, Math.PI * 2),
     fireTimer: CFG.bossShootInterval,
     hurt: 0,
+    chargeCd: 1.5,                       // 冲锋鱼：下一次冲锋冷却
+    chargeT: 0,                          // 冲锋进行中计时
+    chargeDir: null,
+    summonTimer: 4.5,                    // 祭司鱼：首次召唤倒计时
+    splitDone: false,                    // 分裂母鱼：是否已分裂
   };
-  showNotice('BOSS 出现！超级蓝色大肥鱼');
+  spawnBossEntranceFx(pos);              // 出场演出：地面扩散光圈 + 光柱
+  showNotice('BOSS 出现！' + variant.name + ' · ' + variant.tip);
   Sfx.bossAlarm();
   playSfx('bossDetect', 0.72);   // Boss 台词：「桀桀桀，我看到你了」（1/2 随机）
   updateBossBar();
@@ -3591,8 +3802,70 @@ function spawnBoss() {
   if (bossEl) bossEl.currentTime = 0;
 }
 
+// ---------------------------------------------------------------- Boss 出场演出（地面光圈）
+var bossFx = [];
+
+/** Boss 登场：三层地面扩散光环 + 中心上升光柱 */
+function spawnBossEntranceFx(pos) {
+  for (var i = 0; i < 3; i++) {
+    var mat = new THREE.MeshBasicMaterial({
+      color: i === 0 ? 0xff6a6a : (i === 1 ? 0xffa050 : 0xffd890),
+      transparent: true, opacity: 0.85, side: THREE.DoubleSide,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    var ring = new THREE.Mesh(new THREE.RingGeometry(0.86, 1.0, 56), mat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(pos.x, 0.09 + i * 0.02, pos.z);
+    ring.scale.set(2.5, 2.5, 2.5);
+    scene.add(ring);
+    bossFx.push({ mesh: ring, mat: mat, t: -i * 0.16, life: 1.15, from: 2.5, to: 16 + i * 5, pillar: false });
+  }
+  // 中心竖直光柱（加色混合的空心圆柱，快速升起并淡出）
+  var colMat = new THREE.MeshBasicMaterial({
+    color: 0xffd0a0, transparent: true, opacity: 0.5, side: THREE.DoubleSide,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  var col = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 2.8, 8, 20, 1, true), colMat);
+  col.position.set(pos.x, 4.0, pos.z);
+  scene.add(col);
+  bossFx.push({ mesh: col, mat: colMat, t: 0, life: 0.8, pillar: true });
+}
+
+function updateBossFx(dt) {
+  for (var i = bossFx.length - 1; i >= 0; i--) {
+    var f = bossFx[i];
+    f.t += dt;
+    if (f.t < 0) continue;                      // 延迟启动
+    var k = f.t / f.life;
+    if (k >= 1) {
+      scene.remove(f.mesh);
+      if (f.mesh.geometry) f.mesh.geometry.dispose();
+      f.mat.dispose();
+      bossFx.splice(i, 1);
+      continue;
+    }
+    if (f.pillar) {
+      f.mat.opacity = 0.5 * (1 - k) * (1 - k);
+      f.mesh.rotation.y += dt * 2.4;
+    } else {
+      var sc = f.from + (f.to - f.from) * (1 - Math.pow(1 - k, 2.2));
+      f.mesh.scale.set(sc, sc, sc);
+      f.mat.opacity = 0.85 * (1 - k);
+    }
+  }
+}
+
+function clearBossFx() {
+  for (var i = 0; i < bossFx.length; i++) {
+    scene.remove(bossFx[i].mesh);
+    if (bossFx[i].mesh.geometry) bossFx[i].mesh.geometry.dispose();
+    bossFx[i].mat.dispose();
+  }
+  bossFx = [];
+}
+
 var _bossBallGeo = null, _bossBallMat = null, _bossTipGeo = null, _bossTipMat = null;
-function fireBossBall() {
+function fireBossBall(angleOffset) {
   if (!_bossBallGeo) {
     _bossBallGeo = new THREE.SphereGeometry(0.3, 12, 10);
     _bossBallMat = new THREE.MeshStandardMaterial({ color: 0x444a52, roughness: 0.4, metalness: 0.65 });
@@ -3620,7 +3893,16 @@ function fireBossBall() {
     player.pos.x - from.x,
     (player.pos.y + CFG.eyeHeight) - from.y,
     player.pos.z - from.z
-  ).normalize().multiplyScalar(CFG.bossBallSpeed);
+  ).normalize();
+  // 扇形偏移（重炮台鱼的三连齐射用）
+  if (angleOffset) {
+    var ca = Math.cos(angleOffset), sa = Math.sin(angleOffset);
+    var nx = dir.x * ca - dir.z * sa;
+    var nz = dir.x * sa + dir.z * ca;
+    dir.x = nx; dir.z = nz;
+    dir.normalize();
+  }
+  dir.multiplyScalar(CFG.bossBallSpeed);
   ball.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir.clone().normalize());
   scene.add(ball);
   bossShots.push({ mesh: ball, vel: dir, life: 12 });
@@ -3728,21 +4010,102 @@ function updateBoss(dt) {
   if (!boss) return;
   var m = boss.mesh;
   if (state === 'playing') {
-    // 追击：距离大于 8 米时靠近，否则原地压制射击
     var dx = player.pos.x - m.position.x;
     var dz = player.pos.z - m.position.z;
     var dist = Math.sqrt(dx * dx + dz * dz);
-    if (dist > 8) {
-      var spd = CFG.fishChaseSpeed * CFG.bossSpeedMul;
-      moveFishAvoiding({ mesh: m }, player.pos.x, player.pos.z, spd, dt, 1.8, 4.2, 1.8);
-      m.position.x = clamp(m.position.x, -CFG.arena, CFG.arena);
-      m.position.z = clamp(m.position.z, -CFG.arena, CFG.arena);
+    var mode = boss.mode || 'rocket';
+    var spd = CFG.fishChaseSpeed * CFG.bossSpeedMul * (boss.variant ? boss.variant.speedMul : 1);
+
+    if (mode === 'charge') {
+      // ===== 狂暴冲锋鱼：蓄势逼近 → 高速冲撞 =====
+      if (boss.chargeHitCd > 0) boss.chargeHitCd -= dt;
+      if (boss.chargeT > 0) {
+        boss.chargeT -= dt;
+        m.position.x += boss.chargeDir.x * CFG.bossChargeSpeed * dt;
+        m.position.z += boss.chargeDir.z * CFG.bossChargeSpeed * dt;
+        if (Math.random() < 0.6) spawnBurst(new THREE.Vector3(m.position.x, 0.35, m.position.z), 0xff8a5a, 2, 2.0);
+        if (dist < 3.2 && boss.chargeHitCd <= 0) {
+          damagePlayer(CFG.bossChargeDamage, { name: boss.variant.name, atk: '冲锋撞击' });
+          boss.chargeHitCd = 1.0;
+          camFx.shake = 1;
+        }
+        if (boss.chargeT <= 0) boss.chargeCd = CFG.bossChargeInterval;
+      } else {
+        if (dist > 6) moveFishAvoiding({ mesh: m }, player.pos.x, player.pos.z, spd * 0.6, dt, 1.8, 4.2, 1.8);
+        boss.chargeCd -= dt;
+        if (boss.chargeCd <= 0 && dist < 26 && dist > 3.5) {
+          boss.chargeT = CFG.bossChargeTime;
+          boss.chargeDir = { x: dx / (dist || 1), z: dz / (dist || 1) };
+          boss.chargeHitCd = 0;
+          spawnBurst(m.position.clone(), 0xff6a3a, 20, 4.5);   // 蓄力爆闪
+          Sfx.bossShoot();
+        }
+      }
+    } else if (mode === 'summon') {
+      // ===== 召唤祭司鱼：保持距离 + 定时召唤鱼群 =====
+      if (dist < 11) {
+        moveFishAvoiding({ mesh: m }, m.position.x * 2 - player.pos.x, m.position.z * 2 - player.pos.z, spd * 0.7, dt, 1.8, 4.2, 1.8);
+      } else if (dist > 19) {
+        moveFishAvoiding({ mesh: m }, player.pos.x, player.pos.z, spd * 0.5, dt, 1.8, 4.2, 1.8);
+      }
+      boss.summonTimer -= dt;
+      if (boss.summonTimer <= 0) {
+        boss.summonTimer = CFG.bossSummonInterval;
+        var summoned = 0;
+        for (var si = 0; si < CFG.bossSummonCount; si++) {
+          var sa2 = rand(0, Math.PI * 2), sr = rand(3, 6.5);
+          var sp2 = spawnFish(new THREE.Vector3(
+            clamp(m.position.x + Math.cos(sa2) * sr, -CFG.arena + 3, CFG.arena - 3), 0,
+            clamp(m.position.z + Math.sin(sa2) * sr, -CFG.arena + 3, CFG.arena - 3)), 'normal');
+          sp2.waveTag = wave.number;      // 归入当前波，清波判定正确
+          summoned++;
+          spawnBurst(sp2.mesh.position, 0xb08cff, 12, 3.2);
+        }
+        showNotice('召唤祭司鱼召来了 ' + summoned + ' 条肥鱼！');
+        playSfx('bossDetect', 0.55);
+        if (boss.weapon && boss.weapon.orb) boss.weapon.orb.scale.set(1.7, 1.7, 1.7);
+      }
+      if (boss.weapon && boss.weapon.orb && boss.weapon.orb.scale.x > 1) {
+        var os = Math.max(1, boss.weapon.orb.scale.x - dt * 2.2);
+        boss.weapon.orb.scale.set(os, os, os);
+      }
+    } else if (mode === 'barrage') {
+      // ===== 重炮台鱼：原地压制 + 三连扇形齐射 =====
+      if (dist > 16) moveFishAvoiding({ mesh: m }, player.pos.x, player.pos.z, spd, dt, 1.8, 4.2, 1.8);
+      boss.fireTimer -= dt;
+      if (boss.fireTimer <= 0) {
+        boss.fireTimer = CFG.bossBarrageInterval;
+        fireBossBall(0);
+        fireBossBall(-CFG.bossBarrageSpread);
+        fireBossBall(CFG.bossBarrageSpread);
+      }
+    } else {
+      // ===== 火箭 / 分裂母鱼：常规追击 + 半跟踪炮弹 =====
+      if (dist > 8) moveFishAvoiding({ mesh: m }, player.pos.x, player.pos.z, spd, dt, 1.8, 4.2, 1.8);
+      boss.fireTimer -= dt;
+      if (boss.fireTimer <= 0) {
+        boss.fireTimer = CFG.bossShootInterval;
+        fireBossBall();
+      }
+      // 分裂母鱼：血量过半暴走，分裂出一批小鱼
+      if (mode === 'split' && !boss.splitDone && boss.hp <= boss.maxHp * 0.5) {
+        boss.splitDone = true;
+        for (var pi2 = 0; pi2 < CFG.bossSplitCount; pi2++) {
+          var pa2 = rand(0, Math.PI * 2), prr = rand(2.5, 5.5);
+          var cp = spawnFish(new THREE.Vector3(
+            clamp(m.position.x + Math.cos(pa2) * prr, -CFG.arena + 3, CFG.arena - 3), 0,
+            clamp(m.position.z + Math.sin(pa2) * prr, -CFG.arena + 3, CFG.arena - 3)), 'normal');
+          cp.waveTag = wave.number;
+          cp.hp = Math.ceil(enemyHpNow * 0.5) + 1;
+          spawnBurst(cp.mesh.position, 0x8cffb0, 14, 3.6);
+        }
+        spawnBurst(m.position.clone(), 0x8cffb0, 34, 6.5);
+        showNotice('分裂母鱼半血暴走，分裂出 ' + CFG.bossSplitCount + ' 条小鱼！');
+        playSfx('split', 0.85);
+      }
     }
-    boss.fireTimer -= dt;
-    if (boss.fireTimer <= 0) {
-      boss.fireTimer = CFG.bossShootInterval;
-      fireBossBall();
-    }
+    m.position.x = clamp(m.position.x, -CFG.arena, CFG.arena);
+    m.position.z = clamp(m.position.z, -CFG.arena, CFG.arena);
   }
   // 视觉：悬浮 + 广告牌 + 受击泛红
   m.position.y = boss.baseY + Math.sin(time * 2.0 + boss.phase) * 0.5;
@@ -3760,6 +4123,11 @@ function updateBoss(dt) {
 function updateBossBar() {
   if (dom.bossBarWrap) dom.bossBarWrap.style.display = 'block';
   if (boss) {
+    // Boss 名称按变体显示（名称是 #boss-name 的第一个文本节点，其后跟着血量 span）
+    if (dom.bossName && boss.variant && dom.bossName.firstChild &&
+        dom.bossName.firstChild.nodeType === 3) {
+      dom.bossName.firstChild.nodeValue = boss.variant.name;
+    }
     if (dom.bossHpCur) dom.bossHpCur.textContent = String(boss.hp);
     if (dom.bossHpMax) dom.bossHpMax.textContent = String(boss.maxHp);
   }
@@ -4173,6 +4541,7 @@ function restartGame(toMenu) {
   armorStacks = 0;
   armorTimer = CFG.armorInterval;
   updateArmorHUD();
+  clearBossFx();                             // 清掉 Boss 出场演出特效
   if (boss) { scene.remove(boss.mesh); boss = null; }
   for (var bsi = 0; bsi < bossShots.length; bsi++) scene.remove(bossShots[bsi].mesh);
   bossShots = [];
@@ -4192,6 +4561,7 @@ function restartGame(toMenu) {
   wave = { number: 0, state: 'prepare', timer: 0, total: 0 };
   stageShown = 1;
   fishSpawned = false;
+  applyEnvTheme(0, false);             // 环境复位到晴日沙漠
   spawnRandomCovers();                 // 新一局重新随机掩体布局
   if (!toMenu) ensureFishSpawned();      // 回主菜单时不生成敌人（世界随后即被卸载）
   // 清空上一局遗留的投射物与特效 —— 否则新一局开局会被上一局的子弹打中（看起来像"敌人没消失"）
@@ -4942,6 +5312,7 @@ function update(dt) {
   updateFishVisuals(dt);
   updateSwordWaves(dt);   // 剑气特效（弧形能量波飞行与淡出）
   updateBlastFx(dt);      // 自爆特效（火球/冲击环/蘑菇云烟团）
+  updateBossFx(dt);       // Boss 出场演出特效（地面光圈 / 光柱）
   updateBomberWarn();     // 自爆鱼索敌警告（红屏脉冲）
   checkAchievements(dt);  // 成就条件检查（每秒一次）
   updateParticles(dt);
@@ -5190,6 +5561,15 @@ window.FishGame = {
         flashZ: +gun.flashMesh.position.z.toFixed(3),
         lightZ: gun.light ? +gun.light.position.z.toFixed(3) : null,
       };
+    },
+    setEnvTheme: applyEnvTheme,                          // 测试用：切换环境主题
+    getEnvTheme: function () { return { index: envIndex, name: ENV_THEMES[envIndex].name }; },
+    spawnBossNow: spawnBoss,                             // 测试用：立即生成一只 Boss
+    clearBossNow: function () {                          // 测试用：移除当前 Boss
+      if (boss) { scene.remove(boss.mesh); boss = null; hideBossBar(); }
+    },
+    getBossVariant: function () {
+      return boss ? { name: boss.variant.name, mode: boss.mode, hp: boss.hp, maxHp: boss.maxHp } : null;
     },
     setEnemyHpMax: function (v) { enemyHpNow = v; },     // 测试用
     getEnemyHpMax: function () { return enemyHpNow; },
