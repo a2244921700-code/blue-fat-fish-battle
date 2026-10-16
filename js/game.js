@@ -3554,7 +3554,25 @@ function showLevelSelect() {
   dom.levelOverlay.classList.remove('hidden');
 }
 
-// 请求指针锁定；若浏览器不支持、拒绝或超时，自动降级为拖动瞄准模式
+// 真实锁定状态（不能用 state 判定：state 要等 pointerlockchange 事件才更新，
+// 而事件到达时机不确定，早期版本因此把"其实能锁定"的情况误判为不支持）
+function isPointerLocked() {
+  return document.pointerLockElement === dom.canvas;
+}
+
+// 锁定兜底检测：Chrome 在退出锁定后有约 1.25 秒冷却期，期间 requestPointerLock 会被拒。
+// 因此分两段等待（1.3s + 0.7s），只有两段都没锁上才降级。
+function scheduleLockCheck() {
+  clearTimeout(pendingLockTimer);
+  pendingLockTimer = setTimeout(function () {
+    if (isPointerLocked()) return;
+    pendingLockTimer = setTimeout(function () {
+      if (!isPointerLocked()) enterFallbackMode();
+    }, 700);
+  }, 1300);
+}
+
+// 请求指针锁定；若浏览器不支持、明确拒绝或长时间未成功，才降级为拖动瞄准模式
 function requestLockWithFallback() {
   Sfx.init();
   // 用户手势内直接尝试播放 BGM（自动播放策略下成功率最高）
@@ -3567,16 +3585,22 @@ function requestLockWithFallback() {
   try {
     var p = dom.canvas.requestPointerLock();
     if (p && p.catch) p.catch(function () {
-      if (state !== 'playing') enterFallbackMode();
+      // 请求被拒（可能只是冷却期）→ 仍按真实状态走兜底检测，给锁定一次机会
+      if (!isPointerLocked()) scheduleLockCheck();
     });
   } catch (e) {
     enterFallbackMode();
     return;
   }
-  // 兜底：900ms 内仍未锁定（无 change 事件也无 reject）→ 降级
-  pendingLockTimer = setTimeout(function () {
-    if (state !== 'playing') enterFallbackMode();
-  }, 900);
+  scheduleLockCheck();
+}
+
+// 隐藏降级提示条（恢复锁定模式时调用）
+function hideFallbackHint() {
+  if (!dom.fallbackHint) return;
+  clearTimeout(hintTimer);
+  dom.fallbackHint.style.opacity = '0';
+  setTimeout(function () { dom.fallbackHint.style.display = 'none'; }, 300);
 }
 
 // 降级模式：不依赖指针锁定，移动鼠标转向、点击画面射击、Esc 暂停
@@ -3800,15 +3824,26 @@ function onMouseMove(ev) {
   player.pitch = clamp(player.pitch, -1.55, 1.55);
 }
 function onPointerLockChange() {
-  if (lockMode === 'fallback') return;
-  var locked = document.pointerLockElement === dom.canvas;
+  var locked = isPointerLocked();
   if (locked) {
     clearTimeout(pendingLockTimer);
+    // ★ 关键修复：之前降级为拖动瞄准后，只要本次锁定成功就恢复锁定模式
+    //（旧实现里 fallback 是不可逆的：一旦降级，后续即使锁定成功也永久停留在拖动模式）
+    if (lockMode === 'fallback') {
+      lockMode = 'locked';
+      hideFallbackHint();
+      showNotice('已恢复鼠标锁定模式');
+      debugLog('指针锁定成功，已从拖动瞄准模式切回锁定模式', 'dbg-hit');
+    }
     if (state === 'menu' || state === 'levelSelect' || state === 'paused' || state === 'gameover') {
       state = 'playing';
       hideAllOverlays();
     }
-  } else if (state === 'playing') {
+    return;
+  }
+  // 失去锁定：拖动瞄准模式本就不依赖锁定，无需暂停
+  if (lockMode === 'fallback') return;
+  if (state === 'playing') {
     state = 'paused';
     showOverlay('pause');
   }
@@ -4185,6 +4220,9 @@ window.FishGame = {
     pressKey: function (code, down) { keys[code] = down; },
     releaseKeys: function () { keys = Object.create(null); },
     getLockMode: function () { return lockMode; },
+    isPointerLocked: isPointerLocked,
+    forceFallback: enterFallbackMode,      // 测试用：强制进入拖动瞄准模式
+    notifyLockChange: onPointerLockChange, // 测试用：手动触发锁定变化处理
     getAmmo: function () { return ammo; },
     setAmmo: function (mag, reserve) {
       ammo.mag = mag; ammo.reserve = reserve;
