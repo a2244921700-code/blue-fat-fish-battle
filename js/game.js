@@ -234,6 +234,92 @@ var progressMusicOn = false;       // 进步的小曲播放标记（true=播放,
 var menuEl = null;                 // "来去曼波" Audio 元素（开始界面/选关界面）
 var menuMusicVol = 0;              // 菜单曲当前音量（进入游戏时 0.5s 淡出）
 var menuMusicOn = false;           // 菜单曲播放标记
+// ---------------------------------------------------------------- 本地存档（最高记录 / 设置 / 成就）
+// 用 localStorage 持久化；隐私模式或存储被禁用时静默降级为「本局有效」
+var SAVE_KEY = 'bff_save_v1';
+var save = {
+  bestScore: 0,      // 历史最高得分
+  bestTime: 0,       // 最久存活（秒）
+  bestCombo: -1,     // 最高连杀评级索引（-1 = 尚未获得）
+  bestWave: 0,       // 最远波次
+  bestStage: 1,      // 最远阶段
+  bestBoss: 0,       // 单局最多击破 Boss
+  unlockedLevel: false,                              // 闯关模式解锁（预留）
+  settings: { master: 1.0, bgm: 1.0, sfx: 1.0, sens: 1.0 },  // 设置（设置面板使用）
+  achievements: {},                                  // 成就解锁状态（成就系统使用）
+};
+
+function loadSave() {
+  try {
+    var raw = window.localStorage.getItem(SAVE_KEY);
+    if (!raw) return;
+    var obj = JSON.parse(raw);
+    if (obj && typeof obj === 'object') {
+      for (var k in save) {
+        if (obj[k] !== undefined && obj[k] !== null) save[k] = obj[k];
+      }
+    }
+  } catch (e) { /* 隐私模式 / 存储禁用：忽略 */ }
+}
+
+function persistSave() {
+  try { window.localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
+}
+
+/** 秒 → mm:ss */
+function formatTime(sec) {
+  var s = Math.max(0, Math.floor(sec || 0));
+  var m = Math.floor(s / 60);
+  return m + ':' + (s % 60 < 10 ? '0' : '') + (s % 60);
+}
+
+/** 一局结束时更新历史记录，返回本次打破的记录名（用于「新纪录」提示） */
+function updateRecords() {
+  var broken = [];
+  if (score > save.bestScore) { save.bestScore = score; broken.push('最高得分'); }
+  if (playingTime > save.bestTime) { save.bestTime = playingTime; broken.push('最久存活'); }
+  if (combo.rank > save.bestCombo) { save.bestCombo = combo.rank; broken.push('最高连杀'); }
+  if (wave.number > save.bestWave) { save.bestWave = wave.number; broken.push('最远波次'); }
+  if (currentStage() > save.bestStage) { save.bestStage = currentStage(); broken.push('最高阶段'); }
+  if (bossKillCount > save.bestBoss) { save.bestBoss = bossKillCount; broken.push('最多 Boss 击破'); }
+  if (broken.length) persistSave();
+  return broken;
+}
+
+/** 填充结算界面统计（suffix: '' = 失败界面，'-v' = 通关界面）并显示新纪录 */
+function fillResultStats(suffix, broken) {
+  function set(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+  set('final-time' + suffix, formatTime(playingTime));
+  set('final-combo' + suffix, combo.rank >= 0 ? CFG.comboRanks[combo.rank] : '—');
+  set('final-stage' + suffix, String(currentStage()));
+  set('final-wave' + suffix, String(wave.number));
+  var rec = document.getElementById('final-record' + suffix);
+  if (rec) {
+    if (broken && broken.length) {
+      rec.classList.remove('hidden');
+      var list = document.getElementById('final-record-list' + suffix);
+      if (list) list.textContent = broken.join(' · ');
+    } else {
+      rec.classList.add('hidden');
+    }
+  }
+}
+
+/** 刷新主菜单的「历史最佳」显示 */
+function refreshBestRecords() {
+  var wrap = document.getElementById('best-records');
+  if (!wrap) return;
+  if (save.bestScore <= 0 && save.bestWave <= 0) { wrap.classList.add('hidden'); return; }
+  wrap.classList.remove('hidden');
+  function set(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+  set('best-score', String(save.bestScore));
+  set('best-time', formatTime(save.bestTime));
+  set('best-combo', save.bestCombo >= 0 ? CFG.comboRanks[save.bestCombo] : '—');
+  set('best-stage', String(save.bestStage));
+  set('best-wave', String(save.bestWave));
+  set('best-boss', String(save.bestBoss));
+}
+
 var lockMode = 'locked';          // 'locked' | 'fallback'（浏览器不支持指针锁定时自动降级）
 var pendingLockTimer = null;
 var hintTimer = null;
@@ -2734,6 +2820,9 @@ function victory() {
   if (dom.finalScoreV) dom.finalScoreV.textContent = String(score);
   if (dom.finalKillsV) dom.finalKillsV.textContent = String(kills);
   if (dom.finalBossKillsV) dom.finalBossKillsV.textContent = String(bossKillCount);
+  // 通关同样计入历史记录
+  fillResultStats('-v', updateRecords());
+  refreshBestRecords();
   showOverlay('victory');
 }
 
@@ -3405,6 +3494,9 @@ function gameOver(reason) {
   dom.finalScore.textContent = String(score);
   dom.finalKills.textContent = String(kills);
   if (dom.finalBossKills) dom.finalBossKills.textContent = String(bossKillCount);
+  // 结算统计 + 历史记录更新（打破记录时显示「新纪录」）
+  fillResultStats('', updateRecords());
+  refreshBestRecords();
   showOverlay('gameover');
 }
 
@@ -3529,6 +3621,7 @@ function flashCrosshair() {
 }
 
 function showOverlay(which) {
+  if (which === 'menu') refreshBestRecords();   // 每次回到主菜单都刷新「历史最佳」
   dom.menuOverlay.classList.toggle('hidden', which !== 'menu');
   dom.pauseOverlay.classList.toggle('hidden', which !== 'pause');
   dom.gameoverOverlay.classList.toggle('hidden', which !== 'gameover');
@@ -4046,6 +4139,9 @@ function animate() {
 // ---------------------------------------------------------------- 初始化
 function init() {
   if (renderer !== undefined) return; // 防重入
+  loadSave();                         // 读取本地存档（最高记录 / 设置 / 成就）
+  // 启动时主菜单是 HTML 默认显示的，不会经过 showOverlay('menu')，因此这里主动刷新一次
+  try { refreshBestRecords(); } catch (e) {}
   window.__stage = ['init-start'];
   function mark(s) { try { window.__stage.push(s); } catch (e) {} }
   var canvas = document.getElementById('game-canvas');

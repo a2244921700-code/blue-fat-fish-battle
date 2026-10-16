@@ -144,6 +144,14 @@ window.addEventListener('load', function () {
     50%      { opacity: .82; }
   }
 
+  /* ---------- 结算统计 / 历史最佳 ---------- */
+  .stat-detail { color: rgba(190,205,225,.88); font-size: 13px; line-height: 1.75; margin-top: 6px; }
+  .stat-detail b { color: #cfe3ff; font-weight: 600; }
+  .record-line { color: #ffd76e; font-size: 13.5px; font-weight: 700; letter-spacing: .5px;
+    margin-top: 8px; text-shadow: 0 0 10px rgba(255,215,110,.35); }
+  .best-records { margin-top: 12px; color: rgba(160,178,200,.9); font-size: 12px; line-height: 1.8; }
+  .best-records b { color: #8ef0b0; font-weight: 600; }
+
   /* ---------- 受伤红闪 ---------- */
   #damage-flash { position: fixed; inset: 0; z-index: 8; pointer-events: none;
     background: radial-gradient(ellipse at center, rgba(255,0,0,0) 45%, rgba(255,30,30,.55) 100%);
@@ -488,6 +496,10 @@ window.addEventListener('load', function () {
       <span><span class="k">Esc</span> 暂停</span>
     </div>
     <button id="btn-start" class="big-btn">开始游戏</button>
+    <div id="best-records" class="best-records hidden">
+      历史最佳：得分 <b id="best-score">0</b> · 存活 <b id="best-time">0:00</b> · 最高连杀 <b id="best-combo">—</b><br>
+      最远到达 第 <b id="best-stage">1</b> 阶段 · 第 <b id="best-wave">0</b> 波 · 击破 Boss <b id="best-boss">0</b> 只
+    </div>
     <div class="note">一群蓝色大肥鱼占领了沙漠城，它们发现你就会冲过来咬人——<br>有的端着枪、有的抱着核弹、还有的举着能量盾！<br>清空一波波鱼潮、猎杀 Boss、推进五个阶段，坚持得越久得分越高！<br><br>点击开始后鼠标会锁定到画面中央；若浏览器阻止指针锁定，<br>游戏将自动切换为「拖动瞄准」模式（移动鼠标转向、点击射击、Esc 暂停）。</div>
   </div>
 </div>
@@ -531,6 +543,8 @@ window.addEventListener('load', function () {
     <h1 id="gameover-title">你被肥鱼吃掉了！</h1>
     <div class="sub-title">GAME OVER</div>
     <div class="stat-line">最终得分 <b id="final-score">0</b><br>击杀肥鱼 <b id="final-kills">0</b> 条 · Boss <b id="final-bosskills">0</b> 只</div>
+    <div class="stat-detail">存活 <b id="final-time">0:00</b> · 最高连杀 <b id="final-combo">—</b><br>到达 第 <b id="final-stage">1</b> 阶段 · 第 <b id="final-wave">0</b> 波</div>
+    <div id="final-record" class="record-line hidden">★ 新纪录 —— <span id="final-record-list"></span></div>
     <button id="btn-restart" class="big-btn">再来一局</button>
   </div>
 </div>
@@ -562,6 +576,8 @@ window.addEventListener('load', function () {
     <h1>无尽模式通关！</h1>
     <div class="sub-title">全部强化满级 · 嗜血肥鱼已无力回天</div>
     <div class="stat-line">最终得分 <b id="final-score-v">0</b><br>击杀肥鱼 <b id="final-kills-v">0</b> 条 · Boss <b id="final-bosskills-v">0</b> 只</div>
+    <div class="stat-detail">存活 <b id="final-time-v">0:00</b> · 最高连杀 <b id="final-combo-v">—</b><br>到达 第 <b id="final-stage-v">1</b> 阶段 · 第 <b id="final-wave-v">0</b> 波</div>
+    <div id="final-record-v" class="record-line hidden">★ 新纪录 —— <span id="final-record-list-v"></span></div>
     <button id="btn-victory-restart" class="big-btn">回到主菜单</button>
   </div>
 </div>
