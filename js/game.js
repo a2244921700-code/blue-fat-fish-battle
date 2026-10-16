@@ -258,6 +258,7 @@ var save = {
   bestStage: 1,      // 最远阶段
   bestBoss: 0,       // 单局最多击破 Boss
   unlockedLevel: false,                              // 闯关模式解锁（预留）
+  stats: { totalKills: 0, totalBoss: 0, totalGames: 0 },  // 跨局累计统计（成就用）
   settings: {
     bgm: 1.0, boss: 1.0, menu: 1.0, sfx: 1.0,   // 音量倍数（0~1）
     sens: 1.0,                                   // 鼠标灵敏度倍数（0.25~3.0）
@@ -287,6 +288,81 @@ function loadSave() {
 
 function persistSave() {
   try { window.localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
+}
+
+// ---------------------------------------------------------------- 成就系统
+// 解锁状态存在 save.achievements；同一成就只解锁一次，解锁时右上角弹出提示
+var ACHIEVEMENTS = {
+  firstBlood:  { ico: '🩸', name: '初次猎杀',   desc: '击杀第一条蓝色肥鱼' },
+  firstBoss:   { ico: '👑', name: '巨兽猎人',   desc: '首次击破 Boss' },
+  comboSSS:    { ico: '✨', name: '完美连击',   desc: '达成 SSS 连杀评级' },
+  kills100:    { ico: '💯', name: '百鱼斩',     desc: '单局击杀 100 条肥鱼' },
+  kills1000:   { ico: '🔥', name: '千鱼斩',     desc: '累计击杀 1000 条肥鱼' },
+  stage5:      { ico: '🌊', name: '深海尽头',   desc: '推进到第 5 阶段' },
+  wave20:      { ico: '🧱', name: '二十波老兵', desc: '单局清空 20 波' },
+  boss10:      { ico: '⚔️', name: '十连巨兽',   desc: '单局击破 10 只 Boss' },
+  survive10:   { ico: '⏳', name: '铁人',       desc: '单局存活 10 分钟' },
+  flawless3:   { ico: '🛡️', name: '完美无瑕',   desc: '开局后 3 分钟内不受伤' },
+  pierce3:     { ico: '➶', name: '一石三鸟',   desc: '一次射击穿透击杀 3 条肥鱼' },
+  maxCore:     { ico: '🏆', name: '登峰造极',   desc: '把任意一项核心技能升到满级' },
+  ghost:       { ico: '💀', name: '自爆旁观者', desc: '在自爆鱼引爆时保持 5 米以上距离全身而退' },
+};
+var achTimer = null;
+var runTookDamage = false;   // 本局是否受过伤（「完美无瑕」成就用）
+
+function unlockAchievement(id) {
+  if (!id || !ACHIEVEMENTS[id] || save.achievements[id]) return false;
+  save.achievements[id] = true;
+  persistSave();
+  showAchievementPop(ACHIEVEMENTS[id]);
+  return true;
+}
+
+function showAchievementPop(def) {
+  var el = document.getElementById('achievement-pop');
+  if (!el) return;
+  el.innerHTML =
+    '<div class="ach-ico">' + def.ico + '</div>' +
+    '<div class="ach-body">' +
+    '<div class="ach-title">成就解锁</div>' +
+    '<div class="ach-name">' + def.name + '</div>' +
+    '<div class="ach-desc">' + def.desc + '</div>' +
+    '</div>';
+  el.classList.remove('hidden');
+  // 强制回流后再加 show，保证过渡动画生效
+  void el.offsetWidth;
+  el.classList.add('show');
+  clearTimeout(achTimer);
+  achTimer = setTimeout(function () {
+    el.classList.remove('show');
+    setTimeout(function () { el.classList.add('hidden'); }, 400);
+  }, 3400);
+}
+
+// 周期性成就检查（每秒一次，成本可忽略）
+var achCheckTimer = 0;
+function checkAchievements(dt) {
+  achCheckTimer -= dt;
+  if (achCheckTimer > 0) return;
+  achCheckTimer = 1.0;
+  if (state !== 'playing') return;
+  if (kills >= 100) unlockAchievement('kills100');
+  if (save.stats && save.stats.totalKills >= 1000) unlockAchievement('kills1000');
+  if (currentStage() >= 5) unlockAchievement('stage5');
+  if (wave.number >= 20) unlockAchievement('wave20');
+  if (bossKillCount >= 10) unlockAchievement('boss10');
+  if (playingTime >= 600) unlockAchievement('survive10');
+  if (combo.rank >= 6) unlockAchievement('comboSSS');
+  for (var i = 0; i < CORE_UPGRADES.length; i++) {
+    if (upgrades[CORE_UPGRADES[i]] >= CFG.upgradeMaxLevel) { unlockAchievement('maxCore'); break; }
+  }
+  if (!runTookDamage && playingTime >= 180) unlockAchievement('flawless3');
+}
+
+/** 累计统计（跨局）：击杀 / Boss / 局数 —— 存在 save.stats */
+function bumpStat(key, delta) {
+  if (!save.stats) save.stats = { totalKills: 0, totalBoss: 0, totalGames: 0 };
+  save.stats[key] = (save.stats[key] || 0) + (delta || 1);
 }
 
 /** 音量目标值（基础值 × 玩家设置） */
@@ -1854,6 +1930,8 @@ function killFish(e, hitPoint) {
 
   kills += 1;
   score += 10;
+  unlockAchievement('firstBlood');       // 成就：初次猎杀
+  bumpStat('totalKills', 1);             // 累计击杀（千鱼斩）
   addComboPoints(CFG.comboFishPoints);   // 连杀 +1 点
   // 回血来源①：连杀 SSS 增益（击杀回复 2% 最大生命）
   var lifeSteal = comboBonus().lifesteal;
@@ -2256,6 +2334,7 @@ function explodeBomber(e) {
     damagePlayer(CFG.bomberDamageFar, { name: '自爆肥鱼', atk: '核弹冲击' });
   }
   spawnMushroomCloud(pos);
+  if (d > CFG.bomberBlastRange) unlockAchievement('ghost');   // 成就：5 米外全身而退
   Sfx.fishDie();
 
   e.alive = false;
@@ -3307,6 +3386,8 @@ function defeatBoss() {
   spawnBurst(pos, 0xffd54a, 40, 6.5);
   spawnBurst(pos, 0xffffff, 20, 4);
   score += CFG.bossScore;
+  unlockAchievement('firstBoss');      // 成就：巨兽猎人
+  bumpStat('totalBoss', 1);
   addComboPoints(CFG.comboBossPoints); // 击败 Boss：连杀 +5 点，快速提升评级
   rollKillRewards();              // Boss 击杀同样触发概率战利品
   player.hp = CFG.maxHp;          // 击败 Boss：生命回满
@@ -3554,6 +3635,7 @@ function shootOnce() {
     // 穿甲弹：沿射线继续伤害主目标之后的敌人（每级 +1 个）
     if (upgrades.pierce > 0) {
       var pierceLeft = upgrades.pierce;
+      var pierceKills = 0;                 // 本次射击的穿透击杀数（「一石三鸟」成就）
       var fromT = bestT + 0.25;
       while (pierceLeft > 0) {
         var nextE = null, nextT = Infinity;
@@ -3569,10 +3651,11 @@ function shootOnce() {
         nextE.hp = (nextE.hp || 1) - rollP.damage;
         spawnBurst(piercePoint, 0xb0e8ff, 8, 3.0);       // 穿透命中特效
         debugLog('穿甲弹命中 ' + enemyName(nextE) + '，造成 ' + rollP.damage.toFixed(1) + ' 点伤害', 'dbg-hit');
-        if (nextE.hp <= 0) killFish(nextE, piercePoint);
+        if (nextE.hp <= 0) { killFish(nextE, piercePoint); pierceKills += 1; }
         pierceLeft -= 1;
         fromT = nextT + 0.25;
       }
+      if (pierceKills >= 3) unlockAchievement('pierce3');   // 成就：一石三鸟
     }
   } else if (hits.length) {
     _hitPoint.copy(_rayOrigin).addScaledVector(_rayDir, hits[0].distance);
@@ -3593,6 +3676,7 @@ function damagePlayer(d, src) {
   }
   if (src) debugLog('受到' + src.name + '的' + src.atk + '攻击的 ' + raw + ' 点伤害，经过 ' + armorStacks + ' 层护盾减免，最终受到 ' + d + ' 点伤害', 'dbg-dmg');
   hurtCd = 0.5;
+  runTookDamage = true;                 // 「完美无瑕」成就：本局已受伤
   player.hp = Math.max(0, player.hp - d);
   // 受击摄像机抖动（伤害越高抖得越明显）
   camFx.shake = Math.min(1, camFx.shake + 0.45 + Math.min(0.45, d / 120));
@@ -3626,6 +3710,7 @@ function gameOver(reason) {
   dom.finalScore.textContent = String(score);
   dom.finalKills.textContent = String(kills);
   if (dom.finalBossKills) dom.finalBossKills.textContent = String(bossKillCount);
+  bumpStat('totalGames', 1);            // 累计对局数
   // 结算统计 + 历史记录更新（打破记录时显示「新纪录」）
   fillResultStats('', updateRecords());
   refreshBestRecords();
@@ -3648,6 +3733,7 @@ function restartGame(toMenu) {
   cheatMusicTimer = 0;
   cheatMusicStep = 0;
   score = 0; kills = 0; playingTime = 0;
+  runTookDamage = false;                // 新一局重置「完美无瑕」标志
   ammo.mag = CFG.magSize;
   ammo.reserve = CFG.startReserve;
   ammo.reloading = false; ammo.reloadTimer = 0;
@@ -4336,6 +4422,7 @@ function update(dt) {
   updateSwordWaves(dt);   // 剑气特效（弧形能量波飞行与淡出）
   updateBlastFx(dt);      // 自爆特效（火球/冲击环/蘑菇云烟团）
   updateBomberWarn();     // 自爆鱼索敌警告（红屏脉冲）
+  checkAchievements(dt);  // 成就条件检查（每秒一次）
   updateParticles(dt);
   updateHUD();
   drawMiniMap();
@@ -4514,6 +4601,8 @@ window.FishGame = {
     getWave: function () { return wave; },
     startWave: startWave,
     getComboBonus: function () { return comboBonus(); },
+    getAchievements: function () { return JSON.parse(JSON.stringify(save.achievements)); },
+    getStats: function () { return JSON.parse(JSON.stringify(save.stats || {})); },
     getUpgradeEffects: function () {
       return {
         magSize: magSizeNow(), nade: nadeDamageNow(), armorMax: armorMaxNow(),

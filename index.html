@@ -144,6 +144,20 @@ window.addEventListener('load', function () {
     50%      { opacity: .82; }
   }
 
+  /* ---------- 成就解锁弹窗 ---------- */
+  #achievement-pop { position: fixed; right: 20px; top: 96px; z-index: 30; pointer-events: none;
+    display: flex; align-items: center; gap: 11px;
+    background: linear-gradient(135deg, rgba(18,32,58,.96), rgba(26,48,82,.96));
+    border: 1.5px solid rgba(255,215,110,.55); border-radius: 12px;
+    padding: 11px 16px 11px 13px; min-width: 252px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.45), 0 0 22px rgba(255,205,90,.18);
+    opacity: 0; transform: translateX(28px); transition: opacity .35s ease, transform .35s ease; }
+  #achievement-pop.show { opacity: 1; transform: translateX(0); }
+  #achievement-pop .ach-ico { font-size: 28px; line-height: 1; filter: drop-shadow(0 0 8px rgba(255,215,110,.5)); }
+  #achievement-pop .ach-title { color: #ffd76e; font-size: 11px; letter-spacing: 2px; font-weight: 700; }
+  #achievement-pop .ach-name { color: #fff; font-size: 15px; font-weight: 700; margin-top: 2px; }
+  #achievement-pop .ach-desc { color: rgba(190,208,230,.92); font-size: 11.5px; margin-top: 2px; }
+
   /* ---------- 设置面板 ---------- */
   .set-group { margin: 14px 0 6px; text-align: left; }
   .set-row { display: flex; align-items: center; gap: 10px; margin: 9px 0; font-size: 13.5px; }
@@ -481,6 +495,7 @@ window.addEventListener('load', function () {
 <div id="combo-pop" class=""></div>
 <div id="notice-pop"></div>
 <div id="error-bar"></div>
+<div id="achievement-pop" class="hidden"></div>
 <div id="bomber-warn"></div>
 <div id="damage-flash"></div>
 <div id="debug-log"></div>
