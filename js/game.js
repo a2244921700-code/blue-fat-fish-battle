@@ -259,6 +259,7 @@ var save = {
   bestBoss: 0,       // 单局最多击破 Boss
   unlockedLevel: false,                              // 闯关模式解锁（预留）
   stats: { totalKills: 0, totalBoss: 0, totalGames: 0 },  // 跨局累计统计（成就用）
+  v: 2,                                              // 存档版本（用于一次性迁移）
   settings: {
     bgm: 1.0, boss: 1.0, menu: 1.0, sfx: 1.0,   // 音量倍数（0~1）
     sens: 1.0,                                   // 鼠标灵敏度倍数（0.25~3.0）
@@ -282,6 +283,14 @@ function loadSave() {
           if (obj.settings[sk] !== undefined) save.settings[sk] = obj.settings[sk];
         }
       }
+      // 存档迁移：v2 起重新记录成就 —— 清掉之前版本（含开发期测试）留下的成就数据。
+      // 注意必须判断「旧存档里的 v」，不能用 save.v（它的默认值就是 2，会掩盖旧版本）
+      if (!obj.v || obj.v < 2) {
+        save.achievements = {};
+        save.stats = { totalKills: 0, totalBoss: 0, totalGames: 0 };
+      }
+      save.v = 2;
+      persistSave();
     }
   } catch (e) { /* 隐私模式 / 存储禁用：忽略 */ }
 }
@@ -429,6 +438,7 @@ var achTimer = null;
 var runTookDamage = false;   // 本局是否受过伤（「完美无瑕」成就用）
 
 function unlockAchievement(id) {
+  if (debugMode) return false;          // 开发者模式不记录成就
   if (!id || !ACHIEVEMENTS[id] || save.achievements[id]) return false;
   save.achievements[id] = true;
   persistSave();
@@ -1057,7 +1067,14 @@ function vWall(x, z0, z1, h, gaps) {
   if (cur < end) addWallBox(x, (cur + end) / 2, 1, end - cur, h);
 }
 
+// 环境（地图/灯光/云等）在首次进入游戏时才构建；回主菜单时整体卸载，
+// 这样主菜单不是"游戏场景已加载"的状态，也省下地图占用的内存与显存。
+var envObjects = [];    // 本次构建出的环境对象
+var envBuilt = false;   // 是否已构建（幂等保护）
+
 function buildEnvironment() {
+  if (envBuilt) return;
+  var beforeChildren = scene.children.slice();
   scene.background = toTex(makeSkyTexture());
   scene.fog = new THREE.Fog(0xd8c9a8, 45, 165);
 
@@ -1239,6 +1256,25 @@ function buildEnvironment() {
     cloud.scale.set(rand(26, 42), rand(10, 16), 1);
     scene.add(cloud);
   }
+
+  // 记录本次新建的对象，供卸载时整体移除
+  envObjects = scene.children.filter(function (o) { return beforeChildren.indexOf(o) < 0; });
+  envBuilt = true;
+}
+
+/** 卸载游戏场景（回主菜单时调用）：移除地图 / 灯光 / 云等全部环境对象并释放几何 */
+function unloadGameScene() {
+  for (var i = 0; i < envObjects.length; i++) {
+    var o = envObjects[i];
+    scene.remove(o);
+    // 只释放几何；材质（砖墙/沙地等）是模块级共享缓存，重建时要复用
+    if (o.geometry && o.geometry.dispose) o.geometry.dispose();
+  }
+  envObjects = [];
+  envBuilt = false;
+  wallMeshes = [];        // 子弹遮挡列表
+  obstacles = [];         // 碰撞体列表
+  randomCovers = [];      // 每局随机掩体
 }
 
 // ---------------------------------------------------------------- 小地图（左下角圆形、随视角旋转）
@@ -4039,7 +4075,7 @@ function restartGame(toMenu) {
   stageShown = 1;
   fishSpawned = false;
   spawnRandomCovers();                 // 新一局重新随机掩体布局
-  ensureFishSpawned();
+  if (!toMenu) ensureFishSpawned();      // 回主菜单时不生成敌人（世界随后即被卸载）
   // 清空上一局遗留的投射物与特效 —— 否则新一局开局会被上一局的子弹打中（看起来像"敌人没消失"）
   for (var k = 0; k < fishBullets.length; k++) scene.remove(fishBullets[k].mesh);
   fishBullets = [];
@@ -4049,6 +4085,18 @@ function restartGame(toMenu) {
     if (swordWaves[w].matInner) swordWaves[w].matInner.dispose();
   }
   swordWaves = [];
+  // 清空爆炸特效（蘑菇云的火球 / 烟柱 / 云冠 / 冲击环），避免残留到主菜单或下一局
+  for (var bxi = 0; bxi < blastFx.length; bxi++) {
+    scene.remove(blastFx[bxi].mesh);
+    if (blastFx[bxi].mat) blastFx[bxi].mat.dispose();
+  }
+  blastFx = [];
+  // 关闭自爆鱼红屏警告 + 收起成就弹窗
+  bomberWarnOn = false;
+  if (dom.bomberWarn) dom.bomberWarn.style.opacity = '0';
+  var achPopEl = document.getElementById('achievement-pop');
+  if (achPopEl) { achPopEl.classList.remove('show'); achPopEl.classList.add('hidden'); }
+  if (dom.damageFlash) dom.damageFlash.style.opacity = '0';
   if (particles && particles.data) {
     for (var pi = 0; pi < particles.data.length; pi++) {
       if (particles.data[pi]) particles.data[pi].life = 0;   // 残留粒子立即清空
@@ -4059,6 +4107,7 @@ function restartGame(toMenu) {
   hideAllOverlays();
   if (toMenu) {
     state = 'menu';
+    unloadGameScene();                   // 回主菜单：卸载整个游戏场景（真正释放，不是只隐藏）
     showOverlay('menu');
     if (document.exitPointerLock) document.exitPointerLock();
     return;
@@ -4119,6 +4168,8 @@ function showOverlay(which) {
   if (dom.victoryOverlay) dom.victoryOverlay.classList.toggle('hidden', which !== 'victory');
   if (dom.skillsOverlay) dom.skillsOverlay.classList.toggle('hidden', which !== 'skills');
   if (dom.settingsOverlay) dom.settingsOverlay.classList.toggle('hidden', which !== 'settings');
+  if (dom.achievementsOverlay) dom.achievementsOverlay.classList.toggle('hidden', which !== 'achievements');
+  if (dom.quitOverlay) dom.quitOverlay.classList.toggle('hidden', which !== 'quit');
 }
 function hideAllOverlays() {
   dom.menuOverlay.classList.add('hidden');
@@ -4129,6 +4180,67 @@ function hideAllOverlays() {
   if (dom.victoryOverlay) dom.victoryOverlay.classList.add('hidden');
   if (dom.skillsOverlay) dom.skillsOverlay.classList.add('hidden');
   if (dom.settingsOverlay) dom.settingsOverlay.classList.add('hidden');
+  if (dom.achievementsOverlay) dom.achievementsOverlay.classList.add('hidden');
+  if (dom.quitOverlay) dom.quitOverlay.classList.add('hidden');
+}
+
+// ---------------------------------------------------------------- 成就一览界面
+function renderAchievements() {
+  var grid = document.getElementById('ach-grid');
+  if (!grid) return;
+  var html = '', unlocked = 0, total = 0;
+  for (var id in ACHIEVEMENTS) {
+    if (!ACHIEVEMENTS.hasOwnProperty(id)) continue;
+    total++;
+    var def = ACHIEVEMENTS[id];
+    var got = !!save.achievements[id];
+    if (got) unlocked++;
+    html += '<div class="ach-card ' + (got ? 'unlocked' : 'locked') + '">' +
+      '<div class="ach-ico">' + def.ico + '</div>' +
+      '<div class="ach-body">' +
+        '<div class="ach-name">' + def.name + '</div>' +
+        '<div class="ach-desc">' + def.desc + '</div>' +
+      '</div>' +
+      '<div class="ach-state">' + (got ? '✓' : '🔒') + '</div>' +
+    '</div>';
+  }
+  grid.innerHTML = html;
+  var prog = document.getElementById('ach-progress');
+  if (prog) prog.textContent = '已解锁 ' + unlocked + ' / ' + total;
+}
+
+function openAchievements() {
+  renderAchievements();
+  state = 'achievements';
+  hideAllOverlays();
+  if (dom.achievementsOverlay) dom.achievementsOverlay.classList.remove('hidden');
+  if (document.exitPointerLock) document.exitPointerLock();
+}
+
+function closeAchievements() {
+  state = 'menu';
+  showOverlay('menu');
+}
+
+function resetAchievements() {
+  if (!window.confirm('确定要清空全部成就记录吗？此操作不可撤销。')) return;
+  save.achievements = {};
+  persistSave();
+  renderAchievements();
+}
+
+// ---------------------------------------------------------------- 退出游戏
+function quitGame() {
+  hideAllOverlays();
+  state = 'quit';
+  if (dom.quitOverlay) dom.quitOverlay.classList.remove('hidden');
+  if (bgmEl) bgmEl.pause();
+  if (bossEl) bossEl.pause();
+  if (menuEl) menuEl.pause();
+  if (progressEl) progressEl.pause();
+  // 浏览器一般只允许关闭脚本打开的窗口；失败时停留在告别画面，玩家可自行关闭标签页
+  try { window.close(); } catch (e) {}
+  setTimeout(function () { try { window.close(); } catch (e) {} }, 350);
 }
 
 // ---------------------------------------------------------------- 设置面板
@@ -4709,9 +4821,26 @@ function update(dt) {
   updateWaves(dt);    // 波次系统：刷怪节奏与 Boss 刷新（每 bossEveryWaves 波一只）
 }
 
+/** 进入游戏世界：按需构建场景（只构建一次，之后复用到卸载为止） */
+function enterGameWorld() {
+  if (!envBuilt) {
+    buildEnvironment();
+    buildMiniMap();
+  }
+}
+
+/** 纯 UI 界面：主菜单 / 选关 / 成就 / 退出画面 —— 不显示 3D 场景，也不推进游戏逻辑 */
+function isUiOnlyState() {
+  return state === 'menu' || state === 'levelSelect' || state === 'achievements' || state === 'quit';
+}
+
 function animate() {
   requestAnimationFrame(animate);
   var dt = Math.min(0.05, clock.getDelta());
+  if (isUiOnlyState()) {
+    updateBgm(dt);        // 菜单音乐仍需继续推进
+    return;               // 不渲染 3D 场景（菜单使用独立的 CSS 背景），也不跑敌人 AI
+  }
   update(dt);
   renderer.render(scene, camera);
 }
@@ -4748,6 +4877,7 @@ function init() {
     scoreValue: 'score-value', killsValue: 'kills-value',
     damageFlash: 'damage-flash', crosshair: 'crosshair', killfeed: 'killfeed',
     bomberWarn: 'bomber-warn', settingsOverlay: 'settings-overlay',
+    achievementsOverlay: 'achievements-overlay', quitOverlay: 'quit-overlay',
     menuOverlay: 'menu-overlay', pauseOverlay: 'pause-overlay',
     gameoverOverlay: 'gameover-overlay', finalScore: 'final-score', finalKills: 'final-kills',
     gameoverTitle: 'gameover-title',
@@ -4777,9 +4907,8 @@ function init() {
   var preview = document.getElementById('fish-preview');
   if (preview && window.FISH_TEXTURE_DATA) preview.src = window.FISH_TEXTURE_DATA;
 
-  buildEnvironment();
-  mark('environment');
-  buildMiniMap();
+  // 注意：环境与小地图改为「首次进入游戏时」构建（见 btn-level-desert 处理），
+  // 主菜单不再是已经加载了游戏场景的状态。
   initBgm();
   buildPlayer();
   mark('player');
@@ -4851,12 +4980,28 @@ function init() {
   if (btnSetPause) btnSetPause.addEventListener('click', function () { openSettings(); });
   var btnSetClose = document.getElementById('btn-settings-close');
   if (btnSetClose) btnSetClose.addEventListener('click', function () { closeSettings(); });
+  // 暂停界面：回到主菜单（restartGame(true) 会完整清场：敌人/子弹/特效/波次全部重置）
+  var btnPauseMenu = document.getElementById('btn-pause-menu');
+  if (btnPauseMenu) btnPauseMenu.addEventListener('click', function () {
+    if (state !== 'paused' && state !== 'gameover' && state !== 'playing') return;
+    restartGame(true);
+  });
+  // 主菜单：成就一览 / 退出游戏
+  var btnAch = document.getElementById('btn-achievements');
+  if (btnAch) btnAch.addEventListener('click', function () { openAchievements(); });
+  var btnAchClose = document.getElementById('btn-ach-close');
+  if (btnAchClose) btnAchClose.addEventListener('click', function () { closeAchievements(); });
+  var btnAchReset = document.getElementById('btn-ach-reset');
+  if (btnAchReset) btnAchReset.addEventListener('click', function () { resetAchievements(); });
+  var btnQuit = document.getElementById('btn-quit');
+  if (btnQuit) btnQuit.addEventListener('click', function () { quitGame(); });
   bindSettingsInputs();
   applySettings();          // 读档后立即应用音量 / 灵敏度 / 画质
   var btnLevelDesert = document.getElementById('btn-level-desert');
   var btnLevelBack = document.getElementById('btn-level-back');
   if (btnLevelDesert) btnLevelDesert.addEventListener('click', function () {
     if (state !== 'levelSelect') return;
+    enterGameWorld();     // 首次进入时构建场景（主菜单不加载世界）
     hideAllOverlays();
     requestLockWithFallback();
   });
@@ -4898,6 +5043,18 @@ window.FishGame = {
         list.push({ i: i, alive: en.alive, hasVoice: !!en.voiceAudio, paused: en.voiceAudio ? en.voiceAudio.paused : null });
       }
       return list;
+    },
+    enterGameWorld: enterGameWorld,       // 测试用：构建游戏世界
+    unloadGameScene: unloadGameScene,     // 测试用：卸载游戏世界
+    getSceneStats: function () {
+      var meshes = 0;
+      scene.traverse(function (o) { if (o.isMesh || o.isSprite || o.isPoints) meshes++; });
+      return {
+        children: scene.children.length, meshes: meshes,
+        envBuilt: envBuilt, envObjects: envObjects.length,
+        obstacles: obstacles.length, wallMeshes: wallMeshes.length,
+        enemies: enemies.filter(function (e) { return e.alive; }).length,
+      };
     },
     getRandomCovers: function () { return randomCovers.map(function (m) { return { x: +m.position.x.toFixed(2), z: +m.position.z.toFixed(2) }; }); },
     respawnCovers: spawnRandomCovers,

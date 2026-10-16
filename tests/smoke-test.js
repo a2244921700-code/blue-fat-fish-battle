@@ -138,6 +138,8 @@ const cheatSeq = ['KeyW', 'KeyW', 'KeyS', 'KeyS', 'KeyA', 'KeyA', 'KeyD', 'KeyD'
 (async function main() {
 // game.js 已自动执行 init，此处仅等待贴图回调
 await tick(); // 让 Image onload(setTimeout) 执行，生成肥鱼
+// 地图改为「首次进入游戏时才构建」（主菜单不再加载世界），测试在此显式构建
+dbg.enterGameWorld();
 check('初始状态为菜单', dbg.getState() === 'menu', dbg.getState());
 advance(0.3);
 check('肥鱼贴图已加载', dbg.isFishReady() === true);
