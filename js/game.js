@@ -3928,6 +3928,7 @@ function makeBossSword() {
   handle.rotation.x = Math.PI / 2; handle.position.set(0, 0, 2.15);
   g.add(blade, tip, guard, handle);
   g.position.set(-1.35, -1.3, 0.5);
+  g.rotation.y = Math.PI * 0.32;      // 斜握：剑身侧向，不正面挡脸
   var tipAnchor = new THREE.Object3D();
   tipAnchor.position.set(0, 0, -2.2);
   g.add(tipAnchor);
@@ -3953,6 +3954,7 @@ function makeBossStaff() {
   ring2.rotation.y = Math.PI / 2;
   g.add(rod, head, halo, ring2);
   g.position.set(-1.35, -1.3, 0.5);
+  g.rotation.y = Math.PI * 0.28;      // 略斜：法球与杖身都能看清
   var tipAnchor = new THREE.Object3D();
   tipAnchor.position.set(0, 0, -2.1);
   g.add(tipAnchor);
@@ -3979,6 +3981,7 @@ function makeBossCannon() {
   base.position.set(0, 0, 0.6);
   g.add(base);
   g.position.set(-1.35, -1.3, 0.5);
+  g.rotation.y = Math.PI * 0.5;       // 完全侧向：三根炮管从侧面展示，不再正对镜头变成黑块
   var tipAnchor = new THREE.Object3D();
   tipAnchor.position.set(0, 0, -2.2);
   g.add(tipAnchor);
@@ -4015,7 +4018,9 @@ function spawnBoss() {
   mesh.castShadow = true;
   mesh.position.set(pos.x, 3.0, pos.z);
   var weapon = makeBossWeapon(variant);
-  weapon.scale.set(3, 3, 3);
+  // 武器整体尺寸：2.0 倍（Boss 本体是 6 米高；3 倍时炮管/巨剑会宽过本体，
+  // 正面视角变成一整块黑色挡住 Boss，缩小后既能看清武器形状也不挡脸）
+  weapon.scale.set(2.0, 2.0, 2.0);
   mesh.add(weapon);
   scene.add(mesh);
   var bossHpNow = Math.round(bossHpNext * variant.hpMul);
