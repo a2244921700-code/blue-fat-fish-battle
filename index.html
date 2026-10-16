@@ -144,6 +144,21 @@ window.addEventListener('load', function () {
     50%      { opacity: .82; }
   }
 
+  /* ---------- 设置面板 ---------- */
+  .set-group { margin: 14px 0 6px; text-align: left; }
+  .set-row { display: flex; align-items: center; gap: 10px; margin: 9px 0; font-size: 13.5px; }
+  .set-row label { flex: 0 0 108px; color: #dfe7f2; letter-spacing: .5px; }
+  .set-row input[type=range] { flex: 1; height: 4px; -webkit-appearance: none; appearance: none;
+    background: rgba(255,255,255,.18); border-radius: 2px; outline: none; }
+  .set-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px;
+    border-radius: 50%; background: linear-gradient(180deg,#7fc4ff,#3f8ce0); cursor: pointer;
+    box-shadow: 0 0 6px rgba(90,160,255,.6); }
+  .set-row input[type=range]::-moz-range-thumb { width: 15px; height: 15px; border: none; border-radius: 50%;
+    background: #5aa0f0; cursor: pointer; }
+  .set-row input[type=checkbox] { width: 17px; height: 17px; accent-color: #4f9df0; cursor: pointer; }
+  .set-val { flex: 0 0 46px; text-align: right; color: #8ef0b0; font-size: 12.5px; }
+  .set-note { color: rgba(160,178,200,.8); font-size: 11.5px; margin: 8px 0 12px; }
+
   /* ---------- 结算统计 / 历史最佳 ---------- */
   .stat-detail { color: rgba(190,205,225,.88); font-size: 13px; line-height: 1.75; margin-top: 6px; }
   .stat-detail b { color: #cfe3ff; font-weight: 600; }
@@ -496,6 +511,7 @@ window.addEventListener('load', function () {
       <span><span class="k">Esc</span> 暂停</span>
     </div>
     <button id="btn-start" class="big-btn">开始游戏</button>
+    <button id="btn-settings-menu" class="big-btn ghost">设置</button>
     <div id="best-records" class="best-records hidden">
       历史最佳：得分 <b id="best-score">0</b> · 存活 <b id="best-time">0:00</b> · 最高连杀 <b id="best-combo">—</b><br>
       最远到达 第 <b id="best-stage">1</b> 阶段 · 第 <b id="best-wave">0</b> 波 · 击破 Boss <b id="best-boss">0</b> 只
@@ -533,7 +549,28 @@ window.addEventListener('load', function () {
     <h1>已暂停</h1>
     <div class="sub-title">大鱼们都在原地等你</div>
     <button id="btn-resume" class="big-btn">继续游戏</button>
+    <button id="btn-settings-pause" class="big-btn ghost">设置</button>
     <div class="note">点击继续后将重新锁定鼠标</div>
+  </div>
+</div>
+
+<!-- 设置（音量 / 灵敏度 / 画质 / 色盲友好） -->
+<div id="settings-overlay" class="overlay hidden">
+  <div class="panel">
+    <h1>设置</h1>
+    <div class="sub-title">调整后立即生效，并自动保存到本地</div>
+    <div class="set-group">
+      <div class="set-row"><label>主背景音乐</label><input type="range" id="set-bgm" min="0" max="100" step="5" value="100"><span class="set-val" id="set-bgm-val">100%</span></div>
+      <div class="set-row"><label>Boss 战斗曲</label><input type="range" id="set-boss" min="0" max="100" step="5" value="100"><span class="set-val" id="set-boss-val">100%</span></div>
+      <div class="set-row"><label>菜单音乐</label><input type="range" id="set-menu" min="0" max="100" step="5" value="100"><span class="set-val" id="set-menu-val">100%</span></div>
+      <div class="set-row"><label>音效</label><input type="range" id="set-sfx" min="0" max="100" step="5" value="100"><span class="set-val" id="set-sfx-val">100%</span></div>
+      <div class="set-row"><label>鼠标灵敏度</label><input type="range" id="set-sens" min="25" max="300" step="5" value="100"><span class="set-val" id="set-sens-val">100%</span></div>
+      <div class="set-row"><label>粒子特效</label><input type="checkbox" id="set-particles" checked></div>
+      <div class="set-row"><label>阴影渲染</label><input type="checkbox" id="set-shadow" checked></div>
+      <div class="set-row"><label>色盲友好配色</label><input type="checkbox" id="set-colorblind"></div>
+    </div>
+    <div class="set-note">色盲友好配色会把剑气与自爆警告从红/青改为蓝/黄系</div>
+    <button id="btn-settings-close" class="big-btn">关闭</button>
   </div>
 </div>
 

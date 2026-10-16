@@ -248,6 +248,7 @@ var menuMusicVol = 0;              // 菜单曲当前音量（进入游戏时 0.
 var menuMusicOn = false;           // 菜单曲播放标记
 // ---------------------------------------------------------------- 本地存档（最高记录 / 设置 / 成就）
 // 用 localStorage 持久化；隐私模式或存储被禁用时静默降级为「本局有效」
+var sens = 0.0022;   // 鼠标灵敏度（设置面板会按倍数调整）
 var SAVE_KEY = 'bff_save_v1';
 var save = {
   bestScore: 0,      // 历史最高得分
@@ -257,7 +258,11 @@ var save = {
   bestStage: 1,      // 最远阶段
   bestBoss: 0,       // 单局最多击破 Boss
   unlockedLevel: false,                              // 闯关模式解锁（预留）
-  settings: { master: 1.0, bgm: 1.0, sfx: 1.0, sens: 1.0 },  // 设置（设置面板使用）
+  settings: {
+    bgm: 1.0, boss: 1.0, menu: 1.0, sfx: 1.0,   // 音量倍数（0~1）
+    sens: 1.0,                                   // 鼠标灵敏度倍数（0.25~3.0）
+    particles: true, shadow: true, colorblind: false,  // 画质与无障碍
+  },
   achievements: {},                                  // 成就解锁状态（成就系统使用）
 };
 
@@ -270,6 +275,12 @@ function loadSave() {
       for (var k in save) {
         if (obj[k] !== undefined && obj[k] !== null) save[k] = obj[k];
       }
+      // settings 是嵌套对象：逐字段合并，兼容旧存档缺失的键
+      if (obj.settings && typeof obj.settings === 'object') {
+        for (var sk in save.settings) {
+          if (obj.settings[sk] !== undefined) save.settings[sk] = obj.settings[sk];
+        }
+      }
     }
   } catch (e) { /* 隐私模式 / 存储禁用：忽略 */ }
 }
@@ -277,6 +288,22 @@ function loadSave() {
 function persistSave() {
   try { window.localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
 }
+
+/** 音量目标值（基础值 × 玩家设置） */
+function bossVolTarget() { return CFG.bossMusicVolume * save.settings.boss; }
+function menuVolTarget() { return CFG.menuMusicVolume * save.settings.menu; }
+
+/** 应用设置（启动、面板调整、读档后调用） */
+function applySettings() {
+  var s = save.settings;
+  if (bgmEl) bgmEl.volume = Math.min(1, CFG.bgmVolume * s.bgm);
+  if (renderer) renderer.shadowMap.enabled = !!s.shadow;
+  sens = 0.0022 * s.sens;                       // 鼠标灵敏度
+  if (Sfx && Sfx.setMasterVolume) Sfx.setMasterVolume(0.5 * s.sfx);
+}
+
+/** 当前剑气颜色（色盲友好时改为金黄色） */
+function swordWaveColor() { return save.settings.colorblind ? 0xffd24a : 0x3fb0ff; }
 
 /** 秒 → mm:ss */
 function formatTime(sec) {
@@ -348,6 +375,8 @@ var dom = Object.create(null);
 // ---------------------------------------------------------------- 音效（WebAudio 程序合成，无音频文件）
 var Sfx = (function () {
   var ctx = null, master = null, noiseBuf = null;
+  // 总音量可调（设置面板「音效」滑块）
+  function setMasterVolume(v) { if (master) master.gain.value = Math.max(0, Math.min(1, v)); }
   function ensure() {
     if (ctx) return true;
     var AC = window.AudioContext || window.webkitAudioContext;
@@ -394,6 +423,7 @@ var Sfx = (function () {
   }
   return {
     init: ensure,
+    setMasterVolume: setMasterVolume,
     shoot:    function () { noiseHit(0.13, 'bandpass', 900, 220, 0.5); tone('sine', 160, 55, 0.11, 0.35); },
     hitFish:  function () { noiseHit(0.07, 'highpass', 1800, 1200, 0.32); tone('sine', 950, 420, 0.08, 0.2); },
     fishDie:  function () { tone('sine', 520, 140, 0.28, 0.45); noiseHit(0.22, 'lowpass', 700, 300, 0.3); },
@@ -471,7 +501,7 @@ function initBgm() {
     menuEl = new Audio();
     menuEl.src = 'assets/menu.mp3';
     menuEl.loop = true;
-    menuEl.volume = CFG.menuMusicVolume;
+    menuEl.volume = menuVolTarget();
     menuEl.preload = 'auto';
   } catch (e) { bgmEl = null; overEl = null; bossEl = null; progressEl = null; menuEl = null; }
 }
@@ -490,10 +520,11 @@ function updateBgm(dt) {
   try {
     // ---- 战斗曲音量包络 ----
     if (bossMusicTempo === 1) {                     // 淡入
-      bossMusicVol = Math.min(CFG.bossMusicVolume, bossMusicVol + (CFG.bossMusicVolume / CFG.bossMusicFadeIn) * dt);
-      if (bossMusicVol >= CFG.bossMusicVolume) bossMusicTempo = 2;
+      var bossTarget = bossVolTarget();
+      bossMusicVol = Math.min(bossTarget, bossMusicVol + (bossTarget / CFG.bossMusicFadeIn) * dt);
+      if (bossMusicVol >= bossTarget) bossMusicTempo = 2;
     } else if (bossMusicTempo === -1) {             // 淡出（匀速 0.5s → 0）
-      bossMusicVol = Math.max(0, bossMusicVol - (CFG.bossMusicVolume / CFG.bossMusicFadeOut) * dt);
+      bossMusicVol = Math.max(0, bossMusicVol - (bossVolTarget() / CFG.bossMusicFadeOut) * dt);
       if (bossMusicVol <= 0) {
         bossMusicTempo = 0;
         if (bossEl) {
@@ -508,9 +539,9 @@ function updateBgm(dt) {
     // ---- 菜单曲：开始/选关界面播放；进入游戏后 0.5 秒匀速淡出 ----
     if (state === 'menu' || state === 'levelSelect') {
       menuMusicOn = true;
-      menuMusicVol = CFG.menuMusicVolume;
+      menuMusicVol = menuVolTarget();
       if (menuEl) {
-        menuEl.volume = CFG.menuMusicVolume;
+        menuEl.volume = menuVolTarget();
         if (menuEl.paused) safePlay(menuEl);
       }
       if (bgmEl && !bgmEl.paused) bgmEl.pause();
@@ -520,7 +551,7 @@ function updateBgm(dt) {
     } else if (state === 'playing' || state === 'reward' || state === 'skills') {
       // 从菜单进入游戏：来去曼波淡出收尾（音量包络独立于音频元素，元素存在时同步音量与停止）
       if (menuMusicOn) {
-        menuMusicVol = Math.max(0, menuMusicVol - (CFG.menuMusicVolume / CFG.menuMusicFadeOut) * dt);
+        menuMusicVol = Math.max(0, menuMusicVol - (menuVolTarget() / CFG.menuMusicFadeOut) * dt);
         if (menuEl) menuEl.volume = menuMusicVol;
         if (menuMusicVol <= 0.001) {
           menuMusicVol = 0;
@@ -1222,7 +1253,7 @@ function buildParticles() {
 }
 
 function spawnBurst(pos, hex, count, power) {
-  if (!particles) return;
+  if (!particles || !save.settings.particles) return;   // 设置里可关闭粒子特效
   var c = new THREE.Color(hex);
   for (var i = 0; i < count; i++) {
     var idx = particles.cursor;
@@ -1720,7 +1751,7 @@ function updateEnemies(dt) {
           _tmpWaveDir.set(
             player.pos.x - e.mesh.position.x, 0.18,
             player.pos.z - e.mesh.position.z).normalize();
-          spawnSwordWave(_tmpSwordPos, _tmpWaveDir, 0x3fb0ff);   // 弧形剑气（饱和青蓝）
+          spawnSwordWave(_tmpSwordPos, _tmpWaveDir, swordWaveColor());   // 弧形剑气（色盲友好时改为金黄）
           spawnBurst(_tmpSwordPos, 0xcfefff, 6, 2.0);            // 剑刃火花
         }
         damagePlayer(Math.min(CFG.meleeDmgMax, Math.round(rand(CFG.fishDamageMin, CFG.fishDamageMax)) + meleeAtkBonus),
@@ -3733,6 +3764,7 @@ function showOverlay(which) {
   if (dom.rewardOverlay) dom.rewardOverlay.classList.toggle('hidden', which !== 'reward');
   if (dom.victoryOverlay) dom.victoryOverlay.classList.toggle('hidden', which !== 'victory');
   if (dom.skillsOverlay) dom.skillsOverlay.classList.toggle('hidden', which !== 'skills');
+  if (dom.settingsOverlay) dom.settingsOverlay.classList.toggle('hidden', which !== 'settings');
 }
 function hideAllOverlays() {
   dom.menuOverlay.classList.add('hidden');
@@ -3742,6 +3774,87 @@ function hideAllOverlays() {
   if (dom.rewardOverlay) dom.rewardOverlay.classList.add('hidden');
   if (dom.victoryOverlay) dom.victoryOverlay.classList.add('hidden');
   if (dom.skillsOverlay) dom.skillsOverlay.classList.add('hidden');
+  if (dom.settingsOverlay) dom.settingsOverlay.classList.add('hidden');
+}
+
+// ---------------------------------------------------------------- 设置面板
+var settingsReturnState = 'menu';    // 关闭设置后回到哪个界面
+
+function openSettings() {
+  if (state !== 'settings') settingsReturnState = state;
+  state = 'settings';
+  renderSettingsUI();
+  hideAllOverlays();
+  if (dom.settingsOverlay) dom.settingsOverlay.classList.remove('hidden');
+  if (document.exitPointerLock) document.exitPointerLock();
+}
+
+function closeSettings() {
+  hideAllOverlays();
+  if (settingsReturnState === 'playing') {
+    state = 'playing';
+    requestLockWithFallback();
+  } else if (settingsReturnState === 'paused') {
+    state = 'paused';
+    showOverlay('pause');
+  } else if (settingsReturnState === 'gameover') {
+    state = 'gameover';
+    showOverlay('gameover');
+  } else {
+    state = 'menu';
+    showOverlay('menu');
+  }
+}
+
+/** 把当前设置填回面板控件 */
+function renderSettingsUI() {
+  var s = save.settings;
+  function setRange(id, val) {
+    var el = document.getElementById(id);
+    if (el) el.value = String(Math.round(val * 100));
+    var lab = document.getElementById(id + '-val');
+    if (lab) lab.textContent = Math.round(val * 100) + '%';
+  }
+  setRange('set-bgm', s.bgm);
+  setRange('set-boss', s.boss);
+  setRange('set-menu', s.menu);
+  setRange('set-sfx', s.sfx);
+  setRange('set-sens', s.sens);
+  var p = document.getElementById('set-particles'); if (p) p.checked = !!s.particles;
+  var sh = document.getElementById('set-shadow'); if (sh) sh.checked = !!s.shadow;
+  var cb = document.getElementById('set-colorblind'); if (cb) cb.checked = !!s.colorblind;
+}
+
+/** 绑定设置控件（实时生效 + 自动保存） */
+function bindSettingsInputs() {
+  function bindRange(id, key) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', function () {
+      save.settings[key] = Number(el.value) / 100;
+      var lab = document.getElementById(id + '-val');
+      if (lab) lab.textContent = el.value + '%';
+      persistSave();
+      applySettings();
+    });
+  }
+  bindRange('set-bgm', 'bgm');
+  bindRange('set-boss', 'boss');
+  bindRange('set-menu', 'menu');
+  bindRange('set-sfx', 'sfx');
+  bindRange('set-sens', 'sens');
+  function bindCheck(id, key) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('change', function () {
+      save.settings[key] = !!el.checked;
+      persistSave();
+      applySettings();
+    });
+  }
+  bindCheck('set-particles', 'particles');
+  bindCheck('set-shadow', 'shadow');
+  bindCheck('set-colorblind', 'colorblind');
 }
 
 // 关卡选择界面
@@ -4015,7 +4128,6 @@ function onMouseMove(ev) {
     dy = ev.clientY - fbLastY;
     fbLastX = ev.clientX; fbLastY = ev.clientY;
   }
-  var sens = 0.0022;
   player.yaw -= dx * sens;
   player.pitch -= dy * sens;
   player.pitch = clamp(player.pitch, -1.55, 1.55);
@@ -4271,7 +4383,7 @@ function init() {
     healthFill: 'health-fill', healthText: 'health-text',
     scoreValue: 'score-value', killsValue: 'kills-value',
     damageFlash: 'damage-flash', crosshair: 'crosshair', killfeed: 'killfeed',
-    bomberWarn: 'bomber-warn',
+    bomberWarn: 'bomber-warn', settingsOverlay: 'settings-overlay',
     menuOverlay: 'menu-overlay', pauseOverlay: 'pause-overlay',
     gameoverOverlay: 'gameover-overlay', finalScore: 'final-score', finalKills: 'final-kills',
     gameoverTitle: 'gameover-title',
@@ -4368,6 +4480,15 @@ function init() {
   // 技能面板"关闭并继续游戏"按钮（触屏设备无键盘时必需）
   var btnSkillsClose = document.getElementById('btn-skills-close');
   if (btnSkillsClose) btnSkillsClose.addEventListener('click', function () { closeSkills(); });
+  // 设置面板：主菜单 / 暂停界面入口 + 关闭按钮 + 控件绑定
+  var btnSetMenu = document.getElementById('btn-settings-menu');
+  if (btnSetMenu) btnSetMenu.addEventListener('click', function () { openSettings(); });
+  var btnSetPause = document.getElementById('btn-settings-pause');
+  if (btnSetPause) btnSetPause.addEventListener('click', function () { openSettings(); });
+  var btnSetClose = document.getElementById('btn-settings-close');
+  if (btnSetClose) btnSetClose.addEventListener('click', function () { closeSettings(); });
+  bindSettingsInputs();
+  applySettings();          // 读档后立即应用音量 / 灵敏度 / 画质
   var btnLevelDesert = document.getElementById('btn-level-desert');
   var btnLevelBack = document.getElementById('btn-level-back');
   if (btnLevelDesert) btnLevelDesert.addEventListener('click', function () {
