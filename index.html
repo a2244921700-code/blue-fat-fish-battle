@@ -612,7 +612,7 @@ window.addEventListener('load', function () {
     <div class="reload-label">换弹中...</div>
     <div id="reload-bar"><div id="reload-fill"></div></div>
   </div>
-  <div id="tip-bar">WASD 移动 · 左键射击 · R 换弹 · G 手雷 · I 技能面板 · 空格跳跃 · Esc 暂停</div>
+  <div id="tip-bar">WASD 移动 · <b>1/2/3 切换武器</b> · 左键射击 · <b>右键匕首重击</b> · R 换弹 · G 手雷 · I 技能面板 · 空格跳跃 · Esc 暂停</div>
   <div id="minimap"><canvas id="minimap-canvas" width="210" height="210"></canvas></div>
 </div>
 
@@ -664,7 +664,9 @@ window.addEventListener('load', function () {
     </div>
     <div class="controls">
       <span><span class="k">W A S D</span> 移动</span>
-      <span><span class="k">鼠标</span> 瞄准 / 左键射击</span>
+      <span><span class="k">1 / 2 / 3</span> 切换武器（手枪 / 步枪 / 匕首）</span>
+      <span><span class="k">鼠标左键</span> 射击（步枪可按住连发）／ 匕首轻击</span>
+      <span><span class="k">鼠标右键</span> 匕首重击（伤害 2 倍）</span>
       <span><span class="k">空格</span> 跳跃</span>
       <span><span class="k">R</span> 换弹</span>
       <span><span class="k">G</span> 手雷（落地即爆炸，小心自伤）</span>

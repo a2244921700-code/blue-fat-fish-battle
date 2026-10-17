@@ -285,6 +285,7 @@ var save = {
   bestStage: 1,      // 最远阶段
   bestBoss: 0,       // 单局最多击破 Boss
   unlockedLevel: false,                              // 闯关模式解锁（预留）
+  tutorialShown: false,                              // 是否已弹过「三武器」新手提示
   stats: { totalKills: 0, totalBoss: 0, totalGames: 0 },  // 跨局累计统计（成就用）
   v: 4,                                              // 存档版本（用于一次性迁移）
   settings: {
@@ -431,7 +432,11 @@ var WEAPONS = {
     magSize: 0, reserveStart: 0, reserveMagMul: 0,
     shootInterval: 0.38,         // 轻击间隔
     heavyCd: 1.05,               // 重击间隔（明显更慢）
-    range: 1.0,                  // 攻击范围 1 米（手臂 + 匕首长度）
+    // ★ N4 修复：攻击范围 1.0 -> 2.6 米。
+    //   近战鱼攻击范围 2.1 米，1.0 米的匕首会让玩家必定站在敌人攻击圈里 ——
+    //   杀一只 10 血小怪要挨 3 次咬（45~150 伤害），基本必死。
+    //   2.6 米略大于敌人，让「卡着距离戳」成为真正的技术点。
+    range: 2.6,
     damage: 2,                   // 轻击基础伤害
     heavyMul: 2,                 // 重击伤害恒为轻击的 2 倍
     auto: false,                 // 需要逐次点击
@@ -548,6 +553,7 @@ var ACHIEVEMENTS = {
   pierce3:     { ico: '➶', name: '一石三鸟',   desc: '一次射击穿透击杀 3 条肥鱼' },
   maxCore:     { ico: '🏆', name: '登峰造极',   desc: '把任意一项核心技能升到满级' },
   ghost:       { ico: '💀', name: '自爆旁观者', desc: '在自爆鱼引爆时保持 5 米以上距离全身而退' },
+  conqueror:   { ico: '🏅', name: '无尽征服者', desc: '通关无尽模式（核心技能全满后再击败一只 Boss）' },
 };
 var achTimer = null;
 var runTookDamage = false;   // 本局是否受过伤（「完美无瑕」成就用）
@@ -3308,21 +3314,36 @@ function refreshUpgradesMaxFlag() {
 }
 
 // 从未满级技能中随机抽取（最多 3 个；不足 3 个有多少抽多少）
+// ★ N1 修复：保证至少出现一张「核心技能」牌。
+//   原来从全部未满级技能（核心 + 扩展）里直接抽 3 张 —— 核心只剩 1 项未满时，
+//   有 C(5,3)/C(6,3) = 50% 的概率一张核心都不出，玩家会被迫连续点扩展技能，
+//   实测通关被拉长到约 23 只 Boss（README 声称 20 只）。
 function pickRewardOptions() {
-  var pool = [];
+  function shuffle(a) {
+    for (var j = a.length - 1; j > 0; j--) {
+      var k = Math.floor(Math.random() * (j + 1));
+      var t = a[j]; a[j] = a[k]; a[k] = t;
+    }
+    return a;
+  }
+  var corePool = [], extPool = [];
   for (var i = 0; i < UPGRADE_ORDER.length; i++) {
     var id = UPGRADE_ORDER[i];
-    if (upgrades[id] < CFG.upgradeMaxLevel) pool.push(id);
+    if (upgrades[id] >= CFG.upgradeMaxLevel) continue;   // 已满级不参与
+    if (CORE_UPGRADES.indexOf(id) >= 0) corePool.push(id);
+    else extPool.push(id);
   }
-  for (var j = pool.length - 1; j > 0; j--) {
-    var k = Math.floor(Math.random() * (j + 1));
-    var t = pool[j]; pool[j] = pool[k]; pool[k] = t;
+  var picked = [];
+  if (corePool.length > 0) {          // ① 核心未满：先固定塞一张核心牌
+    shuffle(corePool);
+    picked.push(corePool.pop());
   }
-  var take = Math.min(3, pool.length);
+  var rest = shuffle(corePool.concat(extPool));   // ② 剩余名额从混合池抽
+  while (picked.length < 3 && rest.length > 0) picked.push(rest.pop());
+  shuffle(picked);                    // 打乱顺序，避免核心永远在第一张
   var opts = [];
-  for (var m = 0; m < take; m++) {
-    var pid = pool[m];
-    opts.push({ id: pid, lv: upgrades[pid], def: UPGRADE_DEFS[pid] });
+  for (var m = 0; m < picked.length; m++) {
+    opts.push({ id: picked[m], lv: upgrades[picked[m]], def: UPGRADE_DEFS[picked[m]] });
   }
   return opts;
 }
@@ -3615,6 +3636,7 @@ function updateArmorHUD() {
 // 无尽模式通关：全部技能满级后再次击杀 Boss
 function victory() {
   state = 'victory';
+  unlockAchievement('conqueror');     // 成就：无尽征服者（通关）
   Sfx.bossDie();
   if (document.exitPointerLock) document.exitPointerLock();
   if (dom.finalScoreV) dom.finalScoreV.textContent = String(score);
@@ -3739,12 +3761,15 @@ function spawnMagItem(pos) {
   var list = MAG_TIERS[weapon];
   var maxT = list.length - 1;
   var cur = magTier[weapon] || 0;
+  // ★ N2 修复：所有掉落都保证有效。
+  //   原来是 45% +1 / 27% +2 / 16% 同级 / 12% 低级 —— 后两档共 28% 捡了不生效。
+  //   现在 45% +1 / 27% +2 / 28% 也是 +1；该枪已满档时干脆不掉落。
+  if (cur >= maxT) return;             // 满档：不再掉落这把枪的弹夹
   var roll = Math.random();
   var tier;
   if (roll < 0.45)      tier = Math.min(maxT, cur + 1);
   else if (roll < 0.72) tier = Math.min(maxT, cur + 2);
-  else if (roll < 0.88) tier = Math.min(maxT, Math.max(1, cur));       // 同级（不会生效）
-  else                  tier = Math.max(1, cur - 1);                   // 低级（不会生效）
+  else                  tier = Math.min(maxT, cur + 1);
   if (tier <= 0) tier = 1;
   var mesh = buildMagItem(weapon, tier, pos);
   scene.add(mesh);
@@ -5710,6 +5735,15 @@ function enterGameWorld() {
     buildEnvironment();
     buildMiniMap();
   }
+  // ★ N6 修复：首次进入游戏时提示三武器切换（V0.5.0 的核心操作，
+  //   原来在任何教学文本里都没有出现，不看 README 的玩家根本不知道有步枪和匕首）
+  if (!save.tutorialShown) {
+    save.tutorialShown = true;
+    persistSave();
+    setTimeout(function () {
+      showNotice('【1 / 2 / 3】切换武器：手枪（点射）· 步枪（按住连发）· 匕首（右键重击）');
+    }, 1100);
+  }
 }
 
 /** 纯 UI 界面：主菜单 / 选关 / 成就 / 退出画面 —— 不显示 3D 场景，也不推进游戏逻辑 */
@@ -5959,6 +5993,9 @@ window.FishGame = {
         lightZ: gun.light ? +gun.light.position.z.toFixed(3) : null,
       };
     },
+    getRewardOptionsPreview: pickRewardOptions,          // 测试用：预览三选一
+    getAchievementCount: function () { return Object.keys(ACHIEVEMENTS).length; },
+    getKnifeRange: function () { return WEAPONS.knife.range; },
     knifeAttack: knifeAttack,                            // 测试用：匕首攻击（true = 重击）
     getKnifeCd: function () { return knifeCd; },
     getWeapon: function () { return currentWeapon; },
