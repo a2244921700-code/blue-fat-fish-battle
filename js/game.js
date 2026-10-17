@@ -171,6 +171,7 @@ function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
 var scene, camera, renderer, clock;
 var state = 'menu';            // menu | playing | paused | gameover
 var time = 0;                  // 游戏累计时间（秒）
+var _mmAcc = 0;                // 小地图重绘节流累加器
 var score = 0, kills = 0;
 var player = {
   pos: new THREE.Vector3(CFG.spawnPoint[0], 0, CFG.spawnPoint[1]),
@@ -289,6 +290,7 @@ var save = {
     bgm: 1.0, boss: 1.0, menu: 1.0, sfx: 1.0,   // 音量倍数（0~1）
     sens: 1.0,                                   // 鼠标灵敏度倍数（0.25~3.0）
     particles: true, shadow: true, colorblind: false,  // 画质与无障碍
+    autoRes: true,                               // 自适应分辨率：帧率不够时自动降采样
   },
   achievements: {},                                  // 成就解锁状态（成就系统使用）
 };
@@ -357,18 +359,135 @@ var SFX_FILES = {
   gameOver:    'sfx_gameover.mp3',
 };
 
-// 池化播放：每个音效准备若干 Audio 实例轮换，支持连发时重叠播放
+// =========================================================================
+// mp3 音效播放：两条路径
+//   A) WebAudio（首选）：把 mp3 预解码成 AudioBuffer，用 BufferSource 播放。
+//      采样级精确启动、无调度延迟，也不占 78 个 DOM 音频元素。
+//   B) HTMLAudioElement 池（回退）：WebAudio 不可用、或直接双击 index.html 打开时
+//      浏览器禁止 fetch 本地文件（file:// 的 CORS 限制），此时退回原来的池化播放。
+// 两条路径共用同一个 vol 公式，听感一致。
+// =========================================================================
 var SFX_POOL_SIZE = 6;
 var sfxPool = {};
 
+var _sfxCtx = null;          // 复用的 AudioContext（来自 Sfx，避免开第二个上下文）
+var _sfxBuf = {};            // key -> { bufs: AudioBuffer[], idx } | null（null = 该音效加载失败）
+var _sfxLoading = {};        // key -> Promise（防重复加载）
+var _sfxWebAudio = null;     // null 未判定 / true 可用 / false 全局回退
+
+/** 取（或懒创建）AudioContext；不可用时返回 null */
+function sfxContext() {
+  if (_sfxCtx) return _sfxCtx;
+  if (!Sfx || !Sfx.getCtx) return null;
+  _sfxCtx = Sfx.getCtx();
+  return _sfxCtx;
+}
+
+/** 浏览器要求音频上下文在用户手势后才能出声，这里补一次 resume */
+function resumeSfxContext() {
+  if (_sfxCtx && _sfxCtx.state === 'suspended' && _sfxCtx.resume) {
+    try { _sfxCtx.resume(); } catch (e) {}
+  }
+}
+
+/** 预解码某个音效的全部文件；失败时把该 key 标记为 null 并永久走回退路径 */
+function loadSfxBuffers(key) {
+  if (_sfxBuf[key] !== undefined) return Promise.resolve(_sfxBuf[key]);
+  if (_sfxLoading[key]) return _sfxLoading[key];
+  var ctx = sfxContext();
+  var files = SFX_FILES[key];
+  if (!ctx || !files || typeof fetch !== 'function') {
+    _sfxBuf[key] = null;
+    return Promise.resolve(null);
+  }
+  var list = Array.isArray(files) ? files : [files];
+  var p = Promise.all(list.map(function (f) {
+    return fetch('assets/sfx/' + f)
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
+      .then(function (ab) {
+        return new Promise(function (res, rej) { ctx.decodeAudioData(ab, res, rej); });
+      })
+      .catch(function () { return null; });   // 单个文件失败不影响其它
+  })).then(function (bufs) {
+    var ok = bufs.filter(Boolean);
+    if (!ok.length) {
+      // 整组都失败：多半是 file:// 协议，关掉 WebAudio 路径，后续不再重试
+      _sfxBuf[key] = null;
+      if (_sfxWebAudio === null) _sfxWebAudio = false;
+      return null;
+    }
+    _sfxWebAudio = true;
+    _sfxBuf[key] = { bufs: ok, idx: Math.floor(Math.random() * ok.length) };
+    return _sfxBuf[key];
+  });
+  _sfxLoading[key] = p;
+  return p;
+}
+
+/** 进入游戏时预热全部音效（14 个文件共约 640KB，一次性解码完） */
+var _sfxPreloaded = false;
+function preloadSfx() {
+  if (_sfxPreloaded || _sfxWebAudio === false) return;
+  if (!sfxContext()) return;
+  _sfxPreloaded = true;
+  for (var k in SFX_FILES) { if (SFX_FILES.hasOwnProperty(k)) loadSfxBuffers(k); }
+}
+
+/** WebAudio 播放句柄：对外暴露和 HTMLAudioElement 一样的 pause() / currentTime / paused，
+ *  这样 stopEnemyVoice() 不需要区分两种音源。 */
+function BufferVoice(src, gain) {
+  this.src = src;
+  this.gain = gain;
+  this.paused = false;
+  this.currentTime = 0;
+  var self = this;
+  src.onended = function () {
+    self.paused = true;
+    try { self.src.disconnect(); self.gain.disconnect(); } catch (e) {}
+  };
+}
+BufferVoice.prototype.pause = function () {
+  if (this.paused) return;
+  this.paused = true;
+  try { this.src.stop(0); } catch (e) {}
+  try { this.src.disconnect(); this.gain.disconnect(); } catch (e2) {}
+};
+
+/** 用 AudioBuffer 播放一次，返回播放句柄 */
+function playSfxBuffer(slot, vol) {
+  var ctx = _sfxCtx;
+  if (!ctx || !slot || !slot.bufs.length) return null;
+  var buf = slot.bufs[slot.idx];
+  slot.idx = (slot.idx + 1) % slot.bufs.length;      // 轮换：多文件音效天然随机，同文件也支持重叠
+  var src = ctx.createBufferSource();
+  var gain = ctx.createGain();
+  src.buffer = buf;
+  gain.gain.value = vol;
+  src.connect(gain);
+  gain.connect(ctx.destination);                     // 直连输出：vol 已含音效音量，不再乘 master
+  try { src.start(0); } catch (e) { return null; }
+  return new BufferVoice(src, gain);
+}
+
 function playSfx(key, volume) {
-  if (typeof Audio === 'undefined') return;   // 无头测试环境没有 Audio，直接跳过
   var files = SFX_FILES[key];
   if (!files) return;
   var vol = (volume === undefined ? 1 : volume) * (save.settings ? save.settings.sfx : 1);
   vol = Math.max(0, Math.min(1, vol));
   if (vol <= 0) return;
 
+  // ---- 路径 A：WebAudio ----
+  if (_sfxWebAudio !== false && sfxContext()) {
+    var slot = _sfxBuf[key];
+    if (slot) {
+      resumeSfxContext();
+      return playSfxBuffer(slot, vol);
+    }
+    if (slot === undefined) loadSfxBuffers(key);     // 首次触发：后台预载，本次仍用回退路径出声
+  }
+
+  // ---- 路径 B：HTMLAudioElement 池（回退）----
+  if (typeof Audio === 'undefined') return;   // 无头测试环境没有 Audio，直接跳过
   if (!sfxPool[key]) {
     var arr = [];
     for (var i = 0; i < SFX_POOL_SIZE; i++) {
@@ -648,7 +767,17 @@ function menuVolTarget() { return CFG.menuMusicVolume * save.settings.menu; }
 function applySettings() {
   var s = save.settings;
   if (bgmEl) bgmEl.volume = Math.min(1, CFG.bgmVolume * s.bgm);
-  if (renderer) renderer.shadowMap.enabled = !!s.shadow;
+  if (renderer) {
+    renderer.shadowMap.enabled = !!s.shadow;
+    renderer.shadowMap.needsUpdate = true;   // 阴影改为手动更新后，开关切换时要强制重绘一次
+    // 关掉自适应分辨率 → 立刻恢复到设备满分辨率；打开 → 重新开始判定
+    if (s.autoRes === false) {
+      if (_dprNow !== _dprBase) applyPixelRatio(_dprBase);
+      _dprWarmup = 0; _dprCooldown = 0;
+    } else {
+      _dprWarmup = 1.5;
+    }
+  }
   sens = 0.0022 * s.sens;                       // 鼠标灵敏度
   if (Sfx && Sfx.setMasterVolume) Sfx.setMasterVolume(0.5 * s.sfx);
 }
@@ -775,6 +904,8 @@ var Sfx = (function () {
   return {
     init: ensure,
     setMasterVolume: setMasterVolume,
+    // 暴露底层 AudioContext，供 mp3 音效复用同一个输出管道（避免开第二个上下文）
+    getCtx: function () { return ensure() ? ctx : null; },
     shoot:    function () { noiseHit(0.13, 'bandpass', 900, 220, 0.5); tone('sine', 160, 55, 0.11, 0.35); },
     hitFish:  function () { noiseHit(0.07, 'highpass', 1800, 1200, 0.32); tone('sine', 950, 420, 0.08, 0.2); },
     fishDie:  function () { tone('sine', 520, 140, 0.28, 0.45); noiseHit(0.22, 'lowpass', 700, 300, 0.3); },
@@ -1361,7 +1492,9 @@ function buildEnvironment() {
   sunLight = new THREE.DirectionalLight(0xfff0d0, 1.7);
   sunLight.position.set(40, 55, 28);
   sunLight.castShadow = true;
-  sunLight.shadow.mapSize.set(2048, 2048);
+  // 移动端降一档分辨率：2048² 的软阴影在手机上代价太高，1024² 视觉差异很小
+  var _shadowSize = isTouch ? 1024 : 2048;
+  sunLight.shadow.mapSize.set(_shadowSize, _shadowSize);
   sunLight.shadow.camera.left = -55; sunLight.shadow.camera.right = 55;
   sunLight.shadow.camera.top = 55; sunLight.shadow.camera.bottom = -55;
   sunLight.shadow.camera.near = 4; sunLight.shadow.camera.far = 140;
@@ -1561,7 +1694,7 @@ function unloadGameScene() {
 }
 
 // ---------------------------------------------------------------- 小地图（左下角圆形、随视角旋转）
-var minimap = { off: null, ready: false };
+var minimap = { off: null, ready: false, ctx: null };
 
 function buildMiniMap() {
   var pxPerM = 8, HALF = 384;
@@ -1592,7 +1725,9 @@ function buildMiniMap() {
 function drawMiniMap() {
   if (!minimap.ready) return;
   var cv = dom.minimapCanvas;
-  var x = cv && cv.getContext && cv.getContext('2d');
+  // 上下文缓存：原来每帧都调一次 getContext('2d')
+  if (!minimap.ctx && cv && cv.getContext) minimap.ctx = cv.getContext('2d');
+  var x = minimap.ctx;
   if (!x) return;
   var W = 210, C = 105, R = 101;
   var scale = R / 48;
@@ -1966,14 +2101,37 @@ function updateParticles(dt) {
 }
 
 // ---------------------------------------------------------------- 敌人（蓝色大肥鱼）
-function makeFishMaterial() {
+// 肥鱼贴图材质：全局共享两套（待机 / 追击泛红），靠「换材质引用」而不是「每帧改 color」。
+// 原来每条鱼都 new 一份 MeshBasicMaterial + MeshDepthMaterial —— 15 波下来能堆出上千个材质，
+// 而它们的参数完全一致。改为模块级单例后，材质数量恒定为 2。
+var _fishGeo = null;
+var _fishMatIdle = null, _fishMatChase = null;
+
+function makeFishMaterial(hex) {
   var mat = new THREE.MeshBasicMaterial({
+    // hex 缺省为白色：Boss 需要独立材质（受击泛红要单独改 color），仍然每次新建一份
     map: fishTex, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide,
+    color: hex === undefined ? 0xffffff : hex,
   });
   mat.customDepthMaterial = new THREE.MeshDepthMaterial({
     depthPacking: THREE.RGBADepthPacking, map: fishTex, alphaTest: 0.4,
   });
   return mat;
+}
+
+/** 鱼身平面几何体（共享） */
+function fishGeometry() {
+  if (!_fishGeo) _fishGeo = new THREE.PlaneGeometry(CFG.fishSize, CFG.fishSize);
+  return _fishGeo;
+}
+
+/** 鱼身材质（共享）：chasing=true 返回追击泛红那套 */
+function fishMaterial(chasing) {
+  if (!_fishMatIdle) {
+    _fishMatIdle = makeFishMaterial(0xffffff);
+    _fishMatChase = makeFishMaterial(0xff8d8d);
+  }
+  return chasing ? _fishMatChase : _fishMatIdle;
 }
 
 function pointInObstacle(x, z, pad) {
@@ -2004,7 +2162,7 @@ function spawnFish(pos, kind) {
   var ranged = (kind === 'normal') && (Math.random() < CFG.fishRangedChance);
   var e = {
     kind: kind,
-    mesh: new THREE.Mesh(new THREE.PlaneGeometry(CFG.fishSize, CFG.fishSize), makeFishMaterial()),
+    mesh: new THREE.Mesh(fishGeometry(), fishMaterial(false)),
     alive: true,
     state: 'patrol',
     ranged: ranged,
@@ -2019,7 +2177,6 @@ function spawnFish(pos, kind) {
     lostTimer: 0,
     respawnTimer: 0,
     pulse: 0,
-    hitColor: new THREE.Color(0xffffff),
   };
   e.mesh.castShadow = true;
   e.hp = enemyHpNow;              // 小怪血量（随 Boss 击杀成长，≤10）
@@ -2027,37 +2184,37 @@ function spawnFish(pos, kind) {
   e.mesh.position.y = e.baseY;
   if (kind === 'bomber') {
     // 自爆鱼：怀抱核弹（不持枪剑）
-    e.bombMesh = makeBombMesh();
+    e.bombMesh = cloneProp('bomb');
     e.mesh.add(e.bombMesh);
     e.fuseTimer = -1;                // -1 = 未点火；>=0 表示引信倒计时中（定身）
   } else if (kind === 'shield') {
     // 护盾鱼：持剑冲锋 + 举盾（需先击破护盾才能造成伤害）
-    e.swordMesh = makeFishSword();
+    e.swordMesh = cloneProp('sword');
     e.swordMesh.visible = true;
     e.mesh.add(e.swordMesh);
-    e.shieldMesh = makeShieldMesh();
+    e.shieldMesh = cloneProp('shield');
     e.mesh.add(e.shieldMesh);
     e.shieldHp = CFG.shieldFishHp;
   } else if (kind === 'healer') {
     // 治疗鱼：护士帽 + 大针筒（不主动攻击玩家，优先治疗受伤同伴）
-    e.hatMesh = makeNurseHatMesh();
+    e.hatMesh = cloneProp('hat');
     e.hatMesh.position.set(0, 0.6, 0.06);
     e.hatMesh.scale.set(1.45, 1.45, 1.45);
     e.mesh.add(e.hatMesh);
-    e.syringeMesh = makeSyringeMesh();
+    e.syringeMesh = cloneProp('syringe');
     e.mesh.add(e.syringeMesh);
     e.healTimer = CFG.healerInterval;
   } else if (kind === 'splitter') {
     // 分裂鱼：外表暂不区分（靠蹦跳动作识别），持剑近战
-    e.swordMesh = makeFishSword();
+    e.swordMesh = cloneProp('sword');
     e.swordMesh.visible = true;
     e.mesh.add(e.swordMesh);
     e.jumpPhase = rand(0, Math.PI * 2);
   } else {
-    e.gunMesh = makeFishGun();
+    e.gunMesh = cloneProp('gun');
     e.gunMesh.visible = ranged;            // 射手鱼持枪
     e.mesh.add(e.gunMesh);
-    e.swordMesh = makeFishSword();
+    e.swordMesh = cloneProp('sword');
     e.swordMesh.visible = !ranged;         // 近战鱼持小剑
     e.mesh.add(e.swordMesh);
   }
@@ -2331,7 +2488,7 @@ function updateEnemies(dt) {
           healTarget.hp = Math.min(maxHpNow, (healTarget.hp || 1) + healAmt);
           spawnBurst(healTarget.mesh.position, 0x7cf08a, 16, 3.4);    // 绿色治疗特效
           playEnemyVoice(e, 'heal', 0.5);                             // 治疗鱼台词（绑定到治疗鱼）
-          debugLog('治疗鱼为 ' + enemyName(healTarget) + ' 回复了 ' + healAmt + ' 点生命', 'dbg-hit');
+          if (debugMode) debugLog('治疗鱼为 ' + enemyName(healTarget) + ' 回复了 ' + healAmt + ' 点生命', 'dbg-hit');
         }
       } else {
         // 无伤员：远离战斗游荡
@@ -2446,6 +2603,20 @@ function clampFish(e) {
 
 var _fishQ = new THREE.Quaternion();
 var _zAxis = new THREE.Vector3(0, 0, 1);
+
+/** 回收敌人身上的一次性特效资源。
+ *  引信光环（fuseHalo）是每个自爆鱼点火时单独新建的，材质还要做透明度动画，
+ *  无法共享，所以尸体离场时必须显式释放，否则每次自爆都漏 2 个材质 + 2 个几何体。 */
+function disposeFishFx(e) {
+  if (!e.fuseHalo) return;
+  if (e.fuseHalo.parent) e.fuseHalo.parent.remove(e.fuseHalo);
+  e.fuseHalo.traverse(function (o) {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) o.material.dispose();
+  });
+  e.fuseHalo = null;
+}
+
 function updateFishVisuals(dt) {
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
@@ -2458,6 +2629,12 @@ function updateFishVisuals(dt) {
         e.mesh.scale.set(dsc, dsc, dsc);
         e.mesh.position.y += dt * 1.8;
         if (e.dyingT <= 0) e.mesh.visible = false;
+      }
+      // 彻底离场：把已隐藏的尸体移出场景树，避免场景节点随波次无限增长。
+      // 注意：鱼身几何体与手持道具都是共享资源，这里只移除、不 dispose。
+      if (!e.mesh.visible && e.mesh.parent) {
+        scene.remove(e.mesh);
+        disposeFishFx(e);
       }
       continue;
     }
@@ -2487,10 +2664,9 @@ function updateFishVisuals(dt) {
     var wobble = Math.sin(time * 3.1 + e.phase) * 0.13;
     _fishQ.setFromAxisAngle(_zAxis, wobble);
     e.mesh.quaternion.copy(camera.quaternion).multiply(_fishQ);
-    // 追击时身体发红提示
-    var target = e.state === 'chase' || e.state === 'attack' ? 0xff8d8d : 0xffffff;
-    e.hitColor.set(target);
-    e.mesh.material.color.copy(e.hitColor);
+    // 追击时身体泛红提示（共享材质，靠换引用实现，只在状态变化时赋值）
+    var wantMat = (e.state === 'chase' || e.state === 'attack') ? fishMaterial(true) : fishMaterial(false);
+    if (e.mesh.material !== wantMat) e.mesh.material = wantMat;
     // 攻击脉冲（冲脸咬人）
     e.pulse = Math.max(0, e.pulse - dt);
     var s = 1 + e.pulse * 1.4;
@@ -2616,6 +2792,7 @@ function makeFishGun() {
   gun.scale.set(2.2, 2.2, 2.2);            // 枪放大：远距离一眼可辨
   // 枪口锚点：子弹从这里发射（枪管末端）
   var muzzleTip = new THREE.Object3D();
+  muzzleTip.name = 'muzzleTip';   // 命名：clone 之后靠 getObjectByName 重新挂回 gun.muzzleTip
   muzzleTip.position.set(0, 0.02, 0.46);
   gun.add(muzzleTip);
   gun.muzzleTip = muzzleTip;
@@ -2850,6 +3027,32 @@ function makeSyringeMesh() {
   g.rotation.set(0.16, 0, -0.55);
   g.scale.set(1.55, 1.55, 1.55);
   return g;
+}
+
+// ---------------------------------------------------------------- 敌人手持道具：原型 + 克隆
+// 每个敌人原来都重新构建一整套枪 / 剑 / 核弹 / 盾牌模型，每条鱼新增 8~10 个材质。
+// 改为「全局只构建一次原型，每个敌人 clone 一份」：
+//   Three.js 的 Object3D.clone() 会共享 geometry / material 引用，所以克隆只产生节点，不占额外显存。
+var _propProto = {};
+
+function enemyPropProto(kind) {
+  if (_propProto[kind]) return _propProto[kind];
+  var p;
+  if (kind === 'gun') p = makeFishGun();
+  else if (kind === 'sword') p = makeFishSword();
+  else if (kind === 'bomb') p = makeBombMesh();
+  else if (kind === 'shield') p = makeShieldMesh();
+  else if (kind === 'hat') p = makeNurseHatMesh();
+  else p = makeSyringeMesh();
+  _propProto[kind] = p;
+  return p;
+}
+
+function cloneProp(kind) {
+  var c = enemyPropProto(kind).clone();
+  // clone() 不会复制挂在 Group 上的自定义属性，枪口锚点按 name 重新取回
+  if (kind === 'gun') c.muzzleTip = c.getObjectByName('muzzleTip');
+  return c;
 }
 
 // 爆炸特效（火球 + 冲击环 + 蘑菇云烟团）
@@ -3122,23 +3325,52 @@ function updateFishBullets(dt) {
 }
 
 // ---------------------------------------------------------------- 弹药与换弹
+// HUD 脏检查缓存：数值没变就不碰 DOM。
+// 原来每帧无条件写 textContent / style，值不变也会让浏览器重排，静止时纯属浪费。
+var hudCache = { hp: -1, score: -1, kills: -1, low: null };
+var hudAmmoCache = { mag: -1, reserve: -1, weapon: null };
+var hudNadeCache = -1;
+var _weaponSlots = null;     // 武器栏槽位（首次查询后缓存，避免每帧 querySelectorAll）
+
+function weaponSlots() {
+  if (_weaponSlots) return _weaponSlots;
+  var wbar = document.getElementById('weapon-bar');
+  // 无头测试环境的 DOM 桩可能不支持 querySelectorAll
+  if (!wbar || typeof wbar.querySelectorAll !== 'function') { _weaponSlots = []; return _weaponSlots; }
+  _weaponSlots = Array.prototype.slice.call(wbar.querySelectorAll('.wslot'));
+  return _weaponSlots;
+}
+
+/** 强制刷新一次全部 HUD（换武器 / 重开一局等场景，绕开脏检查） */
+function invalidateHud() {
+  hudCache.hp = -1; hudCache.score = -1; hudCache.kills = -1; hudCache.low = null;
+  hudAmmoCache.mag = -1; hudAmmoCache.reserve = -1; hudAmmoCache.weapon = null;
+  hudNadeCache = -1;
+}
+
 function updateAmmoHUD() {
   if (!dom.ammoMag) return;
-  dom.ammoMag.textContent = String(ammo.mag);
-  dom.ammoMag.classList.toggle('low', ammo.mag <= 5);
-  dom.ammoReserve.textContent = String(ammo.reserve);
-  // 武器栏：高亮当前武器；匕首不显示弹药数字
-  var wbar = document.getElementById('weapon-bar');
-  if (wbar && typeof wbar.querySelectorAll === 'function') {   // 无头测试环境的 DOM 桩可能不支持
-    var slots = wbar.querySelectorAll('.wslot');
+  // 武器栏高亮与近战透明度只在换武器时更新一次
+  var wkey = WEAPONS[currentWeapon].key;
+  if (hudAmmoCache.weapon !== wkey) {
+    hudAmmoCache.weapon = wkey;
+    var slots = weaponSlots();
     for (var si = 0; si < slots.length; si++) {
       if (slots[si].classList) {
-        slots[si].classList.toggle('active', slots[si].getAttribute('data-wkey') === WEAPONS[currentWeapon].key);
+        slots[si].classList.toggle('active', slots[si].getAttribute('data-wkey') === wkey);
       }
     }
+    if (dom.ammoWrap) dom.ammoWrap.style.opacity = WEAPONS[currentWeapon].melee ? '0.35' : '1';
   }
-  var isMeleeNow = !!WEAPONS[currentWeapon].melee;
-  if (dom.ammoWrap) dom.ammoWrap.style.opacity = isMeleeNow ? '0.35' : '1';
+  if (hudAmmoCache.mag !== ammo.mag) {
+    hudAmmoCache.mag = ammo.mag;
+    dom.ammoMag.textContent = String(ammo.mag);
+    dom.ammoMag.classList.toggle('low', ammo.mag <= 5);
+  }
+  if (hudAmmoCache.reserve !== ammo.reserve) {
+    hudAmmoCache.reserve = ammo.reserve;
+    if (dom.ammoReserve) dom.ammoReserve.textContent = String(ammo.reserve);
+  }
 }
 
 // 换弹请求：R 键或弹夹打空时触发；备用为 0 时提示"弹药耗尽"且不换弹
@@ -4553,7 +4785,10 @@ function makeGrenadeMesh() {
 }
 
 function updateNadeHUD() {
-  if (dom.nadeCount) dom.nadeCount.textContent = String(nadeCount);
+  if (!dom.nadeCount) return;
+  if (hudNadeCache === nadeCount) return;      // 脏检查：手雷数没变就不写 DOM
+  hudNadeCache = nadeCount;
+  dom.nadeCount.textContent = String(nadeCount);
 }
 
 function throwGrenade() {
@@ -4796,9 +5031,9 @@ function shootOnce() {
     if (rollB.isCrit) {
       spawnBurst(_hitPoint, 0xffe066, 14, 4.5);   // 暴击金色火花
       showCritFeed(rollB.damage);
-      debugLog('暴击！对 Boss 造成 ' + rollB.damage.toFixed(1) + ' 点伤害', 'dbg-hit');
+      if (debugMode) debugLog('暴击！对 Boss 造成 ' + rollB.damage.toFixed(1) + ' 点伤害', 'dbg-hit');
     }
-    debugLog('你对 超级蓝色大肥鱼 造成了 ' + gunDamageNow().toFixed(1) + ' 点伤害（剩余 ' + Math.max(0, boss.hp).toFixed(1) + '）', 'dbg-hit');
+    if (debugMode) debugLog('你对 超级蓝色大肥鱼 造成了 ' + gunDamageNow().toFixed(1) + ' 点伤害（剩余 ' + Math.max(0, boss.hp).toFixed(1) + '）', 'dbg-hit');
     boss.hurt = 0.15;
     spawnBurst(_hitPoint, 0xffd54a, 10, 3.5);
     Sfx.bossHit();
@@ -4818,7 +5053,7 @@ function shootOnce() {
         spawnBurst(best.mesh.position, 0xb0eaff, 26, 5.5);   // 破盾碎裂
         showNotice('护盾已击破！');
       }
-      debugLog('护盾抵挡了子弹（剩余耐久 ' + Math.max(0, best.shieldHp) + '）', 'dbg-hit');
+      if (debugMode) debugLog('护盾抵挡了子弹（剩余耐久 ' + Math.max(0, best.shieldHp) + '）', 'dbg-hit');
       updateHUD();
       return;
     }
@@ -4828,9 +5063,9 @@ function shootOnce() {
       spawnBurst(_hitPoint, 0xffe066, 12, 4.0);     // 暴击金色火花
       flashCrosshair();
       showCritFeed(rollF.damage);
-      debugLog('暴击！造成 ' + rollF.damage.toFixed(1) + ' 点伤害', 'dbg-hit');
+      if (debugMode) debugLog('暴击！造成 ' + rollF.damage.toFixed(1) + ' 点伤害', 'dbg-hit');
     }
-    debugLog('你对 ' + enemyName(best) + ' 造成了 ' + gunDamageNow().toFixed(1) + ' 点伤害' + (best.hp > 0 ? '（剩余 ' + best.hp.toFixed(1) + ' 血）' : '（击败！）'), 'dbg-hit');
+    if (debugMode) debugLog('你对 ' + enemyName(best) + ' 造成了 ' + gunDamageNow().toFixed(1) + ' 点伤害' + (best.hp > 0 ? '（剩余 ' + best.hp.toFixed(1) + ' 血）' : '（击败！）'), 'dbg-hit');
     Sfx.hitFish();
     spawnBurst(_hitPoint, 0x9fd8ff, best.hp > 0 ? 6 : 12, best.hp > 0 ? 2.2 : 3.5);
     flashCrosshair();
@@ -4854,7 +5089,7 @@ function shootOnce() {
         var rollP = rollGunDamage();
         nextE.hp = (nextE.hp || 1) - rollP.damage;
         spawnBurst(piercePoint, 0xb0e8ff, 8, 3.0);       // 穿透命中特效
-        debugLog('穿甲弹命中 ' + enemyName(nextE) + '，造成 ' + rollP.damage.toFixed(1) + ' 点伤害', 'dbg-hit');
+        if (debugMode) debugLog('穿甲弹命中 ' + enemyName(nextE) + '，造成 ' + rollP.damage.toFixed(1) + ' 点伤害', 'dbg-hit');
         if (nextE.hp <= 0) { killFish(nextE, piercePoint); pierceKills += 1; }
         pierceLeft -= 1;
         fromT = nextT + 0.25;
@@ -5028,6 +5263,8 @@ function restartGame(toMenu) {
     }
   }
   syncCamera();
+  resetAdaptiveResolution();   // 新一局：重置自适应分辨率的判定窗口
+  invalidateHud();      // 新一局：强制刷新一次 HUD（绕开脏检查，避免沿用上一局的缓存值）
   updateHUD();
   hideAllOverlays();
   if (toMenu) {
@@ -5048,11 +5285,22 @@ function restartGame(toMenu) {
 // ---------------------------------------------------------------- HUD / 覆盖层
 function updateHUD() {
   if (!dom.healthFill) return;
-  dom.healthFill.style.width = (player.hp / CFG.maxHp * 100) + '%';   // 按生命上限计算（开发者模式 99999 上限时不失真）
-  dom.healthText.textContent = String(player.hp);
-  dom.healthFill.classList.toggle('low', player.hp <= 30);
-  dom.scoreValue.textContent = String(score);
-  dom.killsValue.textContent = String(kills);
+  // 全部走脏检查：只有数值真的变了才写 DOM（详见 updateAmmoHUD 上方的 hudCache 说明）
+  if (hudCache.hp !== player.hp) {
+    hudCache.hp = player.hp;
+    dom.healthFill.style.width = (player.hp / CFG.maxHp * 100) + '%';   // 按生命上限计算（开发者模式 99999 上限时不失真）
+    if (dom.healthText) dom.healthText.textContent = String(player.hp);
+    var lowHp = player.hp <= 30;
+    if (hudCache.low !== lowHp) { hudCache.low = lowHp; dom.healthFill.classList.toggle('low', lowHp); }
+  }
+  if (hudCache.score !== score) {
+    hudCache.score = score;
+    if (dom.scoreValue) dom.scoreValue.textContent = String(score);
+  }
+  if (hudCache.kills !== kills) {
+    hudCache.kills = kills;
+    if (dom.killsValue) dom.killsValue.textContent = String(kills);
+  }
   updateAmmoHUD();
   updateNadeHUD();
 }
@@ -5227,6 +5475,7 @@ function renderSettingsUI() {
   var p = document.getElementById('set-particles'); if (p) p.checked = !!s.particles;
   var sh = document.getElementById('set-shadow'); if (sh) sh.checked = !!s.shadow;
   var cb = document.getElementById('set-colorblind'); if (cb) cb.checked = !!s.colorblind;
+  var ar = document.getElementById('set-auto-res'); if (ar) ar.checked = s.autoRes !== false;
 }
 
 /** 绑定设置控件（实时生效 + 自动保存） */
@@ -5259,6 +5508,7 @@ function bindSettingsInputs() {
   bindCheck('set-particles', 'particles');
   bindCheck('set-shadow', 'shadow');
   bindCheck('set-colorblind', 'colorblind');
+  bindCheck('set-auto-res', 'autoRes');
 }
 
 // 关卡选择界面
@@ -5573,6 +5823,8 @@ function onPointerLockChange() {
   var locked = isPointerLocked();
   if (locked) {
     clearTimeout(pendingLockTimer);
+    preloadSfx();          // 用户已点击（合法手势）：此时预热 mp3 音效，避免开火首帧才解码
+    resumeSfxContext();
     // ★ 关键修复：之前降级为拖动瞄准后，只要本次锁定成功就恢复锁定模式
     //（旧实现里 fallback 是不可逆的：一旦降级，后续即使锁定成功也永久停留在拖动模式）
     if (lockMode === 'fallback') {
@@ -5820,7 +6072,9 @@ function update(dt) {
   checkAchievements(dt);  // 成就条件检查（每秒一次）
   updateParticles(dt);
   updateHUD();
-  drawMiniMap();
+  // 小地图降到 30fps：每帧整幅重绘（含 768² 底图的旋转缩放）对 60fps 来说纯属浪费
+  _mmAcc += dt;
+  if (_mmAcc >= 1 / 30) { _mmAcc = 0; drawMiniMap(); }
   updateBgm(dt);
   if (debugMode) updateDebugLog(dt);   // Debug 消息上移/淡出/清理
   updateCheatMusic(dt);                // 作弊被抓搞怪音乐循环
@@ -5833,6 +6087,8 @@ function enterGameWorld() {
     buildEnvironment();
     buildMiniMap();
   }
+  preloadSfx();   // 点「开始」本身就是用户手势，趁这时候把 mp3 全部解码进内存
+  resetAdaptiveResolution();   // 新一局：重置帧时长判定（保留已学到的像素比）
   // ★ N6 修复：首次进入游戏时提示三武器切换（V0.5.0 的核心操作，
   //   原来在任何教学文本里都没有出现，不看 README 的玩家根本不知道有步枪和匕首）
   if (!save.tutorialShown) {
@@ -5849,6 +6105,64 @@ function isUiOnlyState() {
   return state === 'menu' || state === 'levelSelect' || state === 'achievements' || state === 'quit';
 }
 
+var _shadowTick = 0;   // 阴影隔帧刷新的计数器
+
+// ---------------------------------------------------------------- 自适应分辨率
+// 目标：弱 GPU / 4K 屏自动降采样保住帧率，强机器始终维持满分辨率。
+// 判定用「帧时长滑动平均（EMA）」，而不是瞬时值 —— 单帧抖动不该触发降档。
+//   · EMA > 21ms（约 48fps 以下）持续 → 降一档（-0.25）
+//   · EMA < 11ms（约 90fps 以上）持续 → 升一档（+0.25）
+//   60Hz 垂直同步下帧时长恒为 ~16.7ms，够不到 11ms，所以不会来回抖；
+//   只有在高刷屏（>90Hz）或 GPU 大幅过剩时才会往回升。
+// 每次调整后进入观察期（降 2s / 升 4s），避免震荡。
+var _dprBase = 1;        // 设备像素比上限（init 时确定）
+var _dprNow = 1;         // 当前生效的像素比
+var _dprMin = 1;         // 下限（触屏允许降到 0.75）
+var _ftEma = 16.7;       // 帧时长滑动平均（ms）
+var _lastFrameTs = 0;    // 上一帧时间戳
+var _dprCooldown = 0;    // 观察期剩余秒数
+var _dprWarmup = 0;      // 进场热身剩余秒数
+
+/** 进入新一局时复位判定状态（保留已学到的 _dprNow，避免每次重开都从满分辨率重新降档） */
+function resetAdaptiveResolution() {
+  _dprMin = isTouch ? 0.75 : 1;
+  if (_dprNow < _dprMin) _dprNow = _dprMin;
+  _ftEma = 16.7;
+  _lastFrameTs = 0;
+  _dprCooldown = 0;
+  _dprWarmup = 2.5;   // 进场前 2.5 秒不判定：着色器编译、贴图上传会造成假卡顿
+}
+
+/** 应用新像素比（Three.js 内部会按新像素比重新 setSize，不必再调 setSize） */
+function applyPixelRatio(v) {
+  _dprNow = v;
+  if (renderer) renderer.setPixelRatio(v);
+}
+
+function updateAdaptiveResolution(dt) {
+  if (!renderer || isUiOnlyState()) { _lastFrameTs = 0; return; }
+  // 用原始时间戳测帧时长：dt 被 clamp 到 50ms，会掩盖真正的长帧
+  var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  if (_lastFrameTs) {
+    var ft = now - _lastFrameTs;
+    if (ft > 0 && ft < 250) _ftEma = _ftEma * 0.9 + ft * 0.1;   // 切后台回来会有超大间隔，丢弃
+  }
+  _lastFrameTs = now;
+
+  if (_dprWarmup > 0) { _dprWarmup -= dt; return; }
+  if (_dprCooldown > 0) { _dprCooldown -= dt; return; }
+
+  if (save.settings && save.settings.autoRes === false) return;   // 设置里关掉了
+
+  if (_ftEma > 21 && _dprNow > _dprMin) {
+    applyPixelRatio(Math.max(_dprMin, _dprNow - 0.25));
+    _dprCooldown = 2;
+  } else if (_ftEma < 11 && _dprNow < _dprBase) {
+    applyPixelRatio(Math.min(_dprBase, _dprNow + 0.25));
+    _dprCooldown = 4;   // 升档后观察更久，防止来回跳
+  }
+}
+
 function animate() {
   requestAnimationFrame(animate);
   var dt = Math.min(0.05, clock.getDelta());
@@ -5857,6 +6171,10 @@ function animate() {
     return;               // 不渲染 3D 场景（菜单使用独立的 CSS 背景），也不跑敌人 AI
   }
   update(dt);
+  updateAdaptiveResolution(dt);   // 自适应分辨率：按帧时长 EMA 决定是否降采样
+  // 阴影隔帧刷新（30fps 的阴影对快节奏 FPS 完全够用，且太阳本身不动）
+  _shadowTick = (_shadowTick + 1) & 1;
+  if (_shadowTick === 0) renderer.shadowMap.needsUpdate = true;
   renderer.render(scene, camera);
 }
 
@@ -5875,11 +6193,19 @@ function init() {
     showFatalError('无法初始化 WebGL：' + (e && e.message ? e.message : e) + '（请确认浏览器开启了硬件加速/WebGL）');
     return;
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  // 设备像素比上限 2：4K 屏 + DPR2 会渲染 830 万像素，对这种低模画风毫无必要。
+  // 实际生效值由自适应分辨率在运行中按帧时长调整（见 updateAdaptiveResolution）。
+  _dprBase = Math.min(window.devicePixelRatio || 1, 2);
+  _dprNow = _dprBase;
+  renderer.setPixelRatio(_dprNow);
   renderer.setSize(window.innerWidth, window.innerHeight);
   mark('renderer');
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // 阴影改为手动更新：太阳是静止光源、静态建筑从不移动，没必要每帧重绘整张阴影图。
+  // 主循环里隔帧置一次 needsUpdate（见 animate），开销直接减半。
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
   mark('shadow');
 
   scene = new THREE.Scene();
@@ -6160,6 +6486,22 @@ window.FishGame = {
         }
       }
       return false;
+    },
+    // 自适应分辨率状态（测试用）
+    getDprInfo: function () {
+      return {
+        base: _dprBase, now: _dprNow, min: _dprMin,
+        ema: +_ftEma.toFixed(2),
+        cooldown: +_dprCooldown.toFixed(2),
+        warmup: +_dprWarmup.toFixed(2),
+        rendererRatio: renderer ? renderer.getPixelRatio() : null,
+      };
+    },
+    resetAdaptiveResolution: resetAdaptiveResolution,
+    setSetting: function (key, val) {   // 测试用：改设置并立即生效
+      save.settings[key] = val;
+      applySettings();
+      return save.settings[key];
     },
     getSceneStats: function () {
       var meshes = 0;
