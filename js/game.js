@@ -70,9 +70,9 @@ var CFG = {
   itemIntervalMin: 8,      // 物品生成间隔下限（秒）
   itemIntervalMax: 12,     // 物品生成间隔上限（秒）
   itemMax: 4,              // 场上物品数量上限
-  // 弹药箱：拾取后两把枪各补「一个弹夹容量」；刷新概率随弹药紧张度动态变化
-  itemAmmoChanceBase: 0.30,   // 弹药充足（两把枪都满）时的基础出现概率
-  itemAmmoChanceRange: 0.55,  // 弹药越紧缺，概率最多再叠加 55%（即上限 85%）
+  // 弹药箱：拾取后两把枪各补「一个弹夹容量」
+  // 出现概率见 ammoBoxChance()：满弹 0% / 剩余≥25% 最多 30% / 剩余<25% 必出
+  itemAmmoChanceRange: 0.30,  // 剩余 ≥25% 时的概率上限
   // Boss（超级蓝色大肥鱼）
   bossInterval: 30,        // Boss 生成判定间隔（秒）
   bossChance: 0.5,         // 每次判定的生成概率
@@ -487,6 +487,18 @@ function ammoTension() {
   var cur = reserveOf('pistol') + reserveOf('rifle');
   var cap = reserveMaxNow('pistol') + reserveMaxNow('rifle');
   return cap > 0 ? clamp(1 - cur / cap, 0, 1) : 0;
+}
+
+/** 弹药箱出现概率（= 1 - 紧张度；紧张度见 ammoTension）
+    规则：
+      · 满备弹（紧张度 ≤ 0.001）→ 0%
+      · 剩余 ≥ 25%（紧张度 < 0.75）→ 线性 0% ~ 30%，上限 30%
+      · 剩余 < 25%（紧张度 ≥ 0.75）→ 100% 必出 */
+function ammoBoxChance() {
+  var tension = ammoTension();          // 0 = 两把枪都满，1 = 完全打空
+  if (tension >= 0.75) return 1.0;      // 剩余不足 25%：必出
+  if (tension <= 0.001) return 0;       // 满备弹：不出
+  return CFG.itemAmmoChanceRange * (tension / 0.75);   // 上限 30%
 }
 
 /** 备弹上限（手枪 ×8 / 步枪 ×6，按当前弹夹容量计算） */
@@ -3828,9 +3840,11 @@ function spawnItem() {
   if (items.length >= CFG.itemMax) return;
   var pos = pickItemPos();
   if (!pos) return;
-  // 弹药越紧缺，出现弹药箱的概率越高（30% ~ 85%）
-  var ammoChance = CFG.itemAmmoChanceBase + ammoTension() * CFG.itemAmmoChanceRange;
-  var type = Math.random() < ammoChance ? 'ammo' : 'health';
+  // 弹药箱出现概率（按需求重新设计）：
+  //   · 满备弹                    → 0%（完全不刷）
+  //   · 剩余备弹 ≥ 25%            → 线性 0% ~ 30%（上限 30%）
+  //   · 剩余备弹 < 25%            → 100%（必出）
+  var type = Math.random() < ammoBoxChance() ? 'ammo' : 'health';
   var mesh = buildItem(type, pos);
   scene.add(mesh);
   items.push({ mesh: mesh, type: type, phase: rand(0, Math.PI * 2) });
@@ -6058,6 +6072,7 @@ window.FishGame = {
     },
     getEnvMod: function () { return JSON.parse(JSON.stringify(envMod)); },
     getAmmoTension: ammoTension,
+    getAmmoBoxChance: function () { return { tension: ammoTension(), chance: ammoBoxChance() }; },
     getEnvRule: function () { return ENV_THEMES[envIndex].rule || ''; },
     getRewardOptionsPreview: pickRewardOptions,          // 测试用：预览三选一
     getAchievementCount: function () { return Object.keys(ACHIEVEMENTS).length; },
