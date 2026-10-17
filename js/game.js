@@ -64,17 +64,15 @@ var CFG = {
   fishAttackInterval: 1.15,// 攻击间隔
   fishRespawnTime: 4.5,    // 死亡后重生时间
   graceTime: 3.0,          // 开局热身时间（秒），期间肥鱼不会主动发现玩家
-  // 弹药
-  magSize: 30,             // 弹夹容量
-  startReserve: 180,       // 初始备用子弹（不含弹夹内）
-  reloadTime: 1.5,         // 换弹耗时（秒）
+  // 弹药：实际数值见 WEAPONS（每枪弹夹/备弹）与 MAG_TIERS（扩容档位），此处不再重复定义
   // 补给物品
-  ammoPack: 15,            // 子弹补给量
   healthPack: 10,          // 血量补给量
   itemIntervalMin: 8,      // 物品生成间隔下限（秒）
   itemIntervalMax: 12,     // 物品生成间隔上限（秒）
   itemMax: 4,              // 场上物品数量上限
-  itemAmmoChance: 0.6,     // 物品类型：弹药箱概率（其余为急救包）
+  // 弹药箱：拾取后两把枪各补「一个弹夹容量」；刷新概率随弹药紧张度动态变化
+  itemAmmoChanceBase: 0.30,   // 弹药充足（两把枪都满）时的基础出现概率
+  itemAmmoChanceRange: 0.55,  // 弹药越紧缺，概率最多再叠加 55%（即上限 85%）
   // Boss（超级蓝色大肥鱼）
   bossInterval: 30,        // Boss 生成判定间隔（秒）
   bossChance: 0.5,         // 每次判定的生成概率
@@ -102,7 +100,6 @@ var CFG = {
   bossSplitCount: 3,         // 分裂母鱼：半血分裂的小怪数量
   bossShootInterval: 2.2,  // Boss 射击间隔（秒）
   bossScore: 50,           // 击败 Boss 得分
-  bossAmmoReward: 60,      // 击败 Boss 奖励备用子弹
   // 手榴弹
   nadeStartCount: 1,       // 开局手雷数量
   nadeRadius: 4.0,         // 爆炸伤害半径（米）
@@ -411,8 +408,8 @@ function playEnemyVoice(e, key, volume) {
 }
 
 // ---------------------------------------------------------------- 武器系统（双武器切换）
-// 手枪：均衡（30 发 / 0.16s / 1.0 倍伤害）
-// 突击步枪：高射速大弹匣但单发偏低（45 发 / 0.082s / 0.72 倍），带轻微散布
+// 手枪：均衡（标准弹夹 7 发 / 0.16s / 1.0 倍伤害），点射
+// 突击步枪：高射速大弹匣但单发偏低（标准弹夹 25 发 / 0.082s / 0.72 倍），全自动 + 轻微散布
 // 两把武器弹药独立，备弹池各自累计
 var WEAPONS = {
   pistol: {
@@ -473,6 +470,23 @@ function magTierInfo(weapon, tier) {
   var list = MAG_TIERS[weapon];
   if (!list) return null;
   return list[clamp(tier === undefined ? (magTier[weapon] || 0) : tier, 0, list.length - 1)];
+}
+
+/** 读取指定武器的当前备弹（当前武器直接用 ammo，其余查武器池；近战无备弹） */
+function reserveOf(weapon) {
+  if (weapon === currentWeapon) {
+    return weaponDef().melee ? 0 : ammo.reserve;
+  }
+  var w = weaponAmmo[weapon];
+  return w ? w.reserve : 0;
+}
+
+/** 备弹紧张度：0 = 两把枪的备弹都满，1 = 全部打空
+    =（手枪备弹 + 步枪备弹）/（手枪备弹上限 + 步枪备弹上限）的补数 */
+function ammoTension() {
+  var cur = reserveOf('pistol') + reserveOf('rifle');
+  var cap = reserveMaxNow('pistol') + reserveMaxNow('rifle');
+  return cap > 0 ? clamp(1 - cur / cap, 0, 1) : 0;
 }
 
 /** 备弹上限（手枪 ×8 / 步枪 ×6，按当前弹夹容量计算） */
@@ -1211,18 +1225,43 @@ var envBuilt = false;   // 是否已构建（幂等保护）
 var hemiLight = null, sunLight = null;   // 环境灯光（环境主题会调整它们）
 
 // ---------------------------------------------------------------- 环境主题（每 10 波变化）
-// 只调整雾与两盏灯光的色调/强度（天空贴图保留原样），变化明显但成本极低
+// 调整雾 / 两盏灯光 / 天空贴图（按主题程序化重绘并缓存），变化明显但成本极低
+// 每种环境除了视觉，还挂一条「玩法修饰」（N5）——
+// 让「环境剧变」是事件而不只是换皮。mod 缺省即基准值。
+var ENV_MOD_DEFAULT = {
+  supplyIntervalMul: 1,    // 补给刷新间隔倍率（越小刷得越勤）
+  enemyDetectMul: 1,       // 敌人索敌距离倍率
+  playerDmgMul: 1,         // 玩家伤害倍率
+  enemyDmgMul: 1,          // 敌人伤害倍率
+  nadeDmgMul: 1,           // 手雷伤害倍率
+  nadeRadiusAdd: 0,        // 手雷半径附加（米）
+};
+var envMod = {};
+for (var _emk in ENV_MOD_DEFAULT) envMod[_emk] = ENV_MOD_DEFAULT[_emk];
+
+/** 读取环境修饰值（envMod 未就绪或字段异常时回退到默认值，避免 NaN/undefined 污染伤害计算） */
+function envMul(key) {
+  var fallback = (ENV_MOD_DEFAULT[key] !== undefined) ? ENV_MOD_DEFAULT[key] : 1;
+  if (!envMod || typeof envMod[key] !== 'number' || !isFinite(envMod[key])) return fallback;
+  return envMod[key];
+}
+
 var ENV_THEMES = [
   { name: '晴日沙漠', fog: 0xd8c9a8, fogNear: 45, fogFar: 165, hemiSky: 0xfff2dc, hemiGnd: 0x8a7a55, hemiInt: 0.9, sun: 0xfff0d0, sunInt: 1.7,
-    skyTop: '#2a63c8', skyMid: '#6ea9e8', skyLow: '#cfe6f5', skyBot: '#dceef2' },
+    skyTop: '#2a63c8', skyMid: '#6ea9e8', skyLow: '#cfe6f5', skyBot: '#dceef2',
+    mod: {}, rule: '基准环境' },
   { name: '黄昏',     fog: 0xd9a06a, fogNear: 32, fogFar: 130, hemiSky: 0xffd0a0, hemiGnd: 0x6a5038, hemiInt: 0.8, sun: 0xff9a50, sunInt: 1.35,
-    skyTop: '#2c3f7a', skyMid: '#a86a9a', skyLow: '#f0a860', skyBot: '#ffd08a' },
+    skyTop: '#2c3f7a', skyMid: '#a86a9a', skyLow: '#f0a860', skyBot: '#ffd08a',
+    mod: { supplyIntervalMul: 0.8 }, rule: '补给刷新间隔 -20%' },
   { name: '沙尘暴',   fog: 0xc8a860, fogNear: 14, fogFar: 72,  hemiSky: 0xe0c898, hemiGnd: 0x7a6844, hemiInt: 0.85, sun: 0xf0d090, sunInt: 1.05,
-    skyTop: '#8a7038', skyMid: '#c8a860', skyLow: '#e0c890', skyBot: '#d8c088' },
+    skyTop: '#8a7038', skyMid: '#c8a860', skyLow: '#e0c890', skyBot: '#d8c088',
+    mod: { enemyDetectMul: 0.7 }, rule: '视野骤降，但敌人索敌距离同步 -30%' },
   { name: '血月',     fog: 0x4a2030, fogNear: 26, fogFar: 105, hemiSky: 0xb07080, hemiGnd: 0x40202a, hemiInt: 0.6, sun: 0xff6070, sunInt: 0.85,
-    skyTop: '#1a0c18', skyMid: '#4a1830', skyLow: '#8a2c38', skyBot: '#c04850' },
+    skyTop: '#1a0c18', skyMid: '#4a1830', skyLow: '#8a2c38', skyBot: '#c04850',
+    mod: { playerDmgMul: 1.1, enemyDmgMul: 1.1 }, rule: '敌我伤害双双 +10%（高风险高回报）' },
   { name: '深夜',     fog: 0x121c30, fogNear: 22, fogFar: 95,  hemiSky: 0x5070b0, hemiGnd: 0x202838, hemiInt: 0.55, sun: 0x90a0d0, sunInt: 0.7,
-    skyTop: '#050a18', skyMid: '#0e1a34', skyLow: '#1c2c4c', skyBot: '#26385c' },
+    skyTop: '#050a18', skyMid: '#0e1a34', skyLow: '#1c2c4c', skyBot: '#26385c',
+    mod: { nadeDmgMul: 1.3, nadeRadiusAdd: 1.0 }, rule: '视野最差，但手雷伤害 +30%、半径 +1 米' },
 ];
 var envIndex = 0;
 var envTitleTimer = null;
@@ -1282,8 +1321,13 @@ function applyEnvTheme(idx, announce) {
   hemiLight.intensity = t.hemiInt;
   sunLight.color.setHex(t.sun);
   sunLight.intensity = t.sunInt;
+
+  // 玩法修饰：先复位默认值，再叠加本主题的 mod
+  for (var mk in ENV_MOD_DEFAULT) envMod[mk] = ENV_MOD_DEFAULT[mk];
+  if (t.mod) { for (var mk2 in t.mod) envMod[mk2] = t.mod[mk2]; }
+
   if (announce) {
-    showNotice('环境变化 —— ' + t.name);
+    showNotice('环境变化 —— ' + t.name + (t.rule ? '（' + t.rule + '）' : ''));
     showEnvTitle(t.name);              // 屏幕中央半屏大字（渐显渐隐）
   }
 }
@@ -2304,7 +2348,7 @@ function updateEnemies(dt) {
     if (e.state === 'patrol') {
       if (e.seeCheckTimer <= 0) {
         e.seeCheckTimer = 0.2;
-        if (playingTime > CFG.graceTime && dist < CFG.fishDetectRange && hasLineOfSight(e.mesh.position.x, eyeY, e.mesh.position.z)) {
+        if (playingTime > CFG.graceTime && dist < CFG.fishDetectRange * envMul('enemyDetectMul') && hasLineOfSight(e.mesh.position.x, eyeY, e.mesh.position.z)) {
           e.state = 'chase';
           e.lostTimer = 0;
           e.chaseRemaining = CFG.rangedAdvanceDistance;   // 射手：只向前推进 1 米
@@ -3096,7 +3140,7 @@ function requestReload() {
     return;
   }
   ammo.reloading = true;
-  ammo.reloadTimer = CFG.reloadTime;
+  ammo.reloadTimer = weaponDef().reloadTime;   // 换弹时长取当前武器（手枪 1.5s / 步枪 2.0s）
   Sfx.reloadStart();
 }
 
@@ -3154,7 +3198,8 @@ function comboBonus() {
 
 /** 当前子弹伤害（技能升级 × 连杀评级加成） */
 function gunDamageNow() {
-  return (1 + upgrades.dmg) * (1 + comboBonus().damage);
+  // 环境修饰：血月时玩家伤害 +10%（N5）
+  return (1 + upgrades.dmg) * (1 + comboBonus().damage) * envMul('playerDmgMul');
 }
 
 /** 结算一次子弹伤害：含暴击判定（致命打击） */
@@ -3198,10 +3243,11 @@ function weaponSpeedPenalty() {
 /** 当前手雷伤害区间（高爆手雷） */
 function nadeDamageNow() {
   var bonus = upgrades.nadedmg * CFG.upgradeNadeDmgPerLevel;
+  // 环境修饰：深夜时手雷伤害 +30%、半径 +1 米（N5）
   return {
-    min: CFG.nadeDamageMin + bonus,
-    max: CFG.nadeDamageMax + bonus,
-    radius: CFG.nadeRadius + upgrades.nadedmg * CFG.upgradeNadeRadiusPerLevel,
+    min: (CFG.nadeDamageMin + bonus) * envMul('nadeDmgMul'),
+    max: (CFG.nadeDamageMax + bonus) * envMul('nadeDmgMul'),
+    radius: CFG.nadeRadius + upgrades.nadedmg * CFG.upgradeNadeRadiusPerLevel + envMul('nadeRadiusAdd'),
   };
 }
 
@@ -3283,7 +3329,7 @@ var UPGRADE_ORDER = ['dmg', 'refund', 'heal', 'nade', 'speed',
 // 核心 5 项：通关判定只看它们（扩展技能不强制满级，避免通关周期被拉长到 110 次强化）
 var CORE_UPGRADES = ['dmg', 'refund', 'heal', 'nade', 'speed'];
 
-// 下一级效果描述（lv = 即将达到的等级 1~10）
+// 下一级效果描述（lv = 即将达到的等级 1~8）
 function upgradeNextDesc(id, lv) {
   switch (id) {
     case 'dmg':    return '子弹伤害 +' + lv + ' 点';
@@ -3611,7 +3657,9 @@ function rollKillRewards() {
 // 敌人成长：每次击杀 Boss 后调用（小怪血量/攻击、Boss 血量/炮弹、生成速率）
 function growEnemies() {
   bossKillCount += 1;
-  enemyHpNow = Math.min(CFG.enemyHpMax, 1 + bossKillCount);          // 小怪血量 +1（≤10）
+  // ★ N3：小怪生命成长放缓 —— 每 2 只 Boss +1（原来每只 +1，
+  //   第 9 只 Boss 就涨到 10 血上限，与弹药压力叠加后波次 20~45 极易弹药荒）
+  enemyHpNow = Math.min(CFG.enemyHpMax, 1 + Math.floor(bossKillCount / 2));
   if (enemyHpNow >= CFG.enemyAtkGrowAtHp) {                          // 血量到 10 后攻击 +1/次
     var atkSteps = bossKillCount - (CFG.enemyAtkGrowAtHp - 1);
     meleeAtkBonus = Math.min(CFG.meleeDmgMax - 25, atkSteps);        // 近战基数 15~25 → 上限 50
@@ -3780,7 +3828,9 @@ function spawnItem() {
   if (items.length >= CFG.itemMax) return;
   var pos = pickItemPos();
   if (!pos) return;
-  var type = Math.random() < CFG.itemAmmoChance ? 'ammo' : 'health';
+  // 弹药越紧缺，出现弹药箱的概率越高（30% ~ 85%）
+  var ammoChance = CFG.itemAmmoChanceBase + ammoTension() * CFG.itemAmmoChanceRange;
+  var type = Math.random() < ammoChance ? 'ammo' : 'health';
   var mesh = buildItem(type, pos);
   scene.add(mesh);
   items.push({ mesh: mesh, type: type, phase: rand(0, Math.PI * 2) });
@@ -3808,13 +3858,24 @@ function pickupItem(it, index) {
       (it.weapon === 'rifle' && it.tier >= 4 ? '（移速 -10%）' : (it.weapon === 'rifle' && it.tier === 3 ? '（移速 -5%）' : '')));
     Sfx.pickupAmmo();
   } else if (it.type === 'ammo') {
-    var capA = reserveMaxNow(currentWeapon);
-    if (ammo.reserve >= capA) {
-      showNotice('备弹已满（上限 ' + capA + '）');
+    // ★ N3 改版：两把枪各补「一个弹夹容量」的备弹（各自受上限约束）
+    var gained = [];
+    ['pistol', 'rifle'].forEach(function (w) {
+      var info = magTierInfo(w);
+      var size = info ? info.size : WEAPONS[w].magSize;
+      var cap = reserveMaxNow(w);
+      var cur = reserveOf(w);
+      var add = Math.min(size, cap - cur);
+      if (add <= 0) return;
+      if (w === currentWeapon && !weaponDef().melee) ammo.reserve += add;
+      else weaponAmmo[w].reserve += add;
+      gained.push((w === 'rifle' ? '步枪' : '手枪') + ' +' + add);
+    });
+    if (gained.length === 0) {
+      showNotice('两把枪的备弹都已满');
       return;
     }
-    ammo.reserve = Math.min(capA, ammo.reserve + CFG.ammoPack);
-    showNotice('+' + CFG.ammoPack + ' 子弹（' + ammo.reserve + '/' + capA + '）');
+    showNotice('弹药补给 —— ' + gained.join(' · '));
     Sfx.pickupAmmo();
   } else if (it.type === 'armor') {
     // 每拾取一个护甲道具 = +1 层护盾（每层防御力 = CFG.armorPerPick 点）
@@ -3853,7 +3914,8 @@ function updateItems(dt) {
     itemTimer -= dt;
     if (itemTimer <= 0) {
       spawnItem();
-      itemTimer = rand(CFG.itemIntervalMin, CFG.itemIntervalMax);
+      // 环境修饰：黄昏时补给刷新间隔 -20%（N5）
+      itemTimer = rand(CFG.itemIntervalMin, CFG.itemIntervalMax) * envMul('supplyIntervalMul');
     }
     armorTimer -= dt;                  // 护甲生成判定：每 10 秒 25% 概率
     if (armorTimer <= 0) {
@@ -4795,6 +4857,7 @@ function damagePlayer(d, src) {
   var hurtKind = hurtKindOf(src);
   if (state !== 'playing' || hurtCdByKind[hurtKind] > 0) return;
   var raw = d;
+  d = d * envMul('enemyDmgMul');                          // 环境修饰：血月时敌人伤害 +10%
   d = Math.max(0, d - armorStacks * CFG.armorPerPick);   // 护甲：每层减免 2 点伤害
   if (d <= 0) {
     if (src) debugLog('受到' + src.name + '的' + src.atk + '攻击（' + raw + '点伤害），经 ' + armorStacks + ' 层护盾完全吸收', 'dbg-dmg');
@@ -4878,7 +4941,7 @@ function restartGame(toMenu) {
   updateNadeHUD();
   for (var iti = 0; iti < items.length; iti++) scene.remove(items[iti].mesh);
   items = [];
-  itemTimer = rand(CFG.itemIntervalMin, CFG.itemIntervalMax);
+  itemTimer = rand(CFG.itemIntervalMin, CFG.itemIntervalMax) * envMul('supplyIntervalMul');
   resetCombo();   // 新一局连杀评级清零
   // 重置局内强化与成长（无尽模式技能独立：死亡重来/退出重进均不继承）
   upgrades = {
@@ -5701,7 +5764,7 @@ function update(dt) {
     ammo.reloadTimer -= dt;
     if (dom.reloadWrap) {
       dom.reloadWrap.style.display = 'block';
-      dom.reloadFill.style.width = Math.max(0, Math.min(100, (1 - ammo.reloadTimer / CFG.reloadTime) * 100)) + '%';
+      dom.reloadFill.style.width = Math.max(0, Math.min(100, (1 - ammo.reloadTimer / weaponDef().reloadTime) * 100)) + '%';
     }
     if (ammo.reloadTimer <= 0) {
       var need = magSizeNow() - ammo.mag;
@@ -5993,6 +6056,9 @@ window.FishGame = {
         lightZ: gun.light ? +gun.light.position.z.toFixed(3) : null,
       };
     },
+    getEnvMod: function () { return JSON.parse(JSON.stringify(envMod)); },
+    getAmmoTension: ammoTension,
+    getEnvRule: function () { return ENV_THEMES[envIndex].rule || ''; },
     getRewardOptionsPreview: pickRewardOptions,          // 测试用：预览三选一
     getAchievementCount: function () { return Object.keys(ACHIEVEMENTS).length; },
     getKnifeRange: function () { return WEAPONS.knife.range; },

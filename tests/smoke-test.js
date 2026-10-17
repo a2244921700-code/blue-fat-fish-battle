@@ -382,7 +382,7 @@ check('选择奖励后恢复游戏（本 Boss 的强化次数用尽）', dbg.get
 // 每只 Boss 有 2 次强化机会，同一技能可能被连续选中，因此只断言"至少 +1 级"
 check('所选技能已升级', dbg.getUpgrades()[rwId] >= 1, rwId + '=' + dbg.getUpgrades()[rwId]);
 const gr1 = dbg.getGrowth();
-check('首次击杀成长：小怪血量+1(2)', gr1.enemyHpNow === 2, JSON.stringify(gr1));
+check('首次击杀成长：小怪血量暂不增加(每2只+1)', gr1.enemyHpNow === 1, JSON.stringify(gr1));
 check('首次击杀成长：下一Boss血20', gr1.bossHpNext === 20, String(gr1.bossHpNext));
 check('首次击杀成长：Boss炮弹27', gr1.bossBallDmgNow === 27, String(gr1.bossBallDmgNow));
 check('首次击杀成长：生成速率6', gr1.fishCapNow === 6, String(gr1.fishCapNow));
@@ -873,7 +873,7 @@ dbg.shootOnce();
 advance(0.2);
 check('击杀Boss弹出奖励窗口', dbg.isRewardOpen() === true, 'state=' + dbg.getState());
 const growth = dbg.getGrowth();
-check('成长：小怪血量+1(3)', growth.enemyHpNow === 3, JSON.stringify(growth));
+check('成长：第2只Boss后小怪血量+1(=2)', growth.enemyHpNow === 2, JSON.stringify(growth));
 check('成长：下一个Boss血量+5(25)', growth.bossHpNext === 25, String(growth.bossHpNext));
 check('成长：Boss炮弹伤害+2(29)', growth.bossBallDmgNow === 29, String(growth.bossBallDmgNow));
 check('成长：小怪生成速率+5%(7只)', growth.fishCapNow === 7, String(growth.fishCapNow));
