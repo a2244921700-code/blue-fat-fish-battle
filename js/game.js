@@ -4098,7 +4098,8 @@ function makeBossWeapon(variant) {
   return makeBossLauncher();     // rocket / split 用火箭筒
 }
 
-function spawnBoss() {
+/** 生成 Boss；forceVariant 可强制指定变体索引（开发者模式 / 测试用），不传则按当前阶段 */
+function spawnBoss(forceVariant) {
   if (boss) return;
   // 从四个固定空旷区域中随机选一个，区域内随机偏移（距离玩家至少 12 米避免贴脸）
   var pts = CFG.bossSpawnPoints;
@@ -4111,7 +4112,9 @@ function spawnBoss() {
   }
   if (!pick) pick = new THREE.Vector3(pts[0][0], 0, pts[0][1]);
   var pos = pick;
-  var variant = bossVariantNow();        // 按当前阶段选择 Boss 类型
+  var variant = (forceVariant === undefined || forceVariant === null)
+    ? bossVariantNow()                                   // 默认：按当前阶段
+    : BOSS_VARIANTS[clamp(forceVariant, 0, BOSS_VARIANTS.length - 1)];   // 指定变体
   var mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(CFG.fishSize * CFG.bossSizeMul, CFG.fishSize * CFG.bossSizeMul),
     makeFishMaterial()
@@ -5370,6 +5373,24 @@ function onKeyDown(ev) {
       _ne.waveTag = wave.number;              // 归入本波，避免干扰清波判定
       showNotice('开发者：刷出 ' + (ENEMY_LABEL[_devKind] || _devKind));
       debugLog('开发者快捷键刷出 ' + (ENEMY_LABEL[_devKind] || _devKind), 'dbg-hit');
+      ev.preventDefault();
+      return;
+    }
+    // ★ 开发者模式：小键盘 0 / 5~8 召唤 Boss 变体并同步切换环境主题（录视频用）
+    //   0 = 常规 Boss（晴日沙漠）
+    //   5 = 狂暴冲锋鱼（黄昏）  6 = 召唤祭司鱼（沙尘暴）
+    //   7 = 重炮台鱼（血月）    8 = 分裂母鱼（深夜）
+    var _devBossMap = { Numpad0: 0, Numpad5: 1, Numpad6: 2, Numpad7: 3, Numpad8: 4 };
+    if (_devBossMap[ev.code] !== undefined) {
+      var _vIdx = _devBossMap[ev.code];
+      var _vDef = BOSS_VARIANTS[_vIdx];
+      // 先清掉场上的旧 Boss 与残留特效，方便连续切换录制
+      if (boss) { scene.remove(boss.mesh); boss = null; hideBossBar(); }
+      clearBossFx();
+      applyEnvTheme(_vIdx, true);        // 切到对应环境（带大字播报）
+      spawnBoss(_vIdx);                  // 强制指定 Boss 变体
+      showNotice('开发者：召唤 ' + _vDef.name + ' —— ' + _vDef.tip);
+      debugLog('开发者快捷键召唤 ' + _vDef.name + '（环境：' + ENV_THEMES[_vIdx].name + '）', 'dbg-hit');
       ev.preventDefault();
       return;
     }
