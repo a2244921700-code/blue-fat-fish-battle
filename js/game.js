@@ -357,18 +357,135 @@ var SFX_FILES = {
   gameOver:    'sfx_gameover.mp3',
 };
 
-// 池化播放：每个音效准备若干 Audio 实例轮换，支持连发时重叠播放
+// =========================================================================
+// mp3 音效播放：两条路径
+//   A) WebAudio（首选）：把 mp3 预解码成 AudioBuffer，用 BufferSource 播放。
+//      采样级精确启动、无调度延迟，也不占 78 个 DOM 音频元素。
+//   B) HTMLAudioElement 池（回退）：WebAudio 不可用、或直接双击 index.html 打开时
+//      浏览器禁止 fetch 本地文件（file:// 的 CORS 限制），此时退回原来的池化播放。
+// 两条路径共用同一个 vol 公式，听感一致。
+// =========================================================================
 var SFX_POOL_SIZE = 6;
 var sfxPool = {};
 
+var _sfxCtx = null;          // 复用的 AudioContext（来自 Sfx，避免开第二个上下文）
+var _sfxBuf = {};            // key -> { bufs: AudioBuffer[], idx } | null（null = 该音效加载失败）
+var _sfxLoading = {};        // key -> Promise（防重复加载）
+var _sfxWebAudio = null;     // null 未判定 / true 可用 / false 全局回退
+
+/** 取（或懒创建）AudioContext；不可用时返回 null */
+function sfxContext() {
+  if (_sfxCtx) return _sfxCtx;
+  if (!Sfx || !Sfx.getCtx) return null;
+  _sfxCtx = Sfx.getCtx();
+  return _sfxCtx;
+}
+
+/** 浏览器要求音频上下文在用户手势后才能出声，这里补一次 resume */
+function resumeSfxContext() {
+  if (_sfxCtx && _sfxCtx.state === 'suspended' && _sfxCtx.resume) {
+    try { _sfxCtx.resume(); } catch (e) {}
+  }
+}
+
+/** 预解码某个音效的全部文件；失败时把该 key 标记为 null 并永久走回退路径 */
+function loadSfxBuffers(key) {
+  if (_sfxBuf[key] !== undefined) return Promise.resolve(_sfxBuf[key]);
+  if (_sfxLoading[key]) return _sfxLoading[key];
+  var ctx = sfxContext();
+  var files = SFX_FILES[key];
+  if (!ctx || !files || typeof fetch !== 'function') {
+    _sfxBuf[key] = null;
+    return Promise.resolve(null);
+  }
+  var list = Array.isArray(files) ? files : [files];
+  var p = Promise.all(list.map(function (f) {
+    return fetch('assets/sfx/' + f)
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
+      .then(function (ab) {
+        return new Promise(function (res, rej) { ctx.decodeAudioData(ab, res, rej); });
+      })
+      .catch(function () { return null; });   // 单个文件失败不影响其它
+  })).then(function (bufs) {
+    var ok = bufs.filter(Boolean);
+    if (!ok.length) {
+      // 整组都失败：多半是 file:// 协议，关掉 WebAudio 路径，后续不再重试
+      _sfxBuf[key] = null;
+      if (_sfxWebAudio === null) _sfxWebAudio = false;
+      return null;
+    }
+    _sfxWebAudio = true;
+    _sfxBuf[key] = { bufs: ok, idx: Math.floor(Math.random() * ok.length) };
+    return _sfxBuf[key];
+  });
+  _sfxLoading[key] = p;
+  return p;
+}
+
+/** 进入游戏时预热全部音效（14 个文件共约 640KB，一次性解码完） */
+var _sfxPreloaded = false;
+function preloadSfx() {
+  if (_sfxPreloaded || _sfxWebAudio === false) return;
+  if (!sfxContext()) return;
+  _sfxPreloaded = true;
+  for (var k in SFX_FILES) { if (SFX_FILES.hasOwnProperty(k)) loadSfxBuffers(k); }
+}
+
+/** WebAudio 播放句柄：对外暴露和 HTMLAudioElement 一样的 pause() / currentTime / paused，
+ *  这样 stopEnemyVoice() 不需要区分两种音源。 */
+function BufferVoice(src, gain) {
+  this.src = src;
+  this.gain = gain;
+  this.paused = false;
+  this.currentTime = 0;
+  var self = this;
+  src.onended = function () {
+    self.paused = true;
+    try { self.src.disconnect(); self.gain.disconnect(); } catch (e) {}
+  };
+}
+BufferVoice.prototype.pause = function () {
+  if (this.paused) return;
+  this.paused = true;
+  try { this.src.stop(0); } catch (e) {}
+  try { this.src.disconnect(); this.gain.disconnect(); } catch (e2) {}
+};
+
+/** 用 AudioBuffer 播放一次，返回播放句柄 */
+function playSfxBuffer(slot, vol) {
+  var ctx = _sfxCtx;
+  if (!ctx || !slot || !slot.bufs.length) return null;
+  var buf = slot.bufs[slot.idx];
+  slot.idx = (slot.idx + 1) % slot.bufs.length;      // 轮换：多文件音效天然随机，同文件也支持重叠
+  var src = ctx.createBufferSource();
+  var gain = ctx.createGain();
+  src.buffer = buf;
+  gain.gain.value = vol;
+  src.connect(gain);
+  gain.connect(ctx.destination);                     // 直连输出：vol 已含音效音量，不再乘 master
+  try { src.start(0); } catch (e) { return null; }
+  return new BufferVoice(src, gain);
+}
+
 function playSfx(key, volume) {
-  if (typeof Audio === 'undefined') return;   // 无头测试环境没有 Audio，直接跳过
   var files = SFX_FILES[key];
   if (!files) return;
   var vol = (volume === undefined ? 1 : volume) * (save.settings ? save.settings.sfx : 1);
   vol = Math.max(0, Math.min(1, vol));
   if (vol <= 0) return;
 
+  // ---- 路径 A：WebAudio ----
+  if (_sfxWebAudio !== false && sfxContext()) {
+    var slot = _sfxBuf[key];
+    if (slot) {
+      resumeSfxContext();
+      return playSfxBuffer(slot, vol);
+    }
+    if (slot === undefined) loadSfxBuffers(key);     // 首次触发：后台预载，本次仍用回退路径出声
+  }
+
+  // ---- 路径 B：HTMLAudioElement 池（回退）----
+  if (typeof Audio === 'undefined') return;   // 无头测试环境没有 Audio，直接跳过
   if (!sfxPool[key]) {
     var arr = [];
     for (var i = 0; i < SFX_POOL_SIZE; i++) {
@@ -775,6 +892,8 @@ var Sfx = (function () {
   return {
     init: ensure,
     setMasterVolume: setMasterVolume,
+    // 暴露底层 AudioContext，供 mp3 音效复用同一个输出管道（避免开第二个上下文）
+    getCtx: function () { return ensure() ? ctx : null; },
     shoot:    function () { noiseHit(0.13, 'bandpass', 900, 220, 0.5); tone('sine', 160, 55, 0.11, 0.35); },
     hitFish:  function () { noiseHit(0.07, 'highpass', 1800, 1200, 0.32); tone('sine', 950, 420, 0.08, 0.2); },
     fishDie:  function () { tone('sine', 520, 140, 0.28, 0.45); noiseHit(0.22, 'lowpass', 700, 300, 0.3); },
@@ -5573,6 +5692,8 @@ function onPointerLockChange() {
   var locked = isPointerLocked();
   if (locked) {
     clearTimeout(pendingLockTimer);
+    preloadSfx();          // 用户已点击（合法手势）：此时预热 mp3 音效，避免开火首帧才解码
+    resumeSfxContext();
     // ★ 关键修复：之前降级为拖动瞄准后，只要本次锁定成功就恢复锁定模式
     //（旧实现里 fallback 是不可逆的：一旦降级，后续即使锁定成功也永久停留在拖动模式）
     if (lockMode === 'fallback') {
@@ -5833,6 +5954,7 @@ function enterGameWorld() {
     buildEnvironment();
     buildMiniMap();
   }
+  preloadSfx();   // 点「开始」本身就是用户手势，趁这时候把 mp3 全部解码进内存
   // ★ N6 修复：首次进入游戏时提示三武器切换（V0.5.0 的核心操作，
   //   原来在任何教学文本里都没有出现，不看 README 的玩家根本不知道有步枪和匕首）
   if (!save.tutorialShown) {
