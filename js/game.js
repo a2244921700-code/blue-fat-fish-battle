@@ -289,6 +289,7 @@ var save = {
     bgm: 1.0, boss: 1.0, menu: 1.0, sfx: 1.0,   // 音量倍数（0~1）
     sens: 1.0,                                   // 鼠标灵敏度倍数（0.25~3.0）
     particles: true, shadow: true, colorblind: false,  // 画质与无障碍
+    autoRes: true,                               // 自适应分辨率：帧率不够时自动降采样
   },
   achievements: {},                                  // 成就解锁状态（成就系统使用）
 };
@@ -649,6 +650,13 @@ function applySettings() {
   var s = save.settings;
   if (bgmEl) bgmEl.volume = Math.min(1, CFG.bgmVolume * s.bgm);
   if (renderer) renderer.shadowMap.enabled = !!s.shadow;
+  // 关掉自适应分辨率 → 立刻恢复到设备满分辨率；打开 → 重新开始判定
+  if (s.autoRes === false) {
+    if (_dprNow !== _dprBase) applyPixelRatio(_dprBase);
+    _dprWarmup = 0; _dprCooldown = 0;
+  } else {
+    _dprWarmup = 1.5;
+  }
   sens = 0.0022 * s.sens;                       // 鼠标灵敏度
   if (Sfx && Sfx.setMasterVolume) Sfx.setMasterVolume(0.5 * s.sfx);
 }
@@ -5028,6 +5036,7 @@ function restartGame(toMenu) {
     }
   }
   syncCamera();
+  resetAdaptiveResolution();   // 新一局：重置自适应分辨率的判定窗口
   updateHUD();
   hideAllOverlays();
   if (toMenu) {
@@ -5227,6 +5236,7 @@ function renderSettingsUI() {
   var p = document.getElementById('set-particles'); if (p) p.checked = !!s.particles;
   var sh = document.getElementById('set-shadow'); if (sh) sh.checked = !!s.shadow;
   var cb = document.getElementById('set-colorblind'); if (cb) cb.checked = !!s.colorblind;
+  var ar = document.getElementById('set-auto-res'); if (ar) ar.checked = s.autoRes !== false;
 }
 
 /** 绑定设置控件（实时生效 + 自动保存） */
@@ -5259,6 +5269,7 @@ function bindSettingsInputs() {
   bindCheck('set-particles', 'particles');
   bindCheck('set-shadow', 'shadow');
   bindCheck('set-colorblind', 'colorblind');
+  bindCheck('set-auto-res', 'autoRes');
 }
 
 // 关卡选择界面
@@ -5833,6 +5844,7 @@ function enterGameWorld() {
     buildEnvironment();
     buildMiniMap();
   }
+  resetAdaptiveResolution();   // 新一局：重置帧时长判定（保留已学到的像素比）
   // ★ N6 修复：首次进入游戏时提示三武器切换（V0.5.0 的核心操作，
   //   原来在任何教学文本里都没有出现，不看 README 的玩家根本不知道有步枪和匕首）
   if (!save.tutorialShown) {
@@ -5849,6 +5861,62 @@ function isUiOnlyState() {
   return state === 'menu' || state === 'levelSelect' || state === 'achievements' || state === 'quit';
 }
 
+// ---------------------------------------------------------------- 自适应分辨率
+// 目标：弱 GPU / 4K 屏自动降采样保住帧率，强机器始终维持满分辨率。
+// 判定用「帧时长滑动平均（EMA）」，而不是瞬时值 —— 单帧抖动不该触发降档。
+//   · EMA > 21ms（约 48fps 以下）持续 → 降一档（-0.25）
+//   · EMA < 11ms（约 90fps 以上）持续 → 升一档（+0.25）
+//   60Hz 垂直同步下帧时长恒为 ~16.7ms，够不到 11ms，所以不会来回抖；
+//   只有在高刷屏（>90Hz）或 GPU 大幅过剩时才会往回升。
+// 每次调整后进入观察期（降 2s / 升 4s），避免震荡。
+var _dprBase = 1;        // 设备像素比上限（init 时确定）
+var _dprNow = 1;         // 当前生效的像素比
+var _dprMin = 1;         // 下限（触屏允许降到 0.75）
+var _ftEma = 16.7;       // 帧时长滑动平均（ms）
+var _lastFrameTs = 0;    // 上一帧时间戳
+var _dprCooldown = 0;    // 观察期剩余秒数
+var _dprWarmup = 0;      // 进场热身剩余秒数
+
+/** 进入新一局时复位判定状态（保留已学到的 _dprNow，避免每次重开都从满分辨率重新降档） */
+function resetAdaptiveResolution() {
+  _dprMin = isTouch ? 0.75 : 1;
+  if (_dprNow < _dprMin) _dprNow = _dprMin;
+  _ftEma = 16.7;
+  _lastFrameTs = 0;
+  _dprCooldown = 0;
+  _dprWarmup = 2.5;   // 进场前 2.5 秒不判定：着色器编译、贴图上传会造成假卡顿
+}
+
+/** 应用新像素比（Three.js 内部会按新像素比重新 setSize，不必再调 setSize） */
+function applyPixelRatio(v) {
+  _dprNow = v;
+  if (renderer) renderer.setPixelRatio(v);
+}
+
+function updateAdaptiveResolution(dt) {
+  if (!renderer || isUiOnlyState()) { _lastFrameTs = 0; return; }
+  // 用原始时间戳测帧时长：dt 被 clamp 到 50ms，会掩盖真正的长帧
+  var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  if (_lastFrameTs) {
+    var ft = now - _lastFrameTs;
+    if (ft > 0 && ft < 250) _ftEma = _ftEma * 0.9 + ft * 0.1;   // 切后台回来会有超大间隔，丢弃
+  }
+  _lastFrameTs = now;
+
+  if (_dprWarmup > 0) { _dprWarmup -= dt; return; }
+  if (_dprCooldown > 0) { _dprCooldown -= dt; return; }
+
+  if (save.settings && save.settings.autoRes === false) return;   // 设置里关掉了
+
+  if (_ftEma > 21 && _dprNow > _dprMin) {
+    applyPixelRatio(Math.max(_dprMin, _dprNow - 0.25));
+    _dprCooldown = 2;
+  } else if (_ftEma < 11 && _dprNow < _dprBase) {
+    applyPixelRatio(Math.min(_dprBase, _dprNow + 0.25));
+    _dprCooldown = 4;   // 升档后观察更久，防止来回跳
+  }
+}
+
 function animate() {
   requestAnimationFrame(animate);
   var dt = Math.min(0.05, clock.getDelta());
@@ -5857,6 +5925,7 @@ function animate() {
     return;               // 不渲染 3D 场景（菜单使用独立的 CSS 背景），也不跑敌人 AI
   }
   update(dt);
+  updateAdaptiveResolution(dt);   // 自适应分辨率：按帧时长 EMA 决定是否降采样
   renderer.render(scene, camera);
 }
 
@@ -5875,7 +5944,11 @@ function init() {
     showFatalError('无法初始化 WebGL：' + (e && e.message ? e.message : e) + '（请确认浏览器开启了硬件加速/WebGL）');
     return;
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  // 设备像素比上限 2：4K 屏 + DPR2 会渲染 830 万像素，对这种低模画风毫无必要。
+  // 实际生效值由自适应分辨率在运行中按帧时长调整（见 updateAdaptiveResolution）。
+  _dprBase = Math.min(window.devicePixelRatio || 1, 2);
+  _dprNow = _dprBase;
+  renderer.setPixelRatio(_dprNow);
   renderer.setSize(window.innerWidth, window.innerHeight);
   mark('renderer');
   renderer.shadowMap.enabled = true;
@@ -6160,6 +6233,22 @@ window.FishGame = {
         }
       }
       return false;
+    },
+    // 自适应分辨率状态（测试用）
+    getDprInfo: function () {
+      return {
+        base: _dprBase, now: _dprNow, min: _dprMin,
+        ema: +_ftEma.toFixed(2),
+        cooldown: +_dprCooldown.toFixed(2),
+        warmup: +_dprWarmup.toFixed(2),
+        rendererRatio: renderer ? renderer.getPixelRatio() : null,
+      };
+    },
+    resetAdaptiveResolution: resetAdaptiveResolution,
+    setSetting: function (key, val) {   // 测试用：改设置并立即生效
+      save.settings[key] = val;
+      applySettings();
+      return save.settings[key];
     },
     getSceneStats: function () {
       var meshes = 0;
