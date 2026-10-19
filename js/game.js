@@ -289,6 +289,7 @@ var save = {
     bgm: 1.0, boss: 1.0, menu: 1.0, sfx: 1.0,   // 音量倍数（0~1）
     sens: 1.0,                                   // 鼠标灵敏度倍数（0.25~3.0）
     particles: true, shadow: true, colorblind: false,  // 画质与无障碍
+    difficulty: 'normal',                        // 难度分级（N12）：casual / normal / hard
   },
   achievements: {},                                  // 成就解锁状态（成就系统使用）
 };
@@ -641,6 +642,20 @@ function bumpStat(key, delta) {
 }
 
 /** 音量目标值（基础值 × 玩家设置） */
+// ---------------------------------------------------------------- 难度分级（N12）
+// 一张数值倍率表即可：只影响敌人伤害与补给频率，不改动敌人 AI 与波次编排
+var DIFFICULTY = {
+  casual: { name: '休闲', enemyDmg: 0.7, supplyMul: 1.3 },
+  normal: { name: '标准', enemyDmg: 1.0, supplyMul: 1.0 },
+  hard:   { name: '硬核', enemyDmg: 1.3, supplyMul: 0.7 },
+};
+
+/** 当前难度配置（存档缺失或值非法时回退到「标准」） */
+function difficultyNow() {
+  var key = (save.settings && save.settings.difficulty) || 'normal';
+  return DIFFICULTY[key] || DIFFICULTY.normal;
+}
+
 function bossVolTarget() { return CFG.bossMusicVolume * save.settings.boss; }
 function menuVolTarget() { return CFG.menuMusicVolume * save.settings.menu; }
 
@@ -3183,7 +3198,8 @@ function comboRankForScore(score) {
 function showComboRank(rank, anim) {
   var el = dom.comboPop;
   if (!el) return;
-  el.textContent = CFG.comboRanks[rank];
+  // N10：加「交战中」前缀，明确这是战斗状态增益而不是技巧评价（评级字母保留视觉爽感）
+  el.textContent = '交战中 · ' + CFG.comboRanks[rank];
   el.className = 'rank-' + rank;          // 清空旧类（重置动画）
   void el.offsetWidth;                    // 强制重排，重启动画
   el.classList.add('show');
@@ -3929,7 +3945,8 @@ function updateItems(dt) {
     if (itemTimer <= 0) {
       spawnItem();
       // 环境修饰：黄昏时补给刷新间隔 -20%（N5）
-      itemTimer = rand(CFG.itemIntervalMin, CFG.itemIntervalMax) * envMul('supplyIntervalMul');
+      itemTimer = rand(CFG.itemIntervalMin, CFG.itemIntervalMax)
+        * envMul('supplyIntervalMul') * difficultyNow().supplyMul;   // 环境 + 难度
     }
     armorTimer -= dt;                  // 护甲生成判定：每 10 秒 25% 概率
     if (armorTimer <= 0) {
@@ -4875,6 +4892,7 @@ function damagePlayer(d, src) {
   if (state !== 'playing' || hurtCdByKind[hurtKind] > 0) return;
   var raw = d;
   d = d * envMul('enemyDmgMul');                          // 环境修饰：血月时敌人伤害 +10%
+  d = d * difficultyNow().enemyDmg;                       // 难度分级：休闲 ×0.7 / 硬核 ×1.3
   d = Math.max(0, d - armorStacks * CFG.armorPerPick);   // 护甲：每层减免 2 点伤害
   if (d <= 0) {
     if (src) debugLog('受到' + src.name + '的' + src.atk + '攻击（' + raw + '点伤害），经 ' + armorStacks + ' 层护盾完全吸收', 'dbg-dmg');
@@ -5227,6 +5245,8 @@ function renderSettingsUI() {
   var p = document.getElementById('set-particles'); if (p) p.checked = !!s.particles;
   var sh = document.getElementById('set-shadow'); if (sh) sh.checked = !!s.shadow;
   var cb = document.getElementById('set-colorblind'); if (cb) cb.checked = !!s.colorblind;
+  var df = document.getElementById('set-difficulty');
+  if (df) df.value = (s.difficulty && DIFFICULTY[s.difficulty]) ? s.difficulty : 'normal';
 }
 
 /** 绑定设置控件（实时生效 + 自动保存） */
@@ -5259,6 +5279,16 @@ function bindSettingsInputs() {
   bindCheck('set-particles', 'particles');
   bindCheck('set-shadow', 'shadow');
   bindCheck('set-colorblind', 'colorblind');
+  // 难度分级（N12）：切换立即保存，下一局生效（敌人伤害与补给频率）
+  var dfEl = document.getElementById('set-difficulty');
+  if (dfEl) {
+    dfEl.addEventListener('change', function () {
+      save.settings.difficulty = DIFFICULTY[dfEl.value] ? dfEl.value : 'normal';
+      persistSave();
+      var d = difficultyNow();
+      showNotice('难度：' + d.name + '（敌人伤害 ×' + d.enemyDmg + ' · 补给 ×' + d.supplyMul + '）');
+    });
+  }
 }
 
 // 关卡选择界面
@@ -6091,6 +6121,8 @@ window.FishGame = {
         lightZ: gun.light ? +gun.light.position.z.toFixed(3) : null,
       };
     },
+    setDifficulty: function (k) { save.settings.difficulty = DIFFICULTY[k] ? k : 'normal'; },
+    getDifficulty: function () { return { key: save.settings.difficulty || 'normal', name: difficultyNow().name, enemyDmg: difficultyNow().enemyDmg, supplyMul: difficultyNow().supplyMul }; },
     getEnvMod: function () { return JSON.parse(JSON.stringify(envMod)); },
     getAmmoTension: ammoTension,
     getAmmoBoxChance: function () { return { tension: ammoTension(), chance: ammoBoxChance() }; },

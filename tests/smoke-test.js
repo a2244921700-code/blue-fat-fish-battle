@@ -451,7 +451,7 @@ comboFishA.waypoint.set(0, 0, 35); comboFishA.waitTimer = 999;
 dbg.shootOnce();
 advance(0.2);
 check('连杀：单杀评级 D(1点)', dbg.comboGet().rank === 0 && dbg.comboGet().rankName === 'D', JSON.stringify(dbg.comboGet()));
-check('连杀字母 D 简单弹出(常驻)', els['combo-pop'].textContent === 'D' && els['combo-pop'].classList.contains('anim-d') && els['combo-pop'].classList.contains('show'),
+check('连杀字母 D 简单弹出(常驻)', els['combo-pop'].textContent.indexOf('交战中') >= 0 && els['combo-pop'].textContent.indexOf('D') >= 0 && els['combo-pop'].classList.contains('anim-d') && els['combo-pop'].classList.contains('show'),
   'text=' + els['combo-pop'].textContent + ' class=' + els['combo-pop'].className);
 const comboFishB = dbg.getEnemies().find(e => e.alive);
 comboFishB.mesh.position.set(0, comboFishB.baseY + 0.2, 35);
@@ -459,17 +459,17 @@ comboFishB.waypoint.set(0, 0, 35); comboFishB.waitTimer = 999;
 dbg.shootOnce();
 advance(0.2);
 check('连杀：2秒内双杀升级 C(2点)', dbg.comboGet().rank === 1 && dbg.comboGet().score === 2, JSON.stringify(dbg.comboGet()));
-check('连杀字母 C 抖动弹出(升阶)', els['combo-pop'].textContent === 'C' && els['combo-pop'].classList.contains('anim-up') && els['combo-pop'].className.indexOf('rank-1') >= 0,
+check('连杀字母 C 抖动弹出(升阶)', els['combo-pop'].textContent.indexOf('交战中') >= 0 && els['combo-pop'].textContent.indexOf('C') >= 0 && els['combo-pop'].classList.contains('anim-up') && els['combo-pop'].className.indexOf('rank-1') >= 0,
   'text=' + els['combo-pop'].textContent + ' class=' + els['combo-pop'].className);
-check('评级字母升级后常驻不消失', els['combo-pop'].classList.contains('show') && els['combo-pop'].textContent === 'C',
+check('评级字母升级后常驻不消失', els['combo-pop'].classList.contains('show') && els['combo-pop'].textContent.indexOf('C') >= 0,
   'text=' + els['combo-pop'].textContent);
 dbg.comboAdd(5);   // 模拟击败 Boss：连杀 +5 点
 check('击败Boss连杀+5直达SSS', dbg.comboGet().rank === 6 && dbg.comboGet().rankName === 'SSS' && dbg.comboGet().score === 7, JSON.stringify(dbg.comboGet()));
-check('连杀字母 SSS 弹出(最大字号档)', els['combo-pop'].textContent === 'SSS' && els['combo-pop'].className.indexOf('rank-6') >= 0,
+check('连杀字母 SSS 弹出(最大字号档)', els['combo-pop'].textContent.indexOf('SSS') >= 0 && els['combo-pop'].className.indexOf('rank-6') >= 0,
   'text=' + els['combo-pop'].textContent + ' class=' + els['combo-pop'].className);
 // SSS 后继续击杀：满级不再升级，但字母应脉冲刷新保持反馈
 dbg.comboAdd(1);
-check('SSS后继续击杀字母保持(脉冲)', dbg.comboGet().rank === 6 && dbg.comboGet().score === 8 && els['combo-pop'].textContent === 'SSS' && els['combo-pop'].classList.contains('anim-keep'),
+check('SSS后继续击杀字母保持(脉冲)', dbg.comboGet().rank === 6 && dbg.comboGet().score === 8 && els['combo-pop'].textContent.indexOf('SSS') >= 0 && els['combo-pop'].classList.contains('anim-keep'),
   JSON.stringify(dbg.comboGet()) + ' class=' + els['combo-pop'].className);
 // 2 秒无击杀 → 降一级（8→7 仍 SSS，再 7→6 降为 SS）
 for (let cw = 0; cw < 2; cw++) {
@@ -479,7 +479,7 @@ for (let cw = 0; cw < 2; cw++) {
   advance(2.2);
 }
 check('2秒无击杀降级(SSS→SS)', dbg.comboGet().rank === 5 && dbg.comboGet().rankName === 'SS' && dbg.comboGet().score === 6, JSON.stringify(dbg.comboGet()));
-check('降级后字母切换为低一级', els['combo-pop'].textContent === 'SS' && els['combo-pop'].className.indexOf('rank-5') >= 0 && els['combo-pop'].classList.contains('anim-down'),
+check('降级后字母切换为低一级', els['combo-pop'].textContent.indexOf('SS') >= 0 && els['combo-pop'].className.indexOf('rank-5') >= 0 && els['combo-pop'].classList.contains('anim-down'),
   'text=' + els['combo-pop'].textContent + ' class=' + els['combo-pop'].className);
 // 继续每 2 秒降一级至 D，再 2 秒无击杀 → 字母消失
 for (let cd = 0; cd < 6; cd++) {
