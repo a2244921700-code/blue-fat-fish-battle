@@ -374,6 +374,24 @@ window.addEventListener('load', function () {
     background-image: linear-gradient(140deg, #ebfdff 0%, #83e0ff 20%, #5d8bff 42%, #b285ff 64%, #6ec6ff 82%, #4d7dff 100%); }
   #combo-pop.rank-6 {
     background-image: linear-gradient(130deg, #f4feff 0%, #9fe9ff 16%, #57a7ff 34%, #4d6bff 50%, #c08aff 66%, #6ee0ff 82%, #3f8cff 100%); }
+  /* 对话框（剧情 / 旁白 / 播报通用）：底部居中，半透明卡片 */
+  #dialog-box {
+    position: fixed; left: 50%; bottom: 13vh; transform: translateX(-50%);
+    min-width: 44vw; max-width: 74vw; padding: 14px 22px; z-index: 20;
+    background: rgba(8, 20, 36, .82); border: 1px solid rgba(120, 200, 255, .35);
+    border-radius: 12px; box-shadow: 0 6px 28px rgba(0, 0, 0, .45);
+    opacity: 0; pointer-events: none; transition: opacity .35s ease;
+    backdrop-filter: blur(3px);
+  }
+  #dialog-box.show { opacity: 1; }
+  #dialog-box .dialog-speaker {
+    font-size: 14px; font-weight: 800; letter-spacing: 2px;
+    color: #7fd4ff; margin-bottom: 6px;
+  }
+  #dialog-box .dialog-text {
+    font-size: 17px; line-height: 1.55; color: #e8f6ff;
+    white-space: pre-wrap; word-break: break-word;
+  }
   /* N10：评级字母前加「交战中」前缀 —— 明确它是战斗状态增益，而不是技巧评价 */
   #combo-pop { letter-spacing: 2px; }
   /* 常驻显示：获得评级后字母保持（直到降级变化或 D 级衰减消失） */
@@ -613,6 +631,10 @@ window.addEventListener('load', function () {
   <div id="reload-wrap">
     <div class="reload-label">换弹中...</div>
     <div id="reload-bar"><div id="reload-fill"></div></div>
+  </div>
+  <div id="dialog-box">
+    <div class="dialog-speaker"></div>
+    <div class="dialog-text"></div>
   </div>
   <div id="tip-bar">WASD 移动 · <b>1/2/3 切换武器</b> · 左键射击 · <b>右键匕首重击</b> · R 换弹 · G 手雷 · I 技能面板 · 空格跳跃 · Esc 暂停</div>
   <div id="minimap"><canvas id="minimap-canvas" width="210" height="210"></canvas></div>

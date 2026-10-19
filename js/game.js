@@ -642,6 +642,105 @@ function bumpStat(key, delta) {
 }
 
 /** 音量目标值（基础值 × 玩家设置） */
+// ---------------------------------------------------------------- 无尽模式随机挑战目标（B3）
+// 每波开始时有概率给一个可选目标：完成给额外补给，失败无惩罚。
+// 这套判定逻辑与闯关模式的 goal 共用，等于先用无尽模式验证目标系统管线。
+var challenge = { active: false, type: '', target: 0, progress: 0, label: '' };
+
+/** 每波开始时尝试生成一个挑战目标 */
+function rollChallenge() {
+  challenge.active = false;
+  if (Math.random() > 0.35) return;              // 35% 概率出现
+  try {
+    var n = 6 + Math.floor(Math.random() * 6);   // 6~11 只
+    challenge.active = true;
+    challenge.type = 'kill';
+    challenge.target = n;
+    challenge.progress = 0;
+    challenge.label = OBJECTIVE_TYPES.kill.text(n);
+    showDialog('挑战目标', challenge.label + '　完成可获得补给', 3600);
+  } catch (err) {
+    // 极简 DOM 环境（冒烟测试）下提示 UI 可能不可用，静默降级不影响战斗
+    if (typeof console !== 'undefined' && console.error) console.error('[rollChallenge]', err && err.message);
+    challenge.active = false;
+  }
+}
+
+/** 击杀时推进挑战目标 */
+function advanceChallenge() {
+  if (!challenge.active) return;
+  challenge.progress++;
+  if (challenge.progress < challenge.target) return;
+  // 完成奖励：补两把枪各一个弹夹 + 一层护甲
+  ['pistol', 'rifle'].forEach(function (w) {
+    var info = magTierInfo(w);
+    var size = info ? info.size : WEAPONS[w].magSize;
+    var cap = reserveMaxNow(w);
+    var cur = reserveOf(w);
+    var add = Math.min(size, cap - cur);
+    if (add <= 0) return;
+    if (w === currentWeapon && !weaponDef().melee) ammo.reserve += add;
+    else weaponAmmo[w].reserve += add;
+  });
+  armorStacks = Math.min(armorMaxNow(), armorStacks + 1);
+  showDialog('挑战完成', '额外补给已到账：两把枪各一个弹夹 + 护甲 +1', 4000);
+  challenge.active = false;
+}
+
+// ---------------------------------------------------------------- 闯关模式骨架（B）
+// 一关 = 波次脚本 + 敌人编排 + 目标条件 + 环境主题 + 出场台词。
+// 剧情还没定，这里先只放「无剧情纯战斗」的骨架关，等文本定稿后直接填 intro / outro 即可。
+var LEVELS = [
+  {
+    id: 'stage-1',
+    name: '第一关 · 试炼',
+    desc: '先清掉几波杂鱼，再面对一只 Boss。',
+    env: 0,                                  // 环境主题索引（0 晴日 / 1 黄昏 / 2 沙尘暴 / 3 血月 / 4 深夜）
+    waves: [
+      { label: '热身',    enemies: ['melee'],                count: 6 },
+      { label: '空袭',    enemies: ['melee', 'bomber'],      count: 8 },
+      { label: '坚守',    enemies: ['melee', 'shield'],      count: 10 },
+      { label: '讨伐',    bossVariant: 0 },    // 最后一步生成 Boss（variant 0 = 常规）
+    ],
+    goal: { type: 'killAll' },               // 目标类型见 OBJECTIVE_TYPES
+    intro:  { speaker: '旁白', text: '（剧情待填：这一关的开场台词）' },
+    outro:  { speaker: '旁白', text: '（剧情待填：通关后的台词）' },
+  },
+];
+
+// 目标系统：闯关与无尽共用同一套判定
+var OBJECTIVE_TYPES = {
+  killAll: { name: '清场',   text: function (n) { return '清光本关所有敌人'; } },
+  survive: { name: '坚守',   text: function (n) { return '坚守 ' + (n || 10) + ' 波'; } },
+  kill:    { name: '猎杀',   text: function (n) { return '击杀 ' + (n || 30) + ' 只敌人'; } },
+  boss:    { name: '讨伐',   text: function (n) { return '击败 ' + (n || 1) + ' 只 Boss'; } },
+};
+
+/** 取某一关的配置（越界或未定义时返回 null） */
+function levelById(id) {
+  for (var i = 0; i < LEVELS.length; i++) if (LEVELS[i].id === id) return LEVELS[i];
+  return null;
+}
+
+/** 对话框：显示一句带说话人的台词（剧情/旁白/播报通用）
+    duration 毫秒后自动淡出；再次调用会覆盖上一条 */
+var dialogTimer = null;
+function showDialog(speaker, text, duration) {
+  var box = document.getElementById('dialog-box');
+  // 兜底：无对话框元素、或运行在极简 DOM 环境（冒烟测试的 stub）时退化成普通提示
+  if (!box || typeof box.querySelector !== 'function') {
+    showNotice((speaker ? speaker + '：' : '') + text);
+    return;
+  }
+  var sp = box.querySelector('.dialog-speaker');
+  var tx = box.querySelector('.dialog-text');
+  if (sp) sp.textContent = speaker || '';
+  if (tx) tx.textContent = text || '';
+  box.classList.add('show');
+  clearTimeout(dialogTimer);
+  dialogTimer = setTimeout(function () { box.classList.remove('show'); }, duration || 4200);
+}
+
 // ---------------------------------------------------------------- 难度分级（N12）
 // 一张数值倍率表即可：只影响敌人伤害与补给频率，不改动敌人 AI 与波次编排
 var DIFFICULTY = {
@@ -2097,8 +2196,27 @@ function currentStage() {
 }
 
 /** 生成本波敌人构成：基础数量 + 每阶段 +2，其中各阶段新解锁的特殊敌人每种 2 个 */
+// B5：主题波 —— 每 10 波整波换成单一敌人类型，作为「闯关编排」能力的低成本演练
+var waveTheme = null;                  // 当前波为主题波时的配置（否则 null）
+
+var THEME_WAVES = [
+  { key: 'shield', label: '铁壁波', tip: '整波都是护盾鱼，注意正面硬防' },
+  { key: 'bomber', label: '爆破波', tip: '整波都是自爆鱼，别让它们贴身' },
+  { key: 'splitter', label: '增殖波', tip: '整波都是分裂鱼，小心被包围' },
+];
+
 function buildWaveComposition(stage) {
   var total = CFG.waveBaseCount + (stage - 1) * CFG.waveCountPerStage;
+  // 第 10 / 20 / 30… 波：整波单一类型（循环三种主题）
+  if (wave.number > 0 && wave.number % 10 === 0) {
+    var t = THEME_WAVES[(Math.floor(wave.number / 10) - 1) % THEME_WAVES.length];
+    var themeList = [];
+    var themeTotal = Math.max(4, Math.round(total * 0.7));   // 数量略减，避免整波同类过强
+    for (var ti = 0; ti < themeTotal; ti++) themeList.push(t.key);
+    waveTheme = t;                                          // 供 startWave 播报
+    return themeList;
+  }
+  waveTheme = null;
   var list = [];
   var unlocked = Math.min(stage - 1, STAGE_ENEMIES.length);
   for (var i = 0; i < unlocked; i++) {
@@ -2113,6 +2231,7 @@ function startWave(n) {
   wave.number = n;
   wave.state = 'fighting';
   wave.timer = 0;
+  rollChallenge();                 // B3：本波随机挑战目标（有概率出现，失败无惩罚）
   var comp = buildWaveComposition(currentStage());
   wave.total = comp.length;
   for (var i = 0; i < comp.length; i++) {
@@ -2121,7 +2240,11 @@ function startWave(n) {
     var e = spawnFish(pickSpawnPos(spawnDist), comp[i]);
     e.waveTag = n;                                   // 标记归属波次，用于清波判定
   }
-  showNotice('第 ' + n + ' 波来袭（' + comp.length + ' 只）');
+  if (waveTheme) {
+    showDialog('主题波 · ' + waveTheme.label, waveTheme.tip, 4000);
+  } else {
+    showNotice('第 ' + n + ' 波来袭（' + comp.length + ' 只）');
+  }
 }
 
 /** 本波仍存活的敌人数 */
@@ -2589,6 +2712,7 @@ function killFish(e, hitPoint) {
     unlockAchievement('firstBlood');     // 成就：初次猎杀
     bumpStat('totalKills', 1);           // 累计击杀（千鱼斩）
     addComboPoints(CFG.comboFishPoints); // 连杀 +1 点
+    advanceChallenge();                  // B3：推进挑战目标（击杀 N 只）
   }
   // 回血来源①：连杀 SSS 增益（击杀回复 2% 最大生命）
   var lifeSteal = comboBonus().lifesteal;
@@ -3713,6 +3837,12 @@ function updateArmorHUD() {
 function victory() {
   state = 'victory';
   unlockAchievement('conqueror');     // 成就：无尽征服者（通关）
+  // B4：通关无尽模式 → 解锁闯关模式（选关页那句「完成无尽模式试炼后解锁」不再是空头承诺）
+  if (save) {
+    save.unlockedLevel = true;
+    if (save.bestStage) save.bestStage = Math.max(save.bestStage, currentStage());
+    persistSave();
+  }
   Sfx.bossDie();
   if (document.exitPointerLock) document.exitPointerLock();
   if (dom.finalScoreV) dom.finalScoreV.textContent = String(score);
