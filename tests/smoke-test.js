@@ -113,6 +113,8 @@ globalThis.Image = class Image {
 const THREE = require(path.join(GAME_DIR, 'lib', 'three.min.js'));
 globalThis.THREE = THREE;
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'assets', 'fish-texture.js'), 'utf8'));
+(0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'art.js'), 'utf8'));
+(0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'combat-art.js'), 'utf8'));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'game.js'), 'utf8'));
 const dbg = window.FishGame.__debug;
 
@@ -160,6 +162,7 @@ check('进入游戏0.5秒后菜单曲淡出关闭', dbg.getBgmInfo().menuOn === 
 dbg.setBossTimer(99999); // 冻结随机 Boss 生成，保证测试确定性
 
 // 射击命中
+dbg.clearCovers(); // 固定射击测试走廊，避免随机掩体偶然挡住测试目标。
 const fishes = dbg.getEnemies();
 const target = fishes[0];
 // 其余鱼挪到远角（防射线偶然串杀别的鱼）
@@ -993,6 +996,112 @@ dbg.enterFallback();
 advance(12);
 check('长跑 12 秒无异常', true);
 
+// Codex 回归：原画保护、暂停计时与场景生命周期。
+const matte = new Uint8ClampedArray(7 * 7 * 4).fill(255);
+for (let y = 1; y <= 5; y++) for (let x = 1; x <= 5; x++) {
+  if (x === 1 || x === 5 || y === 1 || y === 5) {
+    const i = (y * 7 + x) * 4; matte[i] = matte[i + 1] = matte[i + 2] = 15;
+  }
+}
+FishArt.removeBackground(matte, 7, 7);
+check('抠图移除连通的边缘背景', matte[3] === 0);
+check('抠图保留黑色轮廓内部的白色原画', matte[(3 * 7 + 3) * 4 + 3] === 255);
+dbg.restart(true); dbg.enterGameWorld(); dbg.enterFallback(); dbg.clearCovers();
+dbg.setAmmo(1, 42); dbg.reload();
+const reloadBeforePause = dbg.getAmmo().reloadTimer;
+dbg.setState('paused'); advance(2);
+check('暂停时换弹计时与弹药不前进', dbg.getAmmo().reloadTimer === reloadBeforePause && dbg.getAmmo().mag === 1);
+dbg.setState('playing'); advance(1.6);
+check('恢复游戏后换弹完成', dbg.getAmmo().reloading === false && dbg.getAmmo().mag === 7);
+dbg.setState('paused');
+const testFish = dbg.spawnEnemy('normal', 0, 30);
+let fishMaterialDisposed = false, fishShadowDisposed = false;
+testFish.mesh.material.addEventListener('dispose', () => { fishMaterialDisposed = true; });
+testFish.groundShadow.material.addEventListener('dispose', () => { fishShadowDisposed = true; });
+dbg.getEnemies().forEach(e => { e.alive = false; });
+dbg.startWave(2);
+check('波次切换回收死亡敌人与接地阴影资源', fishMaterialDisposed && fishShadowDisposed);
+check('波次切换不积累旧敌人', dbg.getEnemies().length === 6);
+const shadowMesh = dbg.getEnemies()[0].groundShadow;
+dbg.restart(true);
+check('回主菜单卸载环境与随机掩体', dbg.getSceneStats().envObjects === 0 && dbg.getSceneStats().obstacles === 0);
+check('回主菜单移除敌人软阴影', shadowMesh.parent === null);
+dbg.enterGameWorld();
+check('卸载后可重建完整场景', dbg.getSceneStats().envBuilt === true && dbg.getObstacles().length > 50);
+
+// Codex 战斗回归：枪口坐标约定、父广告牌旋转补偿、资源回收与暂停。
+dbg.restart(true);dbg.enterGameWorld();dbg.enterFallback();dbg.clearCovers();dbg.setState('paused');
+const combatPlayer=dbg.getPlayer();
+let worstMuzzleError=0,worstAxis=1,worstTarget=1;
+for(const variant of [0,3,4]){
+  dbg.clearBossNow();dbg.spawnBossNow(variant);
+  const b=dbg.getBoss();b.mesh.position.set(0,3,15);
+  for(const pose of [[0,0,29,0],[12,4,21,1.3],[-14,0,9,-2.2],[1,7,16,Math.PI]]){
+    combatPlayer.pos.set(pose[0],pose[1],pose[2]);combatPlayer.yaw=pose[3];
+    dbg.updateBossWeaponAim();dbg.clearProjectiles();
+    for(const off of (b.mode==='barrage'?[0,-dbg.CFG.bossBarrageSpread,dbg.CFG.bossBarrageSpread]:[0])){
+      dbg.fireBossBall(off);const shot=dbg.getBossShots().at(-1);
+      const tip=b.weapon.muzzles?b.weapon.muzzles[shot.muzzleIndex]:b.weapon.muzzleTip;
+      const from=tip.getWorldPosition(new THREE.Vector3()),forward=FishCombat.muzzleDirection(tip,new THREE.Vector3());
+      worstMuzzleError=Math.max(worstMuzzleError,from.distanceTo(shot.mesh.position));
+      worstAxis=Math.min(worstAxis,forward.dot(shot.vel.clone().normalize()));
+      if(!off)worstTarget=Math.min(worstTarget,new THREE.Vector3(combatPlayer.pos.x,combatPlayer.pos.y+dbg.CFG.eyeHeight,combatPlayer.pos.z).sub(from).normalize().dot(forward));
+    }
+    if(b.mode==='barrage'){
+      const shots=dbg.getBossShots();
+      check('三管炮使用三个不同的实际炮口',shots[0].mesh.position.distanceTo(shots[1].mesh.position)>.1&&shots[1].mesh.position.distanceTo(shots[2].mesh.position)>.1);
+    }
+  }
+}
+check('20组Boss炮弹出膛位置匹配炮口',worstMuzzleError<1e-6,String(worstMuzzleError));
+check('20组Boss炮管轴与初始弹道一致',worstAxis>.99999,String(worstAxis));
+check('Boss主炮瞄准不受镜头yaw和跳跃高度干扰',worstTarget>.9999,String(worstTarget));
+const breathingFish=new THREE.Group(),breathingGun=FishCombat.fishGun();breathingFish.add(breathingGun);
+breathingFish.scale.set(1.1,.88,1);breathingFish.rotation.set(.1,1.8,.05);
+const aimAt=new THREE.Vector3(7,2,-8);FishCombat.aimWeapon(breathingGun,aimAt,0);
+const tipAt=breathingGun.muzzleTip.getWorldPosition(new THREE.Vector3());
+check('射手鱼呼吸缩放不扭曲枪口瞄准',FishCombat.muzzleDirection(breathingGun.muzzleTip,new THREE.Vector3()).dot(aimAt.clone().sub(tipAt).normalize())>.99999);
+FishArt.disposeTree(breathingFish);
+dbg.clearBossNow();dbg.clearProjectiles();dbg.restart();dbg.clearCovers();dbg.inertEnemies();
+const homing=dbg.spawnTestShell(0,4,35,7,0,0);
+dbg.setState('playing');dbg.update(.05);
+const nose=new THREE.Vector3(0,0,1).applyQuaternion(homing.mesh.quaternion);
+check('跟踪炮弹转弯后模型头部跟随速度方向',nose.dot(homing.vel.clone().normalize())>.9999);
+let testShellDisposed=false;
+homing.mesh.children[0].geometry.addEventListener('dispose',()=>testShellDisposed=true);
+dbg.clearProjectiles();check('清场释放测试炮弹的独有几何',testShellDisposed);
+
+fakeDocument.fire('keydown',{code:'Digit2'});
+const weaponGun=dbg.getGun();
+check('步枪模型与枪口闪光共用同一锚点',weaponGun.rifleGroup.visible&&!weaponGun.pistolGroup.visible&&weaponGun.flashMesh.position.distanceTo(weaponGun.muzzleTip.position)<1e-6);
+dbg.setAmmo(1,100);dbg.reload();dbg.update(.8);dbg.update(0);
+const frozenReloadPose=weaponGun.group.rotation.z;
+check('步枪换弹时收枪并移动弹匣',frozenReloadPose<-.2&&weaponGun.rifleGroup.magazine.position.y<-.1);
+dbg.setState('paused');dbg.update(.7);
+check('暂停冻结换弹模型姿势',weaponGun.group.rotation.z===frozenReloadPose);
+dbg.setState('playing');fakeDocument.fire('keydown',{code:'Digit1'});
+check('切枪取消旧换弹姿势和隐藏枪焰',!dbg.getAmmo().reloading&&weaponGun.rifleGroup.magazine.position.y===-.06&&weaponGun.group.rotation.z===0&&!weaponGun.flashMesh.visible);
+
+dbg.previewExplosion(0,2,34,4);
+const fxBeforePause=dbg.getCombatFxStats().active;
+const particlePool=dbg.getParticles();const firstLive=particlePool.data.findIndex(p=>p&&p.life>0);
+const alphaBefore=particlePool.alpha[firstLive];
+dbg.setState('paused');dbg.update(.5);
+check('暂停冻结新战斗特效及粒子',dbg.getCombatFxStats().active===fxBeforePause&&particlePool.alpha[firstLive]===alphaBefore);
+dbg.setState('playing');dbg.update(.05);
+check('粒子逐渐变淡且使用圆形着色器',particlePool.alpha[firstLive]<alphaBefore&&particlePool.mesh.material.isShaderMaterial);
+dbg.setParticles(false);dbg.update(0);
+check('关闭粒子设置清除烟尘弹道和旧粒子',dbg.getCombatFxStats().active===0&&!particlePool.mesh.visible&&particlePool.alpha.every(a=>a===0));
+dbg.setParticles(true);dbg.update(0);
+check('重新开启粒子设置不复活旧粒子',particlePool.mesh.visible&&particlePool.alpha.every(a=>a===0));
+for(let i=0;i<60;i++)dbg.previewExplosion(i%5,1,34,4);
+const boundedFx=dbg.getCombatFxStats();
+check('连续爆炸的特效数量保持容量上限',boundedFx.active<=boundedFx.capacity&&boundedFx.allocated<=boundedFx.capacity);
+dbg.restart(true);
+check('重开清除所有池中特效与粒子',dbg.getCombatFxStats().active===0&&particlePool.alpha.every(a=>a===0));
+const isolatedFx=FishCombat.effects(new THREE.Scene());
+isolatedFx.explosion(new THREE.Vector3(),3);isolatedFx.update(2,new THREE.PerspectiveCamera());
+check('特效寿命结束后全部回池',isolatedFx.stats().active===0);
 console.log(failures === 0 ? '===== ALL SMOKE TESTS PASSED =====' : '===== ' + failures + ' TESTS FAILED =====');
 process.exit(failures === 0 ? 0 : 1);
 })().catch(function (e) { console.error('SMOKE CRASH:', e); process.exit(1); });

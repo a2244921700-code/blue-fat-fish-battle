@@ -1,0 +1,115 @@
+{
+  "aimCases": 20,
+  "worstSpawnError": 0,
+  "worstBarrelAlignment": 0.9999999999999998,
+  "fire": {
+    "flash": true,
+    "active": 2,
+    "mag": 19
+  },
+  "reload": {
+    "tilt": -0.4279754323328191,
+    "frozen": true,
+    "magY": -0.17412678195541842
+  },
+  "bounded": {
+    "full": {
+      "active": 112,
+      "allocated": 112,
+      "capacity": 112
+    },
+    "cleared": {
+      "active": 0,
+      "allocated": 112,
+      "capacity": 112
+    }
+  },
+  "cycles": [
+    {
+      "scene": {
+        "children": 2,
+        "meshes": 92,
+        "envBuilt": false,
+        "envObjects": 0,
+        "obstacles": 0,
+        "wallMeshes": 0,
+        "enemies": 0,
+        "trackedEnemies": 0,
+        "renderCalls": 184,
+        "triangles": 15534,
+        "geometries": 106,
+        "textures": 17
+      },
+      "fx": {
+        "active": 0,
+        "allocated": 112,
+        "capacity": 112
+      }
+    },
+    {
+      "scene": {
+        "children": 2,
+        "meshes": 92,
+        "envBuilt": false,
+        "envObjects": 0,
+        "obstacles": 0,
+        "wallMeshes": 0,
+        "enemies": 0,
+        "trackedEnemies": 0,
+        "renderCalls": 184,
+        "triangles": 15534,
+        "geometries": 106,
+        "textures": 17
+      },
+      "fx": {
+        "active": 0,
+        "allocated": 112,
+        "capacity": 112
+      }
+    },
+    {
+      "scene": {
+        "children": 2,
+        "meshes": 92,
+        "envBuilt": false,
+        "envObjects": 0,
+        "obstacles": 0,
+        "wallMeshes": 0,
+        "enemies": 0,
+        "trackedEnemies": 0,
+        "renderCalls": 184,
+        "triangles": 15534,
+        "geometries": 106,
+        "textures": 17
+      },
+      "fx": {
+        "active": 0,
+        "allocated": 112,
+        "capacity": 112
+      }
+    },
+    {
+      "scene": {
+        "children": 2,
+        "meshes": 92,
+        "envBuilt": false,
+        "envObjects": 0,
+        "obstacles": 0,
+        "wallMeshes": 0,
+        "enemies": 0,
+        "trackedEnemies": 0,
+        "renderCalls": 184,
+        "triangles": 15534,
+        "geometries": 106,
+        "textures": 17
+      },
+      "fx": {
+        "active": 0,
+        "allocated": 112,
+        "capacity": 112
+      }
+    }
+  ],
+  "errors": [],
+  "shaderErrors": []
+}

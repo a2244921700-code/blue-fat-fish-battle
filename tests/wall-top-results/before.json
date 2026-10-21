@@ -1,0 +1,88 @@
+{
+  "samples": [
+    {
+      "name": "外墙",
+      "x": 0.173,
+      "z": -45.613,
+      "expectedHeight": 5,
+      "top": 5.000000111758709,
+      "surfaces": 2
+    },
+    {
+      "name": "中央直墙",
+      "x": -6.173,
+      "z": 8.587,
+      "expectedHeight": 3.4,
+      "top": 3.400000047683716,
+      "surfaces": 2
+    },
+    {
+      "name": "中央转角",
+      "x": -10.721,
+      "z": 8.701,
+      "expectedHeight": 3.4,
+      "top": 3.400000047683716,
+      "surfaces": 4
+    },
+    {
+      "name": "A区转角",
+      "x": -43.813,
+      "z": -41.827,
+      "expectedHeight": 3.2,
+      "top": 3.200000023841858,
+      "surfaces": 4
+    },
+    {
+      "name": "B区转角",
+      "x": 43.813,
+      "z": -41.827,
+      "expectedHeight": 3.2,
+      "top": 3.200000023841858,
+      "surfaces": 4
+    },
+    {
+      "name": "西走廊",
+      "x": -21.913,
+      "z": -4.173,
+      "expectedHeight": 3,
+      "top": 3.000000111758709,
+      "surfaces": 2
+    },
+    {
+      "name": "东走廊屋顶",
+      "x": 17.173,
+      "z": -11.137,
+      "expectedHeight": 3.8,
+      "top": 3.8000000029802323,
+      "surfaces": 1
+    }
+  ],
+  "landings": [
+    {
+      "name": "central",
+      "expected": 3.4,
+      "feet": 3.4,
+      "onGround": true
+    },
+    {
+      "name": "corner",
+      "expected": 3.4,
+      "feet": 3.4,
+      "onGround": true
+    },
+    {
+      "name": "boundary",
+      "expected": 5,
+      "feet": 5,
+      "onGround": true
+    },
+    {
+      "name": "roof",
+      "expected": 3.8,
+      "feet": 3.8,
+      "onGround": true
+    }
+  ],
+  "rebuilt": null,
+  "errors": []
+}

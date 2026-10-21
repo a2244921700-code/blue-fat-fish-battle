@@ -1,7 +1,7 @@
 /* =========================================================================
  * 3D 射击 · 蓝色肥鱼大作战
  * 单文件游戏逻辑（Three.js r159，UMD 本地化，classic script）
- * 依赖：lib/three.min.js（window.THREE）、assets/fish-texture.js（window.FISH_TEXTURE_DATA）
+ * 依赖：lib/three.min.js、assets/fish-texture.js、js/art.js（离线美术与资源管理）
  * ========================================================================= */
 (function () {
 'use strict';
@@ -540,28 +540,22 @@ function switchWeapon(id) {
   Sfx.reloadDone();
 }
 
-/** 按当前武器显示对应枪械模型，并把枪口火焰/枪口光移到该枪的枪口处
-    （两把枪枪管长度不同：手枪枪口 z≈-0.30，步枪枪口 z≈-0.96） */
+/** 切换模型并从 muzzleTip 锚点定位枪焰，恢复被打断的换弹/攻击姿势。 */
 function applyWeaponVisual() {
-  var isMelee = !!(WEAPONS[currentWeapon] && WEAPONS[currentWeapon].melee);
-  if (gun.pistolGroup) gun.pistolGroup.visible = (currentWeapon === 'pistol');
-  if (gun.rifleGroup) gun.rifleGroup.visible = (currentWeapon === 'rifle');
-  if (gun.knifeGroup) gun.knifeGroup.visible = isMelee;
-  // 近战武器：枪口火焰/枪口光不需要
-  if (gun.flashMesh) {
-    gun.flashMesh.visible = false;
-    var muzzleZ = (currentWeapon === 'rifle') ? -1.05 : -0.36;
-    gun.flashMesh.position.set(0, 0.055, muzzleZ);
-  }
-  if (gun.light) {
-    gun.light.intensity = 0;
-    var mz2 = (currentWeapon === 'rifle') ? -1.05 : -0.36;
-    gun.light.position.set(0, 0.055, mz2 - 0.03);
-  }
-  // 匕首握持位置更贴身
-  if (gun.knifeGroup) {
-    gun.knifeGroup.position.set(isMelee ? 0.26 : 0, isMelee ? -0.20 : 0, isMelee ? -0.42 : 0);
-  }
+  if (!gun.group) return;
+  gun.pistolGroup.visible = currentWeapon === 'pistol';
+  gun.rifleGroup.visible = currentWeapon === 'rifle';
+  gun.knifeGroup.visible = currentWeapon === 'knife';
+  gun.activeModel = currentWeapon === 'rifle' ? gun.rifleGroup : currentWeapon === 'knife' ? gun.knifeGroup : gun.pistolGroup;
+  gun.muzzleTip = gun.activeModel.muzzleTip;
+  gun.flashMesh.visible = false;
+  gun.flashT = 0; gun.light.intensity = 0; gun.recoil = 0; gun.knifeAnim = null;
+  gun.pistolGroup.slide.position.z = 0;
+  gun.rifleGroup.magazine.position.y = -.06;
+  gun.group.position.set(.28,-.27,-.55);gun.group.rotation.set(0,0,0);
+  // 使用模型锚点，切换武器时不再维护另一套硬编码枪口坐标。
+  gun.flashMesh.position.copy(gun.muzzleTip.position);
+  gun.light.position.copy(gun.muzzleTip.position);
 }
 
 // ---------------------------------------------------------------- 成就系统
@@ -829,9 +823,58 @@ var pendingLockTimer = null;
 var hintTimer = null;
 var fbLastX = 0, fbLastY = 0, fbHasLast = false;
 var fishTex = null, fishTexReady = false, fishSpawned = false;
+// 敌人专用贴图（Boss 少女形态 / Q版射手 / Q版近战），缺失时统一回退到 fishTex
+var enemyTex = { boss: null, ranged: null, melee: null };
+var enemyTexReady = false;
+
+/** 取敌人贴图：优先专用图，未就绪时回退到原版大肥鱼 */
+// 只替换这三类：Boss / 常规鱼的射手形态 / 常规鱼近战形态与护盾鱼。
+// 自爆鱼、治疗鱼、分裂鱼保持原版大肥鱼立绘不变。
+function enemyTexture(kind, ranged) {
+  if (kind === 'boss') return (enemyTexReady && enemyTex.boss) || fishTex;
+  if (kind === 'normal' && ranged) return (enemyTexReady && enemyTex.ranged) || fishTex;
+  if (kind === 'normal' || kind === 'shield') return (enemyTexReady && enemyTex.melee) || fishTex;
+  return fishTex;   // bomber / healer / splitter 沿用原图
+}
+
+/** 异步加载三张敌人贴图；全部完成后把场上已有敌人的材质替换掉 */
+function loadEnemyTextures() {
+  if (!window.ENEMY_TEXTURES) return;
+  var keys = ['boss', 'ranged', 'melee'];
+  var pending = keys.length;
+  keys.forEach(function (k) {
+    var img = new Image();
+    img.onload = function () {
+      var tex = new THREE.CanvasTexture(img);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      enemyTex[k] = tex;
+      if (--pending === 0) {
+        enemyTexReady = true;
+        refreshEnemyTextures();
+      }
+    };
+    img.onerror = function () { if (--pending === 0) enemyTexReady = true; };
+    img.src = window.ENEMY_TEXTURES[k];
+  });
+}
+
+/** 贴图就绪后替换场上敌人的贴图（不动几何与阴影） */
+function refreshEnemyTextures() {
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    if (!e || !e.mesh || !e.mesh.material) continue;
+    e.mesh.material.map = enemyTexture(e.kind, e.ranged);
+    e.mesh.material.needsUpdate = true;
+  }
+  if (boss && boss.mesh && boss.mesh.material) {
+    boss.mesh.material.map = enemyTexture('boss', false);
+    boss.mesh.material.needsUpdate = true;
+  }
+}
 var enemies = [];              // 肥鱼列表
 var obstacles = [];            // 碰撞体 {mesh, min, max}（含墙）
 var wallMeshes = [];           // 子弹遮挡检测用 mesh 列表
+var combatFx = null;
 var particles = null;          // 粒子系统 {parts, posAttr, colAttr, cursor}
 var gun = { group: null, recoil: 0, flashT: 0, light: null, flashMesh: null };
 var crosshairTimer = null;
@@ -1068,37 +1111,9 @@ function makeCanvas(w, h) {
 function toTex(c, repeatX, repeatY) {
   var t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = renderer ? Math.min(8, renderer.capabilities.getMaxAnisotropy() || 1) : 1;
   if (repeatX) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeatX, repeatY); }
   return t;
-}
-function makeGrassTexture() {
-  var c = makeCanvas(256, 256);
-  var x = c.getContext('2d');
-  x.fillStyle = '#4d8a3b'; x.fillRect(0, 0, 256, 256);
-  for (var i = 0; i < 2600; i++) {
-    var g = Math.random();
-    var col = g < 0.5 ? 'rgba(60,115,45,' + rand(0.25, 0.6) + ')'
-            : g < 0.85 ? 'rgba(90,150,62,' + rand(0.2, 0.5) + ')'
-            : 'rgba(160,190,80,' + rand(0.15, 0.35) + ')';
-    x.fillStyle = col;
-    x.fillRect(rand(0, 256), rand(0, 256), rand(1, 2.6), rand(1, 2.6));
-  }
-  return c;
-}
-function makeWoodTexture() {
-  var c = makeCanvas(256, 256);
-  var x = c.getContext('2d');
-  x.fillStyle = '#8a5a2e'; x.fillRect(0, 0, 256, 256);
-  for (var i = 0; i < 14; i++) {
-    x.fillStyle = 'rgba(60,35,15,' + rand(0.08, 0.2) + ')';
-    x.fillRect(0, i * 19 + rand(0, 8), 256, rand(2, 5));
-  }
-  x.strokeStyle = '#5a3a1c'; x.lineWidth = 10; x.strokeRect(5, 5, 246, 246);
-  x.fillStyle = '#3c2a16';
-  [[14, 14], [242, 14], [14, 242], [242, 242], [128, 128]].forEach(function (p) {
-    x.beginPath(); x.arc(p[0], p[1], 4, 0, 6.283); x.fill();
-  });
-  return c;
 }
 function makeSkyTexture(theme) {
   var c = makeCanvas(4, 512);
@@ -1126,18 +1141,6 @@ function skyTextureFor(idx, theme) {
     _skyTexCache[idx] = t;
   }
   return _skyTexCache[idx];
-}
-function makeCloudTexture() {
-  var c = makeCanvas(128, 64);
-  var x = c.getContext('2d');
-  var g = x.createRadialGradient(32, 36, 4, 32, 36, 30);
-  g.addColorStop(0, 'rgba(255,255,255,0.95)');
-  g.addColorStop(1, 'rgba(255,255,255,0)');
-  x.fillStyle = g;
-  [[32, 34, 28], [64, 26, 26], [48, 40, 24], [82, 38, 18]].forEach(function (p) {
-    x.beginPath(); x.arc(p[0], p[1], p[2], 0, 6.283); x.fill();
-  });
-  return c;
 }
 // 兜底：万一 base64 贴图加载失败，画一条卡通肥鱼
 function makeFallbackFishTexture() {
@@ -1171,25 +1174,8 @@ function processFishImage(img) {
     if (!x) return null;
     x.drawImage(img, 0, 0);
     var idata = x.getImageData(0, 0, c.width, c.height);
-    var d = idata.data;
-    var w = c.width;
-    function px(xx, yy) { return (yy * w + xx) * 4; }
-    var corners = [px(0, 0), px(w - 1, 0), px(0, c.height - 1), px(w - 1, c.height - 1)];
-    var allOpaque = corners.every(function (i) { return d[i + 3] === 255; });
-    if (allOpaque) {
-      var br = 0, bg = 0, bb = 0;
-      corners.forEach(function (i) { br += d[i]; bg += d[i + 1]; bb += d[i + 2]; });
-      br /= 4; bg /= 4; bb /= 4;
-      var tol = 46, tol2 = tol * tol * 3;
-      var feather = tol * 2.2, feather2 = feather * feather * 3;
-      for (var i = 0; i < d.length; i += 4) {
-        var dr = d[i] - br, dg = d[i + 1] - bg, db = d[i + 2] - bb;
-        var dist2 = dr * dr + dg * dg + db * db;
-        if (dist2 <= tol2) d[i + 3] = 0;
-        else if (dist2 < feather2) d[i + 3] = Math.round(d[i + 3] * (dist2 - tol2) / (feather2 - tol2));
-      }
-      x.putImageData(idata, 0, 0);
-    }
+    FishArt.removeBackground(idata.data, c.width, c.height);
+    x.putImageData(idata, 0, 0);
     return c;
   } catch (e) { return null; }
 }
@@ -1220,54 +1206,11 @@ function loadFishTexture() {
 }
 
 // ---------------------------------------------------------------- 场景搭建（沙漠城）
-function makeSandTexture() {
-  var c = makeCanvas(256, 256);
-  var x = c.getContext('2d');
-  x.fillStyle = '#d9b97c'; x.fillRect(0, 0, 256, 256);
-  for (var i = 0; i < 2600; i++) {
-    var sh = Math.random();
-    x.fillStyle = sh < 0.45 ? 'rgba(190,155,95,' + rand(0.2, 0.5) + ')'
-                : sh < 0.8 ? 'rgba(238,214,156,' + rand(0.2, 0.45) + ')'
-                : 'rgba(160,130,80,' + rand(0.15, 0.35) + ')';
-    x.fillRect(rand(0, 256), rand(0, 256), rand(1, 3), rand(1, 2.4));
-  }
-  for (var j = 0; j < 26; j++) {
-    x.fillStyle = 'rgba(120,100,70,' + rand(0.2, 0.4) + ')';
-    x.beginPath(); x.arc(rand(0, 256), rand(0, 256), rand(1, 2.6), 0, 6.283); x.fill();
-  }
-  return c;
-}
-function makeBrickTexture() {
-  var c = makeCanvas(256, 256);
-  var x = c.getContext('2d');
-  x.fillStyle = '#c8a563'; x.fillRect(0, 0, 256, 256);
-  for (var by = 0; by < 8; by++) {
-    for (var bx = 0; bx < 4; bx++) {
-      var off = (by % 2) * 32;
-      x.fillStyle = 'rgba(' + Math.round(200 + rand(-14, 14)) + ',' + Math.round(165 + rand(-12, 12)) + ',' + Math.round(99 + rand(-10, 10)) + ',0.55)';
-      x.fillRect(bx * 64 + off - 32, by * 32, 64, 32);
-    }
-  }
-  x.strokeStyle = 'rgba(120,92,54,0.85)'; x.lineWidth = 2;
-  for (var yy = 0; yy <= 8; yy++) { x.beginPath(); x.moveTo(0, yy * 32); x.lineTo(256, yy * 32); x.stroke(); }
-  for (var yy2 = 0; yy2 < 8; yy2++) {
-    var off2 = (yy2 % 2) * 32;
-    for (var xx = 0; xx <= 5; xx++) {
-      var px = xx * 64 + off2 - 32;
-      x.beginPath(); x.moveTo(px, yy2 * 32); x.lineTo(px, yy2 * 32 + 32); x.stroke();
-    }
-  }
-  for (var k = 0; k < 400; k++) {
-    x.fillStyle = 'rgba(210,180,120,' + rand(0.05, 0.2) + ')';
-    x.fillRect(rand(0, 256), rand(0, 256), rand(1, 3), rand(1, 3));
-  }
-  return c;
-}
-
 var _wallMat = null;
 function addWallBox(cx, cz, sx, sz, h, noCollide) {
-  if (!_wallMat) _wallMat = new THREE.MeshStandardMaterial({ map: toTex(makeBrickTexture()), roughness: 0.9 });
-  var m = new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), _wallMat);
+  if (!_wallMat) _wallMat = FishArt.material('wall');
+  // 世界尺寸 UV：92m 城墙与 2m 矮墙的石块大小一致。
+  var m = new THREE.Mesh(FishArt.boxGeometry(sx, h, sz), _wallMat);
   m.position.set(cx, h / 2, cz);
   m.castShadow = true; m.receiveShadow = true;
   scene.add(m);
@@ -1288,6 +1231,9 @@ function clearRandomCovers() {
     scene.remove(m);
     for (var j = obstacles.length - 1; j >= 0; j--) if (obstacles[j].mesh === m) obstacles.splice(j, 1);
     for (var k = wallMeshes.length - 1; k >= 0; k--) if (wallMeshes[k] === m) wallMeshes.splice(k, 1);
+    var ei = envObjects.indexOf(m);
+    if (ei >= 0) envObjects.splice(ei, 1);
+    FishArt.disposeTree(m);
   }
   randomCovers = [];
 }
@@ -1317,6 +1263,9 @@ function spawnRandomCovers() {
     if (!clear) continue;
 
     var m = addWallBox(x, z, sx, sz, h);         // 自带碰撞体 + 可被子弹击中
+    m.geometry.dispose();
+    m.geometry = new THREE.BoxGeometry(sx, h, sz);
+    m.material = FishArt.material('crate');
     randomCovers.push(m);
     placed++;
   }
@@ -1348,6 +1297,7 @@ function vWall(x, z0, z1, h, gaps) {
 // 这样主菜单不是"游戏场景已加载"的状态，也省下地图占用的内存与显存。
 var envObjects = [];    // 本次构建出的环境对象
 var envBuilt = false;   // 是否已构建（幂等保护）
+var worldArt = null;
 var hemiLight = null, sunLight = null;   // 环境灯光（环境主题会调整它们）
 
 // ---------------------------------------------------------------- 环境主题（每 10 波变化）
@@ -1373,8 +1323,8 @@ function envMul(key) {
 }
 
 var ENV_THEMES = [
-  { name: '晴日沙漠', fog: 0xd8c9a8, fogNear: 45, fogFar: 165, hemiSky: 0xfff2dc, hemiGnd: 0x8a7a55, hemiInt: 0.9, sun: 0xfff0d0, sunInt: 1.7,
-    skyTop: '#2a63c8', skyMid: '#6ea9e8', skyLow: '#cfe6f5', skyBot: '#dceef2',
+  { name: '晴日沙漠', fog: 0xd9c8a8, fogNear: 42, fogFar: 150, hemiSky: 0xc8e0e0, hemiGnd: 0x9b815c, hemiInt: 0.72, sun: 0xffe4bb, sunInt: 2.2,
+    skyTop: '#4b8da8', skyMid: '#a5c9cb', skyLow: '#dadbc5', skyBot: '#e5d8ba',
     mod: {}, rule: '基准环境' },
   { name: '黄昏',     fog: 0xd9a06a, fogNear: 32, fogFar: 130, hemiSky: 0xffd0a0, hemiGnd: 0x6a5038, hemiInt: 0.8, sun: 0xff9a50, sunInt: 1.35,
     skyTop: '#2c3f7a', skyMid: '#a86a9a', skyLow: '#f0a860', skyBot: '#ffd08a',
@@ -1405,25 +1355,25 @@ function showEnvTitle(name) {
 /** 程序化环境贴图：全景渐变（天空 / 地平线 / 地面）+ 太阳亮斑。
     作为 scene.environment 为金属材质提供环境反射 ——
     否则枪械与火箭筒（金属度 0.65~0.8）在逆光下会退化成黑色剪影 */
-function makeEnvMapTexture() {
+function makeEnvMapTexture(theme) {
   var c = document.createElement('canvas');
   c.width = 512; c.height = 256;
   var x = c.getContext('2d');
   var sky = x.createLinearGradient(0, 0, 0, 128);
-  sky.addColorStop(0, '#5878b0');
-  sky.addColorStop(0.55, '#a8ccf0');
-  sky.addColorStop(1, '#f0e2c4');
+  sky.addColorStop(0, theme.skyTop);
+  sky.addColorStop(0.55, theme.skyMid);
+  sky.addColorStop(1, theme.skyLow);
   x.fillStyle = sky;
   x.fillRect(0, 0, 512, 128);
   var gnd = x.createLinearGradient(0, 128, 0, 256);
-  gnd.addColorStop(0, '#e0c898');
-  gnd.addColorStop(1, '#8a7a58');
+  gnd.addColorStop(0, theme.skyBot);
+  gnd.addColorStop(1, '#' + new THREE.Color(theme.hemiGnd).getHexString());
   x.fillStyle = gnd;
   x.fillRect(0, 128, 512, 128);
   // 太阳亮斑（金属高光来源）
   var sun = x.createRadialGradient(140, 62, 0, 140, 62, 78);
-  sun.addColorStop(0, 'rgba(255,255,245,1)');
-  sun.addColorStop(0.35, 'rgba(255,248,220,0.5)');
+  sun.addColorStop(0, '#' + new THREE.Color(theme.sun).getHexString());
+  sun.addColorStop(0.35, 'rgba(255,248,220,0.15)');
   sun.addColorStop(1, 'rgba(255,245,210,0)');
   x.fillStyle = sun;
   x.fillRect(0, 0, 512, 200);
@@ -1433,12 +1383,20 @@ function makeEnvMapTexture() {
   return tex;
 }
 
+var _envTexCache = {};
+function envTextureFor(idx) {
+  if (!_envTexCache[idx]) _envTexCache[idx] = makeEnvMapTexture(ENV_THEMES[idx]);
+  return _envTexCache[idx];
+}
+
 /** 应用环境主题（idx 会自动取模）；announce = 是否播报 */
 function applyEnvTheme(idx, announce) {
   if (!scene.fog || !hemiLight || !sunLight) return;
   envIndex = ((idx % ENV_THEMES.length) + ENV_THEMES.length) % ENV_THEMES.length;
   var t = ENV_THEMES[envIndex];
   scene.background = skyTextureFor(envIndex, t);   // 天空也跟随主题（血月/深夜等）
+  // 天空变暗时，反射也必须变暗，否则夜间砂岩和水面仍被白天的 IBL 照亮。
+  scene.environment = envTextureFor(envIndex);
   scene.fog.color.setHex(t.fog);
   scene.fog.near = t.fogNear;
   scene.fog.far = t.fogFar;
@@ -1447,6 +1405,7 @@ function applyEnvTheme(idx, announce) {
   hemiLight.intensity = t.hemiInt;
   sunLight.color.setHex(t.sun);
   sunLight.intensity = t.sunInt;
+  FishArt.setTheme(worldArt, envIndex);
 
   // 玩法修饰：先复位默认值，再叠加本主题的 mod
   for (var mk in ENV_MOD_DEFAULT) envMod[mk] = ENV_MOD_DEFAULT[mk];
@@ -1467,13 +1426,13 @@ function updateEnvByWave() {
 function buildEnvironment() {
   if (envBuilt) return;
   var beforeChildren = scene.children.slice();
-  scene.background = toTex(makeSkyTexture());
+  scene.background = skyTextureFor(0, ENV_THEMES[0]);
   scene.fog = new THREE.Fog(0xd8c9a8, 45, 165);
 
-  hemiLight = new THREE.HemisphereLight(0xfff2dc, 0x8a7a55, 0.9);
+  hemiLight = new THREE.HemisphereLight(0xc8e0e0, 0x9b815c, 0.72);
   scene.add(hemiLight);
-  sunLight = new THREE.DirectionalLight(0xfff0d0, 1.7);
-  sunLight.position.set(40, 55, 28);
+  sunLight = new THREE.DirectionalLight(0xffe4bb, 2.2);
+  sunLight.position.set(-40, 55, 30);
   sunLight.castShadow = true;
   sunLight.shadow.mapSize.set(2048, 2048);
   sunLight.shadow.camera.left = -55; sunLight.shadow.camera.right = 55;
@@ -1486,7 +1445,7 @@ function buildEnvironment() {
   // 沙地
   var ground = new THREE.Mesh(
     new THREE.PlaneGeometry(150, 150),
-    new THREE.MeshStandardMaterial({ map: toTex(makeSandTexture(), 30, 30), roughness: 1 })
+    FishArt.material('sand')
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -1521,7 +1480,7 @@ function buildEnvironment() {
   // ===== 东走廊（B 洞，x 12~22, z -16~12）+ 顶棚与支柱 =====
   vWall(12, -16, 12, 3.0);
   vWall(22, -16, 12, 3.0);
-  var roofM = new THREE.Mesh(new THREE.BoxGeometry(10.4, 0.4, 10), _wallMat);
+  var roofM = new THREE.Mesh(FishArt.boxGeometry(10.4, 0.4, 10), _wallMat);
   roofM.position.set(17, 3.6, -11);
   roofM.castShadow = true; roofM.receiveShadow = true;
   scene.add(roofM);
@@ -1538,7 +1497,7 @@ function buildEnvironment() {
   vWall(34, 20, 28, 3.0);
 
   // ===== 木箱（沿用木箱纹理）=====
-  var crateMat = new THREE.MeshStandardMaterial({ map: toTex(makeWoodTexture()), roughness: 0.85 });
+  var crateMat = FishArt.material('crate');
   function crate(cx, cz, stack) {
     var h = stack ? 1.65 : 0.95;
     var b = new THREE.Mesh(new THREE.BoxGeometry(1.9, h, 1.9), crateMat);
@@ -1557,7 +1516,7 @@ function buildEnvironment() {
   crate(27, 38, false);                                                        // 东南角
 
   // ===== 石头 =====
-  var rockMat = new THREE.MeshStandardMaterial({ color: 0xa89478, roughness: 0.95 });
+  var rockMat = FishArt.material('rock');
   [[-30, 12, 1.0], [28, 14, 0.9], [-8, -28, 1.1], [-38, 26, 0.85], [0, -16, 0.7]].forEach(function (pp) {
     var r = new THREE.Mesh(new THREE.DodecahedronGeometry(pp[2], 0), rockMat);
     r.position.set(pp[0], pp[2] * 0.5, pp[1]);
@@ -1571,21 +1530,10 @@ function buildEnvironment() {
 
   // ===== 干树（沙漠枯树 + 绿洲树）=====
   function tree(cx, cz, dry) {
-    var g = new THREE.Group();
-    var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.32, 2.2, 8),
-      new THREE.MeshStandardMaterial({ color: dry ? 0x6d5a42 : 0x6d4c33, roughness: 0.95 }));
-    trunk.position.y = 1.1; trunk.castShadow = true;
-    var c1 = new THREE.Mesh(new THREE.SphereGeometry(1.2, 10, 8),
-      new THREE.MeshStandardMaterial({ color: dry ? 0x9a8a50 : 0x2f7d38, roughness: 0.9 }));
-    c1.position.y = 2.6; c1.castShadow = true;
-    var c2 = new THREE.Mesh(new THREE.SphereGeometry(0.8, 10, 8),
-      new THREE.MeshStandardMaterial({ color: dry ? 0x8a7a46 : 0x3a8f3f, roughness: 0.9 }));
-    c2.position.set(0.4, 3.4, 0.2); c2.castShadow = true;
-    g.add(trunk, c1, c2);
-    g.position.set(cx, 0, cz);
+    var g = FishArt.palm(cx, cz, dry), trunk = g.userData.trunk;
     scene.add(g);
     obstacles.push({ mesh: trunk, min: new THREE.Vector3(cx - 1.3, 0, cz - 1.3), max: new THREE.Vector3(cx + 1.3, 4.2, cz + 1.3) });
-    wallMeshes.push(trunk, c1, c2);
+    wallMeshes.push(trunk, g.userData.leaves);
   }
   tree(-42, 22, true);   tree(-24, 37, true);  tree(42, 24, true);  tree(-30, -6, true);
   tree(8, -29, true);    tree(-24, 26, false); tree(-32, 31, false);
@@ -1594,15 +1542,15 @@ function buildEnvironment() {
   var poolX = -28, poolZ = 28, poolR = 4;
   var poolWater = new THREE.Mesh(
     new THREE.CircleGeometry(poolR, 36),
-    new THREE.MeshStandardMaterial({ color: 0x39a28f, roughness: 0.15, metalness: 0.1 })
+    FishArt.material('water')
   );
   poolWater.rotation.x = -Math.PI / 2;
   poolWater.position.set(poolX, 0.04, poolZ);
   poolWater.receiveShadow = true;
   scene.add(poolWater);
   var poolRim = new THREE.Mesh(
-    new THREE.TorusGeometry(poolR + 0.3, 0.26, 10, 40),
-    new THREE.MeshStandardMaterial({ color: 0x9a8a70, roughness: 0.9 })
+    new THREE.TorusGeometry(poolR + 0.3, 0.16, 8, 40),
+    FishArt.material('base')
   );
   poolRim.rotation.x = -Math.PI / 2;
   poolRim.position.set(poolX, 0.16, poolZ);
@@ -1622,36 +1570,14 @@ function buildEnvironment() {
     wallMeshes.push(bar);
   });
 
-  // ===== 干草丛（纯装饰）=====
-  var grassMat1 = new THREE.MeshStandardMaterial({ color: 0xb9a05f, roughness: 1 });
-  var grassMat2 = new THREE.MeshStandardMaterial({ color: 0xc9ae6e, roughness: 1 });
-  for (var i = 0; i < 42; i++) {
-    var gx = rand(-43, 43), gz = rand(-43, 43);
-    if (Math.abs(gx) < 2 && Math.abs(gz) < 2) continue;
-    if ((gx - poolX) * (gx - poolX) + (gz - poolZ) * (gz - poolZ) < 30) continue;
-    if (pointInObstacle(gx, gz, 0.8)) continue;
-    var grass = new THREE.Mesh(new THREE.ConeGeometry(rand(0.16, 0.3), rand(0.5, 1.0), 5), i % 2 ? grassMat1 : grassMat2);
-    grass.position.set(gx, rand(0.25, 0.5), gz);
-    grass.rotation.y = rand(0, 6.28);
-    scene.add(grass);
-  }
-
   // ===== 每局随机掩体（首次构建时生成，重开时重新随机）=====
   spawnRandomCovers();
 
-  // ===== 云朵 =====
-  var cloudTex = new THREE.CanvasTexture(makeCloudTexture());
-  cloudTex.colorSpace = THREE.SRGBColorSpace;
-  for (var k = 0; k < 5; k++) {
-    var cloud = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, transparent: true, opacity: 0.85, depthWrite: false }));
-    cloud.position.set(rand(-80, 80), rand(30, 48), rand(-80, 80));
-    cloud.scale.set(rand(26, 42), rand(10, 16), 1);
-    scene.add(cloud);
-  }
-
-  // 环境反射贴图：让金属材质（枪械/火箭筒/炮弹）有东西可反射，避免逆光变剪影
-  if (!window.__envMapTex) window.__envMapTex = makeEnvMapTexture();
-  scene.environment = window.__envMapTex;
+  worldArt = FishArt.build(scene, obstacles, poolWater);
+  // 原墙顶已由合并檐口接管；同步加入射线遮挡，保留从高处射击的阻挡行为。
+  wallMeshes.push(worldArt.wallCaps);
+  scene.children.forEach(function (o) { if (o.userData.leaves) worldArt.palms.push(o.userData.leaves); });
+  applyEnvTheme(envIndex, false);
 
   // 记录本次新建的对象，供卸载时整体移除
   envObjects = scene.children.filter(function (o) { return beforeChildren.indexOf(o) < 0; });
@@ -1660,11 +1586,10 @@ function buildEnvironment() {
 
 /** 卸载游戏场景（回主菜单时调用）：移除地图 / 灯光 / 云等全部环境对象并释放几何 */
 function unloadGameScene() {
+  clearRandomCovers();
   for (var i = 0; i < envObjects.length; i++) {
     var o = envObjects[i];
-    scene.remove(o);
-    // 只释放几何；材质（砖墙/沙地等）是模块级共享缓存，重建时要复用
-    if (o.geometry && o.geometry.dispose) o.geometry.dispose();
+    FishArt.disposeTree(o);
   }
   scene.environment = null;   // 解除环境反射
   envObjects = [];
@@ -1672,6 +1597,9 @@ function unloadGameScene() {
   wallMeshes = [];        // 子弹遮挡列表
   obstacles = [];         // 碰撞体列表
   randomCovers = [];      // 每局随机掩体
+  worldArt = null;
+  hemiLight = sunLight = null;
+  minimap.ready = false;
 }
 
 // ---------------------------------------------------------------- 小地图（左下角圆形、随视角旋转）
@@ -1878,216 +1806,94 @@ function updateCamFx(dt) {
 function buildGun() {
   gun.group = new THREE.Group();
   camera.add(gun.group);
-  gun.group.position.set(0.3, -0.28, -0.6);
-  var dark = new THREE.MeshStandardMaterial({ color: 0x2b2f36, roughness: 0.4, metalness: 0.65 });
-  var darker = new THREE.MeshStandardMaterial({ color: 0x1c1f24, roughness: 0.35, metalness: 0.7 });
-  var grip = new THREE.MeshStandardMaterial({ color: 0x3a2e24, roughness: 0.8 });
-
-  // ===== 手枪（经典比例）：套筒 + 短圆柱枪管 + 明显后倾握把 + 扳机护圈 =====
-  // 套筒（上部主体，扁平长方）
-  var slide = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.075, 0.32), dark);
-  slide.position.set(0, 0.058, -0.06);
-  // 套筒尾部的防滑纹（3 条细槽）
-  for (var gvi = 0; gvi < 3; gvi++) {
-    var gv = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.013, 0.013), darker);
-    gv.position.set(0, 0.058, 0.076 + gvi * 0.023);
-    gun.group.add(gv);
-  }
-  // 枪管（圆柱，从套筒前端露出）
-  var barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.09, 10), darker);
-  barrel.rotation.x = Math.PI / 2;
-  barrel.position.set(0, 0.06, -0.255);
-  // 枪口套
-  var muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.026), darker);
-  muzzle.position.set(0, 0.06, -0.302);
-  // 握把（明显向后倾斜约 17°）
-  var gripMesh = new THREE.Mesh(new THREE.BoxGeometry(0.072, 0.185, 0.095), grip);
-  gripMesh.position.set(0, -0.1, 0.076);
-  gripMesh.rotation.x = -0.3;
-  // 握把防滑纹
-  for (var gvi2 = 0; gvi2 < 3; gvi2++) {
-    var gg = new THREE.Mesh(new THREE.BoxGeometry(0.078, 0.01, 0.01), darker);
-    gg.position.set(0, -0.06 - gvi2 * 0.032, 0.09 + gvi2 * 0.01);
-    gg.rotation.x = -0.3;
-    gun.group.add(gg);
-  }
-  // 弹匣底座（握把末端微微外扩）
-  var magBase = new THREE.Mesh(new THREE.BoxGeometry(0.084, 0.02, 0.108), darker);
-  magBase.position.set(0, -0.194, 0.104);
-  magBase.rotation.x = -0.3;
-  // 扳机护圈（半圆环，开口朝上）
-  var guard = new THREE.Mesh(new THREE.TorusGeometry(0.031, 0.0072, 6, 14, Math.PI), darker);
-  guard.rotation.set(Math.PI / 2, 0, Math.PI);
-  guard.position.set(0, -0.034, -0.03);
-  // 扳机
-  var trigger = new THREE.Mesh(new THREE.BoxGeometry(0.011, 0.03, 0.011), darker);
-  trigger.position.set(0, -0.032, -0.026);
-  // 击锤（套筒尾部小凸起）
-  var hammer = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.036, 0.022), darker);
-  hammer.position.set(0, 0.055, 0.108);
-  // 准星（前）与照门（后）
-  var frontSight = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.019, 0.015), darker);
-  frontSight.position.set(0, 0.103, -0.19);
-  var rearSight = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.019, 0.015), darker);
-  rearSight.position.set(0, 0.103, 0.055);
-  gun.group.add(slide, barrel, muzzle, gripMesh, magBase, guard, trigger, hammer, frontSight, rearSight);
-
-  // 枪口闪光
-  gun.light = new THREE.PointLight(0xffc46e, 0, 7);
-  gun.light.position.set(0, 0.055, -0.39);   // 初值对应手枪枪口（切换武器时会重新定位）
-  gun.group.add(gun.light);
-  // 枪口光焰贴图：径向光晕 + 十字尖角（比纯色方块更像枪焰）
-  if (!window.__flashTex) {
-    var fc = document.createElement('canvas');
-    fc.width = fc.height = 128;
-    var fx2 = fc.getContext('2d');
-    var fg = fx2.createRadialGradient(64, 64, 0, 64, 64, 64);
-    fg.addColorStop(0, 'rgba(255,255,240,1)');
-    fg.addColorStop(0.22, 'rgba(255,238,150,0.95)');
-    fg.addColorStop(0.55, 'rgba(255,175,60,0.45)');
-    fg.addColorStop(1, 'rgba(255,140,40,0)');
-    fx2.fillStyle = fg;
-    fx2.fillRect(0, 0, 128, 128);
-    fx2.globalCompositeOperation = 'lighter';
-    for (var fi2 = 0; fi2 < 4; fi2++) {
-      fx2.save();
-      fx2.translate(64, 64);
-      fx2.rotate(fi2 * Math.PI / 2);
-      var flg = fx2.createLinearGradient(0, 0, 0, -62);
-      flg.addColorStop(0, 'rgba(255,250,225,0.95)');
-      flg.addColorStop(1, 'rgba(255,205,95,0)');
-      fx2.fillStyle = flg;
-      fx2.beginPath();
-      fx2.moveTo(-6, 0); fx2.lineTo(0, -62); fx2.lineTo(6, 0);
-      fx2.closePath();
-      fx2.fill();
-      fx2.restore();
-    }
-    var ft = new THREE.CanvasTexture(fc);
-    ft.colorSpace = THREE.SRGBColorSpace;
-    window.__flashTex = ft;
-  }
-  gun.flashMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.34, 0.34),
-    new THREE.MeshBasicMaterial({ map: window.__flashTex, color: 0xffffff, transparent: true, opacity: 0.95,
-      blending: THREE.AdditiveBlending, depthWrite: false })
-  );
-  gun.flashMesh.position.set(0, 0.055, -0.36);   // 初值对应手枪枪口
-  gun.flashMesh.visible = false;
-  // ===== 双武器模型：手枪组（上面这些）、步枪组 =====
-  // 把已有手枪部件收进一个子组，便于整体显隐
-  gun.pistolGroup = new THREE.Group();
-  for (var pi = gun.group.children.length - 1; pi >= 0; pi--) {
-    var ch = gun.group.children[pi];
-    if (ch !== gun.light) { gun.pistolGroup.add(ch); }
-  }
-  gun.group.add(gun.pistolGroup);
-
-  // 突击步枪：更长的枪身 + 弹匣 + 枪托 + 散热片
-  gun.rifleGroup = new THREE.Group();
-  var rifleBody = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.15, 0.78), dark);
-  var rifleBarrel = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.055, 0.62), darker);
-  rifleBarrel.position.set(0, 0.05, -0.62);
-  var rifleMuzzle = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.09), darker);
-  rifleMuzzle.position.set(0, 0.05, -0.96);
-  var rifleMag = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.24, 0.13), darker);
-  rifleMag.position.set(0, -0.17, -0.06);
-  rifleMag.rotation.x = -0.12;
-  var rifleStock = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.13, 0.3), grip);
-  rifleStock.position.set(0, -0.03, 0.5);
-  var rifleGrip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.19, 0.11), grip);
-  rifleGrip.position.set(0, -0.15, 0.18);
-  rifleGrip.rotation.x = 0.32;
-  var rifleSight = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.07, 0.24), darker);
-  rifleSight.position.set(0, 0.145, -0.16);
-  // 散热片（3 片薄板，识别度）
-  for (var fi = 0; fi < 3; fi++) {
-    var fin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.02, 0.05), dark);
-    fin.position.set(0, 0.09, -0.34 - fi * 0.13);
-    gun.rifleGroup.add(fin);
-  }
-  gun.rifleGroup.add(rifleBody, rifleBarrel, rifleMuzzle, rifleMag, rifleStock, rifleGrip, rifleSight);
-  gun.group.add(gun.rifleGroup);
-  gun.rifleGroup.visible = false;
-
-  // ===== 近战武器：匕首（贴身握持，位置与枪械不同）=====
-  gun.knifeGroup = makeKnifeModel();
-  gun.group.add(gun.knifeGroup);
-  gun.knifeGroup.visible = false;
-
-  applyWeaponVisual();   // 初始化枪口火焰位置（默认手枪）
-  gun.group.add(gun.flashMesh);
+  gun.group.position.set(.28,-.27,-.55);
+  gun.pistolGroup = FishCombat.playerWeapon('pistol');
+  gun.rifleGroup = FishCombat.playerWeapon('rifle');
+  gun.knifeGroup = FishCombat.playerWeapon('knife');
+  gun.group.add(gun.pistolGroup,gun.rifleGroup,gun.knifeGroup);
+  gun.flashMesh = FishCombat.flashMesh();
+  gun.light = new THREE.PointLight(0xffc46e,0,5,2);
+  gun.group.add(gun.flashMesh,gun.light);
+  combatFx = FishCombat.effects(scene);
+  applyWeaponVisual();
 }
 
 // ---------------------------------------------------------------- 粒子
 function buildParticles() {
-  var MAX = 240;
-  var geo = new THREE.BufferGeometry();
-  var pos = new Float32Array(MAX * 3);
-  var col = new Float32Array(MAX * 3);
-  for (var i = 0; i < MAX; i++) pos[i * 3 + 1] = -1000;
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  var mat = new THREE.PointsMaterial({ size: 0.3, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false });
-  particles = {
-    mesh: new THREE.Points(geo, mat),
-    pos: pos, col: col,
-    data: [],
-    cursor: 0,
-  };
-  particles.mesh.frustumCulled = false;
-  scene.add(particles.mesh);
+  var MAX=360, geo=new THREE.BufferGeometry();
+  var pos=new Float32Array(MAX*3), col=new Float32Array(MAX*3), alpha=new Float32Array(MAX), sizes=new Float32Array(MAX);
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('aColor',new THREE.BufferAttribute(col,3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('aAlpha',new THREE.BufferAttribute(alpha,1).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('aSize',new THREE.BufferAttribute(sizes,1).setUsage(THREE.DynamicDrawUsage));
+  var mat=new THREE.ShaderMaterial({
+    transparent:true,depthWrite:false,toneMapped:false,
+    uniforms:{pixelScale:{value:500}},
+    vertexShader:'attribute vec3 aColor; attribute float aAlpha; attribute float aSize; uniform float pixelScale; varying vec3 vColor; varying float vAlpha; void main(){vColor=aColor;vAlpha=aAlpha;vec4 mv=modelViewMatrix*vec4(position,1.0);gl_Position=projectionMatrix*mv;gl_PointSize=clamp(aSize*pixelScale/max(.1,-mv.z),1.0,56.0);}',
+    fragmentShader:'varying vec3 vColor; varying float vAlpha; void main(){float r=length(gl_PointCoord-vec2(.5))*2.0; if(r>=1.0||vAlpha<=.001)discard;float soft=1.0-smoothstep(.12,1.0,r);gl_FragColor=vec4(vColor,vAlpha*soft);\n#include <colorspace_fragment>\n}'
+  });
+  particles={mesh:new THREE.Points(geo,mat),pos:pos,col:col,alpha:alpha,sizes:sizes,data:[],cursor:0,max:MAX};
+  particles.mesh.frustumCulled=false;scene.add(particles.mesh);
 }
 
-function spawnBurst(pos, hex, count, power) {
-  if (!particles || !save.settings.particles) return;   // 设置里可关闭粒子特效
-  var c = new THREE.Color(hex);
-  for (var i = 0; i < count; i++) {
-    var idx = particles.cursor;
-    particles.cursor = (particles.cursor + 1) % 240;
-    var p = particles.data[idx] || (particles.data[idx] = { life: 0 });
-    var a = rand(0, Math.PI * 2), b = rand(0.15, Math.PI * 0.85);
-    var sp = rand(power * 0.35, power);
-    p.x = pos.x; p.y = pos.y; p.z = pos.z;
-    p.vx = Math.cos(a) * Math.sin(b) * sp;
-    p.vy = Math.cos(b) * sp + 1.2;
-    p.vz = Math.sin(a) * Math.sin(b) * sp;
-    p.life = p.maxLife = rand(0.45, 0.95);
-    var shade = rand(0.75, 1.25);
-    particles.pos[idx * 3] = p.x; particles.pos[idx * 3 + 1] = p.y; particles.pos[idx * 3 + 2] = p.z;
-    particles.col[idx * 3] = c.r * shade; particles.col[idx * 3 + 1] = c.g * shade; particles.col[idx * 3 + 2] = c.b * shade;
+function spawnBurst(pos,hex,count,power) {
+  if(!particles || !save.settings.particles)return;
+  var c=new THREE.Color(hex);
+  for(var i=0;i<count;i++) {
+    var idx=particles.cursor;particles.cursor=(idx+1)%particles.max;
+    var p=particles.data[idx] || (particles.data[idx]={life:0});
+    var a=rand(0,Math.PI*2),b=rand(.15,Math.PI*.85),sp=rand(power*.35,power);
+    p.x=pos.x;p.y=pos.y;p.z=pos.z;p.vx=Math.cos(a)*Math.sin(b)*sp;p.vy=Math.cos(b)*sp+1.2;p.vz=Math.sin(a)*Math.sin(b)*sp;
+    p.life=p.maxLife=rand(.25,.70);p.size=rand(.06,.19);
+    particles.pos[idx*3]=p.x;particles.pos[idx*3+1]=p.y;particles.pos[idx*3+2]=p.z;
+    particles.col[idx*3]=c.r;particles.col[idx*3+1]=c.g;particles.col[idx*3+2]=c.b;
+    particles.alpha[idx]=.95;particles.sizes[idx]=p.size;
   }
-  particles.mesh.geometry.attributes.position.needsUpdate = true;
-  particles.mesh.geometry.attributes.color.needsUpdate = true;
+  var a2=particles.mesh.geometry.attributes;
+  a2.position.needsUpdate=a2.aColor.needsUpdate=a2.aAlpha.needsUpdate=a2.aSize.needsUpdate=true;
 }
 
 function updateParticles(dt) {
-  if (!particles) return;
-  for (var i = 0; i < 240; i++) {
-    var p = particles.data[i];
-    if (!p || p.life <= 0) continue;
-    p.life -= dt;
-    if (p.life <= 0) {
-      particles.pos[i * 3 + 1] = -1000;
-      continue;
-    }
-    p.vy += CFG.gravity * 0.35 * dt;
-    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
-    if (p.y < 0.02) { p.y = 0.02; p.vy = Math.abs(p.vy) * 0.35; }
-    particles.pos[i * 3] = p.x; particles.pos[i * 3 + 1] = p.y; particles.pos[i * 3 + 2] = p.z;
+  if(!particles)return;
+  particles.mesh.visible=!!save.settings.particles;
+  if(!save.settings.particles){for(var q=0;q<particles.data.length;q++){if(particles.data[q])particles.data[q].life=0;particles.alpha[q]=0;}particles.mesh.geometry.attributes.aAlpha.needsUpdate=true;return;}
+  particles.mesh.material.uniforms.pixelScale.value=(renderer.domElement.height||720)*.5*camera.projectionMatrix.elements[5];
+  if(dt<=0)return;
+  for(var i=0;i<particles.max;i++){
+    var p=particles.data[i];if(!p||p.life<=0)continue;
+    p.life-=dt;
+    if(p.life<=0){particles.alpha[i]=0;continue;}
+    p.vy+=CFG.gravity*.35*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;
+    if(p.y<.025){p.y=.025;p.vy=Math.abs(p.vy)*.25;p.vx*=.8;p.vz*=.8;}
+    var k=p.life/p.maxLife;particles.alpha[i]=.95*k*k;particles.sizes[i]=p.size*(.5+.5*k);
+    particles.pos[i*3]=p.x;particles.pos[i*3+1]=p.y;particles.pos[i*3+2]=p.z;
   }
-  particles.mesh.geometry.attributes.position.needsUpdate = true;
+  var a=particles.mesh.geometry.attributes;a.position.needsUpdate=a.aAlpha.needsUpdate=a.aSize.needsUpdate=true;
 }
 
 // ---------------------------------------------------------------- 敌人（蓝色大肥鱼）
-function makeFishMaterial() {
+function makeFishMaterial(tex) {
   var mat = new THREE.MeshBasicMaterial({
-    map: fishTex, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide,
-  });
-  mat.customDepthMaterial = new THREE.MeshDepthMaterial({
-    depthPacking: THREE.RGBADepthPacking, map: fishTex, alphaTest: 0.4,
+    map: tex || fishTex, transparent: true, alphaTest: 0.15, side: THREE.DoubleSide,
+    toneMapped: false,
   });
   return mat;
+}
+
+function removeEnemyVisual(e) {
+  stopEnemyVoice(e);
+  FishArt.disposeTree(e.mesh, fishTex);
+  FishArt.disposeTree(e.groundShadow);
+}
+
+function updateEnemyShadow(e, size) {
+  if (!e.groundShadow) return;
+  e.groundShadow.visible = e.mesh.visible && e.alive !== false;
+  e.groundShadow.position.set(e.mesh.position.x, 0.035, e.mesh.position.z);
+  // 跳起后投影扩大、变淡，提示实际落点；不新增战斗碰撞体。
+  var lift = Math.max(0, e.mesh.position.y - e.baseY);
+  e.groundShadow.scale.set(size * (0.95 + lift * 0.12), size * (0.7 + lift * 0.1), 1);
+  e.groundShadow.material.opacity = 0.65 / (1 + lift * 0.7);
 }
 
 function pointInObstacle(x, z, pad) {
@@ -2118,7 +1924,8 @@ function spawnFish(pos, kind) {
   var ranged = (kind === 'normal') && (Math.random() < CFG.fishRangedChance);
   var e = {
     kind: kind,
-    mesh: new THREE.Mesh(new THREE.PlaneGeometry(CFG.fishSize, CFG.fishSize), makeFishMaterial()),
+    mesh: new THREE.Mesh(FishArt.fishGeometry(CFG.fishSize),
+      makeFishMaterial(ranged ? enemyTexture('normal', true) : enemyTexture(kind, false))),
     alive: true,
     state: 'patrol',
     ranged: ranged,
@@ -2136,6 +1943,9 @@ function spawnFish(pos, kind) {
     hitColor: new THREE.Color(0xffffff),
   };
   e.mesh.castShadow = true;
+  FishArt.fishDetails(e.mesh, CFG.fishSize, fishTex);
+  e.groundShadow = FishArt.shadow(CFG.fishSize);
+  scene.add(e.groundShadow);
   e.hp = enemyHpNow;              // 小怪血量（随 Boss 击杀成长，≤10）
   e.mesh.position.copy(pos);
   e.mesh.position.y = e.baseY;
@@ -2228,6 +2038,10 @@ function buildWaveComposition(stage) {
 
 /** 开启第 n 波 */
 function startWave(n) {
+  // 死亡对象此前永久留在 enemies 中；清波时回收，避免长局不断堆积模型与材质。
+  for (var dead = enemies.length - 1; dead >= 0; dead--) {
+    if (!enemies[dead].alive) { removeEnemyVisual(enemies[dead]); enemies.splice(dead, 1); }
+  }
   wave.number = n;
   wave.state = 'fighting';
   wave.timer = 0;
@@ -2398,6 +2212,7 @@ function updateEnemies(dt) {
 
     // 死亡重生
     if (!e.alive) {
+      if (e.groundShadow) e.groundShadow.visible = false;
       e.respawnTimer -= dt;
       if (e.respawnTimer <= 0) {
         var sp = pickSpawnPos(24);
@@ -2582,17 +2397,16 @@ function clampFish(e) {
   e.mesh.position.z = clamp(e.mesh.position.z, -CFG.arena, CFG.arena);
 }
 
-var _fishQ = new THREE.Quaternion();
-var _zAxis = new THREE.Vector3(0, 0, 1);
 function updateFishVisuals(dt) {
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
     if (!e.alive) {
+      if (e.groundShadow) e.groundShadow.visible = false;
       // 死亡碎裂动画：快速缩小 + 轻微上浮，播完再隐藏
       if (e.dyingT > 0) {
         e.dyingT -= dt;
         var kk = Math.max(0, e.dyingT / 0.28);
-        var dsc = kk * kk;
+        var dsc = kk * kk * (e.isChild ? 0.72 : 1);
         e.mesh.scale.set(dsc, dsc, dsc);
         e.mesh.position.y += dt * 1.8;
         if (e.dyingT <= 0) e.mesh.visible = false;
@@ -2622,11 +2436,11 @@ function updateFishVisuals(dt) {
     }
 
     // 广告牌：始终面向玩家相机 + 自身轻微摇摆
-    var wobble = Math.sin(time * 3.1 + e.phase) * 0.13;
-    _fishQ.setFromAxisAngle(_zAxis, wobble);
-    e.mesh.quaternion.copy(camera.quaternion).multiply(_fishQ);
+    var wobble = Math.sin(time * 3.1 + e.phase) * 0.055;
+    // 只绕竖轴面向相机：玩家抬头/低头时，敌人不会整张倒向地面。
+    e.mesh.rotation.set(0, player.yaw, wobble, 'YXZ');
     // 追击时身体发红提示
-    var target = e.state === 'chase' || e.state === 'attack' ? 0xff8d8d : 0xffffff;
+    var target = e.state === 'chase' || e.state === 'attack' ? 0xffdfdb : 0xffffff;
     e.hitColor.set(target);
     e.mesh.material.color.copy(e.hitColor);
     // 攻击脉冲（冲脸咬人）
@@ -2643,7 +2457,10 @@ function updateFishVisuals(dt) {
         if (e.fuseHalo.children[1]) e.fuseHalo.children[1].material.opacity = 0.15 + 0.55 * blink;
       }
     }
-    e.mesh.scale.set(s, s, s);
+    var breath = Math.sin(time * 2.3 + e.phase) * 0.022;
+    var childSize = e.isChild ? 0.72 : 1;
+    e.mesh.scale.set(s * childSize * (1 + breath), s * childSize * (1 - breath), s * childSize);
+    updateEnemyShadow(e, CFG.fishSize * childSize);
 
     // 挥剑序列动画（近战攻击）：① 预备后拉 → ② 沿剑刃向玩家方向猛挥 → ③ 收招回位
     if (e.swordMesh && e.swordMesh.visible) {
@@ -2736,76 +2553,14 @@ function killFish(e, hitPoint) {
 // ---------------------------------------------------------------- 射手鱼（手持枪械的远程敌人）
 // 枪挂在贴图右手位置（图片中伸出的爪爪：贴图 x≈28%, y≈72% → 平面坐标 (-0.44,-0.44)）
 function makeFishGun() {
-  var gun = new THREE.Group();
-  var dark = new THREE.MeshStandardMaterial({ color: 0x23272e, roughness: 0.38, metalness: 0.7 });
-  var body = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.52), dark);
-  // 亮色点缀：金色枪管 + 橙色枪口 + 棕色握把（远距离更易辨认射手）
-  var barrel = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.045, 0.42),
-    new THREE.MeshStandardMaterial({ color: 0xd8a848, roughness: 0.35, metalness: 0.75 }));
-  barrel.position.z = 0.16;
-  var muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.08),
-    new THREE.MeshStandardMaterial({ color: 0xff7a2a, roughness: 0.4, metalness: 0.5 }));
-  muzzle.position.z = 0.38;
-  var grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.13, 0.06),
-    new THREE.MeshStandardMaterial({ color: 0x6d4c33, roughness: 0.8 }));
-  grip.position.set(0, -0.08, 0.1);
-  gun.add(body, barrel, muzzle, grip);
-  gun.position.set(-0.44, -0.44, 0.22);  // 挂爪爪上
-  gun.rotation.set(0.34, 0, 0.1);          // 枪口上翘微侧：玩家视角可见枪身（辨识射手）
-  gun.scale.set(2.2, 2.2, 2.2);            // 枪放大：远距离一眼可辨
-  // 枪口锚点：子弹从这里发射（枪管末端）
-  var muzzleTip = new THREE.Object3D();
-  muzzleTip.position.set(0, 0.02, 0.46);
-  gun.add(muzzleTip);
-  gun.muzzleTip = muzzleTip;
-  return gun;
+  return FishCombat.fishGun();
 }
 
 // ---------------------------------------------------------------- 近战肥鱼（手持小剑）
 // 剑同样挂在贴图右手位置（与射手鱼的枪一致：图片伸出的爪爪 x≈28%, y≈72% → 平面坐标 -0.44,-0.44）
 function makeFishSword() {
-  var sword = new THREE.Group();
-
-  // 剑身：银蓝金属细长条（金属度压到 0.35 —— 场景无环境贴图，纯金属会显示成黑色）
-  var bladeMat = new THREE.MeshStandardMaterial({ color: 0xdce8f5, roughness: 0.34, metalness: 0.35 });
-  var blade = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.5, 0.022), bladeMat);
-  blade.position.y = 0.27;
-
-  // 剑尖：四棱锥（旋转 45° 让棱线对齐剑身）
-  var tip = new THREE.Mesh(new THREE.ConeGeometry(0.052, 0.13, 4), bladeMat);
-  tip.position.y = 0.585;
-  tip.rotation.y = Math.PI / 4;
-
-  // 血槽高光：中间一条更亮的窄条（金属质感）
-  var fuller = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.44, 0.028),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.22, metalness: 0.2 }));
-  fuller.position.y = 0.27;
-
-  // 护手：金色横条 + 两端小圆球
-  var goldMat = new THREE.MeshStandardMaterial({ color: 0xe8c05a, roughness: 0.42, metalness: 0.35 });
-  var guard = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.038, 0.055), goldMat);
-  guard.position.y = 0.01;
-
-  var guardBallL = new THREE.Mesh(new THREE.SphereGeometry(0.028, 7, 5), goldMat);
-  guardBallL.position.set(-0.12, 0.01, 0);
-  var guardBallR = guardBallL.clone();
-  guardBallR.position.x = 0.12;
-
-  // 剑柄：深棕皮革
-  var grip = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.15, 0.048),
-    new THREE.MeshStandardMaterial({ color: 0x4a3728, roughness: 0.88 }));
-  grip.position.y = -0.1;
-
-  // 剑柄末端配重球
-  var pommel = new THREE.Mesh(new THREE.SphereGeometry(0.037, 8, 6), goldMat);
-  pommel.position.y = -0.19;
-
-  sword.add(blade, tip, fuller, guard, guardBallL, guardBallR, grip, pommel);
-
-  // 挂在爪爪上：斜握在身侧、剑尖朝前上方（避免竖直穿过鱼身），整体缩小到合适比例
-  sword.position.set(-0.5, -0.46, 0.3);
-  sword.rotation.set(SWORD_REST_X, SWORD_REST_Y, SWORD_REST_Z);
-  sword.scale.set(1.35, 1.35, 1.35);
+  var sword=FishCombat.fishSword();
+  sword.rotation.set(SWORD_REST_X,SWORD_REST_Y,SWORD_REST_Z);
   return sword;
 }
 
@@ -2991,72 +2746,18 @@ function makeSyringeMesh() {
   return g;
 }
 
-// 爆炸特效（火球 + 冲击环 + 蘑菇云烟团）
-var blastFx = [];
+// 自爆特效：快速火光 + 冲击环 + 分层烟柱/云冠（复用战斗特效池）。
+
 
 function spawnMushroomCloud(pos) {
-  // 粒子（减量，避免方块粒子盖过云体）
-  spawnBurst(pos, 0xffd24a, 22, 8.5);
-  spawnBurst(pos, 0xff7a2a, 14, 6.0);
-
-  // ① 火球：中心亮球，膨胀较久（蘑菇云根部）
-  var ball = new THREE.Mesh(
-    new THREE.SphereGeometry(0.7, 14, 12),
-    new THREE.MeshBasicMaterial({ color: 0xffca55, transparent: true, opacity: 0.95, depthWrite: false }));
-  ball.position.set(pos.x, pos.y + 0.3, pos.z);
-  scene.add(ball);
-  blastFx.push({ mesh: ball, mat: ball.material, t: 0, life: 0.85, growth: 2.4, rise: 1.1, growY: 0 });
-
-  // ② 烟柱：垂直圆柱向上抽升（蘑菇柄）
-  var stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.55, 0.85, 2.4, 14, 1, true),
-    new THREE.MeshBasicMaterial({
-      color: 0xd9c9a8, transparent: true, opacity: 0.72, depthWrite: false,
-      side: THREE.DoubleSide,
-    }));
-  stem.position.set(pos.x, pos.y + 1.2, pos.z);
-  scene.add(stem);
-  blastFx.push({ mesh: stem, mat: stem.material, t: 0, life: 1.5, growth: 0.9, rise: 1.4, growY: 1.1 });
-
-  // ③ 云冠：顶部横向铺开的圆盘（蘑菇伞盖）
-  var cap = new THREE.Mesh(
-    new THREE.SphereGeometry(0.9, 14, 10),
-    new THREE.MeshBasicMaterial({ color: 0xffe6c2, transparent: true, opacity: 0.88, depthWrite: false }));
-  cap.position.set(pos.x, pos.y + 2.5, pos.z);
-  cap.scale.set(1.5, 0.65, 1.5);
-  scene.add(cap);
-  blastFx.push({ mesh: cap, mat: cap.material, t: 0, life: 1.35, growth: 1.8, rise: 0.8, growY: 0 });
-
-  // ④ 地面冲击环：水平扩散并抬升一点（避免完全贴地被忽视）
-  var ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.4, 0.95, 26),
-    new THREE.MeshBasicMaterial({
-      color: 0xffe0b0, transparent: true, opacity: 0.85, side: THREE.DoubleSide,
-      depthWrite: false, blending: THREE.NormalBlending,
-    }));
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.set(pos.x, 0.35, pos.z);
-  scene.add(ring);
-  blastFx.push({ mesh: ring, mat: ring.material, t: 0, life: 0.8, growth: 5.0, rise: 0, growY: 0 });
+  spawnBurst(pos,0xffc66d,30,8.5);
+  if(combatFx && save.settings.particles)combatFx.explosion(pos,CFG.bomberBlastRange,0xffb766,true);
 }
 
 function updateBlastFx(dt) {
-  for (var i = blastFx.length - 1; i >= 0; i--) {
-    var f = blastFx[i];
-    f.t += dt;
-    var k = f.t / f.life;
-    var s = 1 + k * f.growth;
-    var sy = s * (1 + k * (f.growY || 0));   // 烟柱可额外纵向拉伸
-    f.mesh.scale.set(s, sy, s);
-    f.mesh.position.y += f.rise * dt;
-    f.mat.opacity = Math.max(0, (1 - k) * 0.95);
-    if (f.t >= f.life) {
-      scene.remove(f.mesh);
-      f.mesh.geometry.dispose();
-      f.mat.dispose();
-      blastFx.splice(i, 1);
-    }
-  }
+  if(!combatFx)return;
+  if(!save.settings.particles){combatFx.clear();return;}
+  combatFx.update(state === 'playing' ? dt : 0,camera);
 }
 
 // 自爆鱼索敌警告：玩家处在存活自爆鱼的索敌范围内时，持续闪烁红屏
@@ -3207,6 +2908,7 @@ function fireFishBullet(e) {
   // 从枪口发射（贴图爪爪上的枪管口；无枪时兜底平面中心）
   var from = new THREE.Vector3();
   if (e.gunMesh && e.gunMesh.muzzleTip) {
+    FishCombat.aimWeapon(e.gunMesh,_aimTarget.set(player.pos.x,player.pos.y+1,player.pos.z),0);
     e.gunMesh.muzzleTip.getWorldPosition(from);
   } else {
     from.copy(e.mesh.position);
@@ -3217,7 +2919,8 @@ function fireFishBullet(e) {
     player.pos.z - from.z
   ).normalize();
   var b = new THREE.Mesh(_fbGeo, _fbMat);
-  b.position.copy(from).addScaledVector(dir, 0.7);
+  b.position.copy(from);
+  if(combatFx && save.settings.particles)combatFx.muzzle(from,0xffd68c,.36);
   scene.add(b);
   fishBullets.push({ mesh: b, vel: dir.clone().multiplyScalar(CFG.rangedBulletSpeed), life: 6 });
   playEnemyVoice(e, 'fishShoot', 0.42);   // 射手鱼开火（绑定到该鱼，死亡即掐断）
@@ -3261,8 +2964,12 @@ function updateFishBullets(dt) {
 }
 
 // ---------------------------------------------------------------- 弹药与换弹
+var ammoHudKey = '';
 function updateAmmoHUD() {
   if (!dom.ammoMag) return;
+  var key = ammo.mag + '/' + ammo.reserve + '/' + currentWeapon;
+  if (key === ammoHudKey) return;
+  ammoHudKey = key;
   dom.ammoMag.textContent = String(ammo.mag);
   dom.ammoMag.classList.toggle('low', ammo.mag <= 5);
   dom.ammoReserve.textContent = String(ammo.reserve);
@@ -4052,7 +3759,7 @@ function pickupItem(it, index) {
     updateHUD();
   }
   updateAmmoHUD();
-  scene.remove(it.mesh);
+  FishArt.disposeTree(it.mesh);
   items.splice(index, 1);
 }
 
@@ -4100,28 +3807,7 @@ function updateItems(dt) {
 // ---------------------------------------------------------------- Boss（超级蓝色大肥鱼）
 // Boss 火箭筒：挂在贴图爪爪位置（同射手鱼手位，3 倍比例随体型放大），炮口沿法线指向玩家
 function makeBossLauncher() {
-  var gun = new THREE.Group();
-  var steel = new THREE.MeshStandardMaterial({ color: 0x2e3338, roughness: 0.38, metalness: 0.72 });
-  var dark = new THREE.MeshStandardMaterial({ color: 0x171a1e, roughness: 0.3, metalness: 0.8 });
-  var tube = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 1.5, 14), steel);
-  tube.rotation.x = Math.PI / 2;
-  tube.position.z = 0.35;
-  var muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.22, 14), dark);
-  muzzle.rotation.x = Math.PI / 2;
-  muzzle.position.z = 1.13;
-  var scope = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.5, 10), dark);
-  scope.rotation.x = Math.PI / 2;
-  scope.position.set(0, 0.22, 0.15);
-  var grip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.28, 0.12), steel);
-  grip.position.set(0, -0.22, 0.1);
-  gun.add(tube, muzzle, scope, grip);
-  gun.position.set(-1.32, -1.32, 0.55);   // 贴图爪爪位置（6m 平面比例）
-  // 炮口锚点：炮弹从这里发射（炮管口）
-  var muzzleTip = new THREE.Object3D();
-  muzzleTip.position.set(0, 0.02, 1.26);
-  gun.add(muzzleTip);
-  gun.muzzleTip = muzzleTip;
-  return gun;
+  return FishCombat.bossWeapon('rocket');
 }
 
 // ---------------------------------------------------------------- Boss 变体
@@ -4143,98 +3829,21 @@ function bossVariantNow() {
 /** 大剑（狂暴冲锋鱼） */
 /** 匕首模型（刀刃 + 护手 + 握柄 + 柄尾） */
 function makeKnifeModel() {
-  var g = new THREE.Group();
-  var steel = new THREE.MeshStandardMaterial({ color: 0xeaf0fa, roughness: 0.16, metalness: 0.92 });
-  var dark = new THREE.MeshStandardMaterial({ color: 0x2a2e36, roughness: 0.5, metalness: 0.55 });
-  var blade = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.085, 0.40), steel);
-  blade.position.set(0, 0, -0.28);
-  var tip = new THREE.Mesh(new THREE.ConeGeometry(0.048, 0.13, 4), steel);
-  tip.rotation.x = -Math.PI / 2;
-  tip.rotation.z = Math.PI / 4;
-  tip.position.set(0, 0, -0.545);
-  var guard = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.028, 0.045), dark);
-  guard.position.set(0, 0, -0.065);
-  var handle = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.029, 0.19, 8), dark);
-  handle.rotation.x = Math.PI / 2;
-  handle.position.set(0, 0, 0.055);
-  var pommel = new THREE.Mesh(new THREE.SphereGeometry(0.033, 8, 6), dark);
-  pommel.position.set(0, 0, 0.16);
-  g.add(blade, tip, guard, handle, pommel);
-  return g;
+  return FishCombat.playerWeapon('knife');
 }
 
 function makeBossSword() {
-  var g = new THREE.Group();
-  var steel = new THREE.MeshStandardMaterial({ color: 0xdfe6f2, roughness: 0.28, metalness: 0.85 });
-  var dark = new THREE.MeshStandardMaterial({ color: 0x2f3540, roughness: 0.5, metalness: 0.5 });
-  var blade = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.09, 3.4), steel);   // 剑身
-  var tip = new THREE.Mesh(new THREE.ConeGeometry(0.21, 0.6, 4), steel);        // 剑尖
-  tip.rotation.x = -Math.PI / 2; tip.position.set(0, 0, -1.95);
-  var guard = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.17, 0.24), dark);     // 护手
-  guard.position.set(0, 0, 1.6);
-  var handle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.0, 8), dark);
-  handle.rotation.x = Math.PI / 2; handle.position.set(0, 0, 2.15);
-  g.add(blade, tip, guard, handle);
-  g.position.set(-1.35, -1.3, 0.5);
-  g.rotation.y = Math.PI * 0.32;      // 斜握：剑身侧向，不正面挡脸
-  var tipAnchor = new THREE.Object3D();
-  tipAnchor.position.set(0, 0, -2.2);
-  g.add(tipAnchor);
-  g.muzzleTip = tipAnchor;
-  return g;
+  return FishCombat.bossWeapon('charge');
 }
 
 /** 法杖（召唤祭司鱼） */
 function makeBossStaff() {
-  var g = new THREE.Group();
-  var wood = new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: 0.85 });
-  var orb = new THREE.MeshStandardMaterial({ color: 0xb08cff, emissive: 0x7a4cff, emissiveIntensity: 0.9, roughness: 0.2 });
-  var rod = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 3.4, 10), wood);
-  rod.rotation.x = Math.PI / 2;
-  var head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), orb);
-  head.position.set(0, 0, -1.85);
-  var halo = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.05, 8, 24),
-    new THREE.MeshBasicMaterial({ color: 0xc8a8ff, transparent: true, opacity: 0.75 }));
-  halo.position.set(0, 0, -1.85);
-  var ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.05, 8, 24),
-    new THREE.MeshBasicMaterial({ color: 0xc8a8ff, transparent: true, opacity: 0.75 }));
-  ring2.position.set(0, 0, -1.85);
-  ring2.rotation.y = Math.PI / 2;
-  g.add(rod, head, halo, ring2);
-  g.position.set(-1.35, -1.3, 0.5);
-  g.rotation.y = Math.PI * 0.28;      // 略斜：法球与杖身都能看清
-  var tipAnchor = new THREE.Object3D();
-  tipAnchor.position.set(0, 0, -2.1);
-  g.add(tipAnchor);
-  g.muzzleTip = tipAnchor;
-  g.orb = head;
-  return g;
+  return FishCombat.bossWeapon('summon');
 }
 
 /** 三管重炮（重炮台鱼） */
 function makeBossCannon() {
-  var g = new THREE.Group();
-  var dark = new THREE.MeshStandardMaterial({ color: 0x232830, roughness: 0.42, metalness: 0.7 });
-  var steel = new THREE.MeshStandardMaterial({ color: 0x3a4250, roughness: 0.35, metalness: 0.8 });
-  for (var i = -1; i <= 1; i++) {
-    var tube = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.19, 2.6, 10), steel);
-    tube.rotation.x = Math.PI / 2;
-    tube.position.set(i * 0.42, 0, -0.7);
-    var mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.22, 10), dark);
-    mouth.rotation.x = Math.PI / 2;
-    mouth.position.set(i * 0.42, 0, -2.0);
-    g.add(tube, mouth);
-  }
-  var base = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.7, 0.9), dark);
-  base.position.set(0, 0, 0.6);
-  g.add(base);
-  g.position.set(-1.35, -1.3, 0.5);
-  g.rotation.y = Math.PI * 0.5;       // 完全侧向：三根炮管从侧面展示，不再正对镜头变成黑块
-  var tipAnchor = new THREE.Object3D();
-  tipAnchor.position.set(0, 0, -2.2);
-  g.add(tipAnchor);
-  g.muzzleTip = tipAnchor;
-  return g;
+  return FishCombat.bossWeapon('barrage');
 }
 
 /** 按变体造武器 */
@@ -4263,15 +3872,14 @@ function spawnBoss(forceVariant) {
     ? bossVariantNow()                                   // 默认：按当前阶段
     : BOSS_VARIANTS[clamp(forceVariant, 0, BOSS_VARIANTS.length - 1)];   // 指定变体
   var mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(CFG.fishSize * CFG.bossSizeMul, CFG.fishSize * CFG.bossSizeMul),
-    makeFishMaterial()
+    FishArt.fishGeometry(CFG.fishSize * CFG.bossSizeMul),
+    makeFishMaterial(enemyTexture('boss', false))
   );
   mesh.castShadow = true;
+  FishArt.fishDetails(mesh, CFG.fishSize * CFG.bossSizeMul, fishTex);
   mesh.position.set(pos.x, 3.0, pos.z);
   var weapon = makeBossWeapon(variant);
-  // 武器整体尺寸：2.0 倍（Boss 本体是 6 米高；3 倍时炮管/巨剑会宽过本体，
-  // 正面视角变成一整块黑色挡住 Boss，缩小后既能看清武器形状也不挡脸）
-  weapon.scale.set(2.0, 2.0, 2.0);
+  // 模型自带统一握持比例；朝向由 updateBossWeaponAim 独立控制。
   mesh.add(weapon);
   scene.add(mesh);
   var bossHpNow = Math.round(bossHpNext * variant.hpMul);
@@ -4293,6 +3901,8 @@ function spawnBoss(forceVariant) {
     summonTimer: 4.5,                    // 祭司鱼：首次召唤倒计时
     splitDone: false,                    // 分裂母鱼：是否已分裂
   };
+  boss.groundShadow = FishArt.shadow(CFG.fishSize * CFG.bossSizeMul);
+  scene.add(boss.groundShadow);
   spawnBossEntranceFx(pos);              // 出场演出：地面扩散光圈 + 光柱
   showNotice('BOSS 出现！' + variant.name + ' · ' + variant.tip);
   Sfx.bossAlarm();
@@ -4313,19 +3923,20 @@ function spawnBossEntranceFx(pos) {
     var mat = new THREE.MeshBasicMaterial({
       color: i === 0 ? 0xff6a6a : (i === 1 ? 0xffa050 : 0xffd890),
       transparent: true, opacity: 0.85, side: THREE.DoubleSide,
-      depthWrite: false, blending: THREE.AdditiveBlending,
+      depthWrite: false, blending: THREE.NormalBlending,
     });
     var ring = new THREE.Mesh(new THREE.RingGeometry(0.86, 1.0, 56), mat);
     ring.rotation.x = -Math.PI / 2;
     ring.position.set(pos.x, 0.09 + i * 0.02, pos.z);
-    ring.scale.set(2.5, 2.5, 2.5);
+    ring.scale.set(1.5, 1.5, 1.5);
     scene.add(ring);
-    bossFx.push({ mesh: ring, mat: mat, t: -i * 0.16, life: 1.15, from: 2.5, to: 16 + i * 5, pillar: false });
+    ring.visible = i === 0;
+    bossFx.push({ mesh: ring, mat: mat, t: -i * 0.16, life: 1.15, from: 1.5, to: 5.5 + i * 1.4, pillar: false });
   }
-  // 中心竖直光柱（加色混合的空心圆柱，快速升起并淡出）
+  // 低透明度的暖色光柱，避免白天出现覆盖建筑的大块白色。
   var colMat = new THREE.MeshBasicMaterial({
-    color: 0xffd0a0, transparent: true, opacity: 0.5, side: THREE.DoubleSide,
-    depthWrite: false, blending: THREE.AdditiveBlending,
+    color: 0xffcc8a, transparent: true, opacity: 0.12, side: THREE.DoubleSide,
+    depthWrite: false, blending: THREE.NormalBlending,
   });
   var col = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 2.8, 8, 20, 1, true), colMat);
   col.position.set(pos.x, 4.0, pos.z);
@@ -4338,6 +3949,7 @@ function updateBossFx(dt) {
     var f = bossFx[i];
     f.t += dt;
     if (f.t < 0) continue;                      // 延迟启动
+    f.mesh.visible = true;
     var k = f.t / f.life;
     if (k >= 1) {
       scene.remove(f.mesh);
@@ -4347,7 +3959,7 @@ function updateBossFx(dt) {
       continue;
     }
     if (f.pillar) {
-      f.mat.opacity = 0.5 * (1 - k) * (1 - k);
+      f.mat.opacity = 0.12 * (1 - k) * (1 - k);
       f.mesh.rotation.y += dt * 2.4;
     } else {
       var sc = f.from + (f.to - f.from) * (1 - Math.pow(1 - k, 2.2));
@@ -4366,48 +3978,37 @@ function clearBossFx() {
   bossFx = [];
 }
 
-var _bossBallGeo = null, _bossBallMat = null, _bossTipGeo = null, _bossTipMat = null;
+var _aimTarget = new THREE.Vector3();
+function updateBossWeaponAim() {
+  if(!boss || !boss.weapon)return;
+  var m=boss.mesh;
+  m.position.y=boss.baseY+Math.sin(time*2+boss.phase)*.5;
+  m.rotation.set(0,player.yaw,Math.sin(time*2.6+boss.phase)*.045,'YXZ');
+  m.updateWorldMatrix(true,true);
+  _aimTarget.set(player.pos.x,player.pos.y+CFG.eyeHeight,player.pos.z);
+  if(boss.mode==='summon'){
+    // 法杖向前上方举起，保留面部和召唤水晶的辨识度。
+    _aimTarget.y=m.position.y+9;
+  } else if(boss.mode==='charge'){
+    if(boss.chargeT>0 && boss.chargeDir){
+      _aimTarget.set(m.position.x+boss.chargeDir.x*15,player.pos.y+1.4,m.position.z+boss.chargeDir.z*15);
+    } else {
+      // 待机时举剑，冲锋时剑锋沿实际冲刺方向前指。
+      _aimTarget.y=m.position.y+7;
+    }
+  }
+  FishCombat.aimWeapon(boss.weapon,_aimTarget,CFG.bossBarrageSpread);
+}
 function fireBossBall(angleOffset) {
-  if (!_bossBallGeo) {
-    _bossBallGeo = new THREE.SphereGeometry(0.3, 12, 10);
-    _bossBallMat = new THREE.MeshStandardMaterial({ color: 0x444a52, roughness: 0.4, metalness: 0.65 });
-    _bossTipGeo = new THREE.ConeGeometry(0.13, 0.22, 10);
-    _bossTipMat = new THREE.MeshStandardMaterial({ color: 0xd84028, roughness: 0.4, metalness: 0.3 });
-  }
-  var ball = new THREE.Group();
-  var body = new THREE.Mesh(_bossBallGeo, _bossBallMat);
-  body.castShadow = true;
-  var tip = new THREE.Mesh(_bossTipGeo, _bossTipMat);
-  tip.rotation.x = Math.PI / 2;
-  tip.position.z = 0.34;
-  ball.add(body, tip);
-  // 从火箭筒炮口发射（爪爪上的炮管口；无炮时兜底中心）
-  var from = new THREE.Vector3();
-  if (boss.launcher && boss.launcher.muzzleTip) {
-    boss.launcher.muzzleTip.getWorldPosition(from);
-  } else {
-    from.copy(boss.mesh.position);
-  }
-  // 炮口随 Boss 悬浮浮动可能探到地面以下（y<0.15 会被判落地自爆），钳制最低发射高度
-  if (from.y < 0.5) from.y = 0.5;
-  ball.position.copy(from);
-  var dir = new THREE.Vector3(
-    player.pos.x - from.x,
-    (player.pos.y + CFG.eyeHeight) - from.y,
-    player.pos.z - from.z
-  ).normalize();
-  // 扇形偏移（重炮台鱼的三连齐射用）
-  if (angleOffset) {
-    var ca = Math.cos(angleOffset), sa = Math.sin(angleOffset);
-    var nx = dir.x * ca - dir.z * sa;
-    var nz = dir.x * sa + dir.z * ca;
-    dir.x = nx; dir.z = nz;
-    dir.normalize();
-  }
-  dir.multiplyScalar(CFG.bossBallSpeed);
-  ball.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir.clone().normalize());
-  scene.add(ball);
-  bossShots.push({ mesh: ball, vel: dir, life: 12 });
+  updateBossWeaponAim();
+  var index=angleOffset>0?1:angleOffset<0?2:0;
+  var tip=boss.weapon.muzzles ? boss.weapon.muzzles[index] : boss.weapon.muzzleTip;
+  var from=tip.getWorldPosition(new THREE.Vector3());
+  var dir=FishCombat.muzzleDirection(tip,new THREE.Vector3());
+  var ball=FishCombat.projectile();ball.position.copy(from);
+  ball.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),dir);
+  scene.add(ball);bossShots.push({mesh:ball,vel:dir.multiplyScalar(CFG.bossBallSpeed),life:12,trailT:0,muzzleIndex:index});
+  if(combatFx && save.settings.particles)combatFx.muzzle(from,0xffc779,.8);
   Sfx.bossShoot();
 }
 
@@ -4420,8 +4021,9 @@ var _vNewDir = new THREE.Vector3();
 // 炮弹爆炸：落地/撞墙爆（仅玩家，伤害 -10%）或玩家击毁空爆（敌我通吃）
 function explodeShell(s, index, byPlayer) {
   var center = s.mesh.position.clone();
-  scene.remove(s.mesh);
+  FishArt.disposeTree(s.mesh);
   bossShots.splice(index, 1);
+  if(combatFx && save.settings.particles)combatFx.explosion(center,CFG.bossShellRadius,0xffb46b);
   spawnBurst(center, 0xffb060, 24, 5.5);
   spawnBurst(center, 0xfff2d0, 10, 3.2);
   playSfx('boom', byPlayer ? 0.5 : 0.38);   // Boss 炸弹爆炸（音量偏小于自爆）
@@ -4473,7 +4075,13 @@ function updateBossShots(dt) {
         }
       }
     }
-    m.position.addScaledVector(s.vel, dt);
+    m.position.addScaledVector(s.vel,dt);
+    if(s.vel.lengthSq()>.001)m.quaternion.setFromUnitVectors(_vOldDir.set(0,0,1),_vNewDir.copy(s.vel).normalize());
+    s.trailT=(s.trailT||0)+dt;
+    if(combatFx && save.settings.particles && s.trailT>=.045){
+      s.trailT%=.045;_vNewDir.copy(m.position).addScaledVector(s.vel,-.04);
+      combatFx.trail(_vNewDir,0xffb55f,.35);
+    }
     s.life -= dt;
     var gone = s.life <= 0;
     var px = m.position.x, py = m.position.y, pz = m.position.z;
@@ -4502,7 +4110,7 @@ function updateBossShots(dt) {
       }
     }
     if (gone) {
-      scene.remove(m); bossShots.splice(i, 1);
+      FishArt.disposeTree(m); bossShots.splice(i, 1);
     }
   }
 }
@@ -4611,9 +4219,10 @@ function updateBoss(dt) {
   }
   // 视觉：悬浮 + 广告牌 + 受击泛红
   m.position.y = boss.baseY + Math.sin(time * 2.0 + boss.phase) * 0.5;
-  var wobble = Math.sin(time * 2.6 + boss.phase) * 0.1;
-  _fishQ.setFromAxisAngle(_zAxis, wobble);
-  m.quaternion.copy(camera.quaternion).multiply(_fishQ);
+  var wobble = Math.sin(time * 2.6 + boss.phase) * 0.045;
+  m.rotation.set(0, player.yaw, wobble, 'YXZ');
+  updateBossWeaponAim();
+  if(boss.weapon.orbit && state==='playing')boss.weapon.orbit.rotation.z+=dt*.8;
   boss.hurt = Math.max(0, boss.hurt - dt);
   m.material.color.set(boss.hurt > 0 ? 0xff8d8d : 0xffffff);
   // 血条（宽度 + 数值：当前/上限，直观看到成长后的上限变化）
@@ -4640,7 +4249,7 @@ function hideBossBar() {
 
 function defeatBoss() {
   var pos = boss.mesh.position.clone();
-  scene.remove(boss.mesh);
+  removeEnemyVisual(boss);
   boss = null;
   spawnBurst(pos, 0xffd54a, 40, 6.5);
   spawnBurst(pos, 0xffffff, 20, 4);
@@ -4684,19 +4293,7 @@ function defeatBoss() {
 
 // ---------------------------------------------------------------- 手榴弹
 function makeGrenadeMesh() {
-  var gr = new THREE.Group();
-  var bodyMat = new THREE.MeshStandardMaterial({ color: 0x4a5d3a, roughness: 0.55, metalness: 0.25 });
-  var body = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), bodyMat);
-  var cap = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.09, 8),
-    new THREE.MeshStandardMaterial({ color: 0x8a8a8a, roughness: 0.4, metalness: 0.6 }));
-  cap.position.y = 0.13;
-  var ring = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.012, 6, 12),
-    new THREE.MeshStandardMaterial({ color: 0xcfcfcf, roughness: 0.3, metalness: 0.8 }));
-  ring.position.y = 0.19;
-  gr.add(body, cap, ring);
-  gr.castShadow = true;
-  gr.bodyMat = bodyMat;
-  return gr;
+  return FishCombat.grenade();
 }
 
 function updateNadeHUD() {
@@ -4748,13 +4345,15 @@ function updateGrenades(dt) {
       grenades.splice(i, 1);
     } else {
       gr.mesh.rotation.y += dt * 7;
+      gr.mesh.rotation.x += dt * 4.6;
     }
   }
 }
 
 function explodeGrenade(gr) {
   var center = gr.mesh.position.clone();
-  scene.remove(gr.mesh);
+  FishArt.disposeTree(gr.mesh);
+  if(combatFx && save.settings.particles)combatFx.explosion(center,nadeDamageNow().radius,0xffc17a);
   spawnBurst(center, 0xffa040, 26, 5.5);
   spawnBurst(center, 0xffe0a0, 10, 3);
   spawnBurst(new THREE.Vector3(center.x, 0.15, center.z), 0xa08a6a, 12, 2.5);
@@ -4827,6 +4426,9 @@ function knifeAttack(heavy) {
   camera.getWorldDirection(_rayDir);
 
   // 命中判定：以准星为轴、身前 range 米内的最近目标
+  if(combatFx && save.settings.particles){
+    _tmpVec.copy(_rayOrigin).addScaledVector(_rayDir,.95);combatFx.slash(_tmpVec,_rayDir,heavy);
+  }
   var range = def.range;
   var best = null, bestAlong = Infinity;
   for (var i = 0; i < enemies.length; i++) {
@@ -4889,7 +4491,9 @@ function shootOnce() {
   gun.flashT = 0.055;
   gun.light.intensity = 6;
   gun.flashMesh.visible = true;
-  gun.flashMesh.material.opacity = 0.9 + rand(0, 0.1);
+  gun.flashMesh.material.opacity = .95;
+  gun.flashMesh.rotation.z=rand(0,Math.PI*2);
+  gun.flashMesh.scale.setScalar(currentWeapon==='rifle'?1.15:.8);
 
   camera.getWorldPosition(_rayOrigin);
   camera.getWorldDirection(_rayDir);
@@ -4926,6 +4530,13 @@ function shootOnce() {
     if (st > 0 && st < wallDist && st < bestT) { bestT = st; best = null; hitBoss = false; hitShell = bossShots[sh]; }
   }
 
+  if(combatFx && save.settings.particles){
+    var visualT=Math.min(bestT,wallDist,CFG.shootRange);
+    _hitPoint.copy(_rayOrigin).addScaledVector(_rayDir,visualT);
+    var muzzlePos=gun.muzzleTip.getWorldPosition(new THREE.Vector3());
+    combatFx.tracer(muzzlePos,_hitPoint,currentWeapon==='rifle'?0xffe4af:0xc3f7f0,.012);
+    if(visualT<CFG.shootRange)combatFx.impact(_hitPoint,hitBoss||best?0xb5eeff:0xffdb9e);
+  }
   if (hitShell) {
     _hitPoint.copy(_rayOrigin).addScaledVector(_rayDir, bestT);
     hitShell.hits = (hitShell.hits || 0) + 1;
@@ -5101,10 +4712,10 @@ function restartGame(toMenu) {
   ammo.reloading = false; ammo.reloadTimer = 0;
   applyWeaponVisual();
   nadeCount = CFG.nadeStartCount;
-  for (var gni = 0; gni < grenades.length; gni++) scene.remove(grenades[gni].mesh);
+  for (var gni = 0; gni < grenades.length; gni++) FishArt.disposeTree(grenades[gni].mesh);
   grenades = [];
   updateNadeHUD();
-  for (var iti = 0; iti < items.length; iti++) scene.remove(items[iti].mesh);
+  for (var iti = 0; iti < items.length; iti++) FishArt.disposeTree(items[iti].mesh);
   items = [];
   itemTimer = rand(CFG.itemIntervalMin, CFG.itemIntervalMax) * envMul('supplyIntervalMul');
   resetCombo();   // 新一局连杀评级清零
@@ -5127,8 +4738,8 @@ function restartGame(toMenu) {
   armorTimer = CFG.armorInterval;
   updateArmorHUD();
   clearBossFx();                             // 清掉 Boss 出场演出特效
-  if (boss) { scene.remove(boss.mesh); boss = null; }
-  for (var bsi = 0; bsi < bossShots.length; bsi++) scene.remove(bossShots[bsi].mesh);
+  if (boss) { removeEnemyVisual(boss); boss = null; }
+  for (var bsi = 0; bsi < bossShots.length; bsi++) FishArt.disposeTree(bossShots[bsi].mesh);
   bossShots = [];
   bossTimer = CFG.bossInterval;
   bossMisses = 0;
@@ -5141,13 +4752,13 @@ function restartGame(toMenu) {
   player.yaw = 0; player.pitch = 0;
   hurtCd = 0; shootCd = 0; fireHeld = false;
   // 清空上一局全部怪（不继承成长状态）；波次系统会重新开始第 1 波
-  for (var i = 0; i < enemies.length; i++) scene.remove(enemies[i].mesh);
+  for (var i = 0; i < enemies.length; i++) removeEnemyVisual(enemies[i]);
   enemies = [];
   wave = { number: 0, state: 'prepare', timer: 0, total: 0 };
   stageShown = 1;
   fishSpawned = false;
   applyEnvTheme(0, false);             // 环境复位到晴日沙漠
-  spawnRandomCovers();                 // 新一局重新随机掩体布局
+  if (!toMenu && envBuilt) { spawnRandomCovers(); buildMiniMap(); }
   if (!toMenu) ensureFishSpawned();      // 回主菜单时不生成敌人（世界随后即被卸载）
   // 清空上一局遗留的投射物与特效 —— 否则新一局开局会被上一局的子弹打中（看起来像"敌人没消失"）
   for (var k = 0; k < fishBullets.length; k++) scene.remove(fishBullets[k].mesh);
@@ -5158,12 +4769,7 @@ function restartGame(toMenu) {
     if (swordWaves[w].matInner) swordWaves[w].matInner.dispose();
   }
   swordWaves = [];
-  // 清空爆炸特效（蘑菇云的火球 / 烟柱 / 云冠 / 冲击环），避免残留到主菜单或下一局
-  for (var bxi = 0; bxi < blastFx.length; bxi++) {
-    scene.remove(blastFx[bxi].mesh);
-    if (blastFx[bxi].mat) blastFx[bxi].mat.dispose();
-  }
-  blastFx = [];
+  if(combatFx)combatFx.clear();
   // 关闭自爆鱼红屏警告 + 收起成就弹窗
   bomberWarnOn = false;
   if (dom.bomberWarn) dom.bomberWarn.style.opacity = '0';
@@ -5172,9 +4778,11 @@ function restartGame(toMenu) {
   if (dom.damageFlash) dom.damageFlash.style.opacity = '0';
   if (particles && particles.data) {
     for (var pi = 0; pi < particles.data.length; pi++) {
-      if (particles.data[pi]) particles.data[pi].life = 0;   // 残留粒子立即清空
+      if (particles.data[pi]) particles.data[pi].life = 0;
+      particles.alpha[pi] = 0;   // 残留粒子立即清空
     }
   }
+  if(particles)particles.mesh.geometry.attributes.aAlpha.needsUpdate=true;
   syncCamera();
   updateHUD();
   hideAllOverlays();
@@ -5194,8 +4802,12 @@ function restartGame(toMenu) {
 }
 
 // ---------------------------------------------------------------- HUD / 覆盖层
+var hudKey = '';
 function updateHUD() {
   if (!dom.healthFill) return;
+  var key = [player.hp, CFG.maxHp, score, kills, ammo.mag, ammo.reserve, currentWeapon, nadeCount].join('/');
+  if (key === hudKey) return;
+  hudKey = key;
   dom.healthFill.style.width = (player.hp / CFG.maxHp * 100) + '%';   // 按生命上限计算（开发者模式 99999 上限时不失真）
   dom.healthText.textContent = String(player.hp);
   dom.healthFill.classList.toggle('low', player.hp <= 30);
@@ -5545,7 +5157,7 @@ function onKeyDown(ev) {
       var _vIdx = _devBossMap[ev.code];
       var _vDef = BOSS_VARIANTS[_vIdx];
       // 先清掉场上的旧 Boss 与残留特效，方便连续切换录制
-      if (boss) { scene.remove(boss.mesh); boss = null; hideBossBar(); }
+      if (boss) { removeEnemyVisual(boss); boss = null; hideBossBar(); }
       clearBossFx();
       applyEnvTheme(_vIdx, true);        // 切到对应环境（带大字播报）
       spawnBoss(_vIdx);                  // 强制指定 Boss 变体
@@ -5868,12 +5480,20 @@ function movePlayer(dx, dz) {
 }
 
 function updateGun(dt) {
+  if(state!=='playing')return;
+  if(gun.flashT>0){gun.flashT-=dt;gun.light.intensity=Math.max(0,gun.light.intensity-dt*130);if(gun.flashT<=0){gun.flashMesh.visible=false;gun.light.intensity=0;}}
   gun.recoil = Math.max(0, gun.recoil - dt * 1.1);
   if (knifeCd > 0) knifeCd = Math.max(0, knifeCd - dt);
 
   var isMelee = !!weaponDef().melee;
-  var baseZ = isMelee ? -0.42 : -0.6;
-  var baseY = isMelee ? -0.20 : -0.28;
+  var baseZ = isMelee ? -.48 : -.55;
+  var baseY = isMelee ? -.22 : -.27;
+  gun.group.position.x=.28;
+  gun.group.rotation.y=0;
+  gun.pistolGroup.slide.position.z=gun.recoil*.42;
+  var reloadK=ammo.reloading ? 1-ammo.reloadTimer/weaponDef().reloadTime : 0;
+  var reloadPose=ammo.reloading ? Math.sin(Math.PI*Math.max(0,Math.min(1,reloadK))) : 0;
+  gun.rifleGroup.magazine.position.y=-.06-reloadPose*.12;
 
   // ===== 匕首攻击动画 =====
   // 轻击：快速向前刺出再收回（0.30s）；重击：抬手蓄力 → 大幅猛劈（0.62s，动作与轻击明显不同）
@@ -5907,20 +5527,19 @@ function updateGun(dt) {
       return;                              // 动画期间跳过默认摆动
     }
   }
-  gun.group.rotation.z = 0;
-  gun.group.position.z = baseZ + gun.recoil * 1.15;
+  gun.group.rotation.z=-reloadPose*.45;
+  gun.group.rotation.y=reloadPose*.28;
+  gun.group.position.x=.28+reloadPose*.08;
+  gun.group.position.z=baseZ+gun.recoil*.65+reloadPose*.08;
   var moving = (keys.KeyW || keys.KeyS || keys.KeyA || keys.KeyD) && player.onGround && state === 'playing';
   var sway = moving ? 1 : 0;
-  gun.group.position.y = baseY + Math.sin(time * 9) * 0.012 * sway;
-  gun.group.rotation.x = Math.sin(time * 9 + 1) * 0.012 * sway;
-  if (gun.flashT > 0) {
-    gun.flashT -= dt;
-    gun.light.intensity = Math.max(0, gun.light.intensity - dt * 130);
-    if (gun.flashT <= 0) { gun.flashMesh.visible = false; gun.light.intensity = 0; }
-  }
+  gun.group.position.y=baseY+Math.sin(time*9)*.009*sway-reloadPose*.11;
+  gun.group.rotation.x=Math.sin(time*9+1)*.009*sway+gun.recoil*.6-reloadPose*.25;
+
 }
 
 // ---------------------------------------------------------------- 主循环
+var miniMapTimer = 0;
 function update(dt) {
   time += dt;
   if (state === 'playing') playingTime += dt;
@@ -5955,7 +5574,7 @@ function update(dt) {
     updateBoss(dt);   // 暂停/结算时 Boss 仍做视觉动画
   }
   // 换弹进程（1.5 秒后扣备弹补弹夹）
-  if (ammo.reloading) {
+  if (ammo.reloading && state === 'playing') {
     ammo.reloadTimer -= dt;
     if (dom.reloadWrap) {
       dom.reloadWrap.style.display = 'block';
@@ -5973,14 +5592,18 @@ function update(dt) {
     }
   }
   updateFishVisuals(dt);
+  for(var ai=0;ai<enemies.length;ai++){var ae=enemies[ai];if(ae.alive && ae.ranged && ae.gunMesh)FishCombat.aimWeapon(ae.gunMesh,_aimTarget.set(player.pos.x,player.pos.y+1,player.pos.z),0); }
+  if (boss) updateEnemyShadow(boss, CFG.fishSize * CFG.bossSizeMul);
+  FishArt.update(worldArt, time);
   updateSwordWaves(dt);   // 剑气特效（弧形能量波飞行与淡出）
   updateBlastFx(dt);      // 自爆特效（火球/冲击环/蘑菇云烟团）
-  updateBossFx(dt);       // Boss 出场演出特效（地面光圈 / 光柱）
+  updateBossFx(state==='playing'?dt:0); // 出场演出跟随战斗暂停
   updateBomberWarn();     // 自爆鱼索敌警告（红屏脉冲）
   checkAchievements(dt);  // 成就条件检查（每秒一次）
-  updateParticles(dt);
+  updateParticles(state==='playing'?dt:0);
   updateHUD();
-  drawMiniMap();
+  miniMapTimer += dt;
+  if (miniMapTimer >= 1 / 30) { drawMiniMap(); miniMapTimer %= 1 / 30; }
   updateBgm(dt);
   if (debugMode) updateDebugLog(dt);   // Debug 消息上移/淡出/清理
   updateCheatMusic(dt);                // 作弊被抓搞怪音乐循环
@@ -6038,6 +5661,10 @@ function init() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   mark('renderer');
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
+  FishArt.configure(renderer);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   mark('shadow');
@@ -6092,6 +5719,7 @@ function init() {
   buildParticles();
   mark('particles');
   loadFishTexture();
+  loadEnemyTextures();          // 三种敌人专用贴图（Boss 少女 / Q版射手 / Q版近战）
   mark('texture');
   // 开局弹药：手枪 7/42（扩容弹夹靠掉落，不继承）
   magTier = { pistol: 0, rifle: 0 };
@@ -6115,8 +5743,23 @@ function init() {
   document.addEventListener('keyup', onKeyUp);
   document.addEventListener('mousedown', onMouseDown);
   // 彻底屏蔽右键菜单与浏览器手势（右键未来会承载更多操作）
-  // 1) document 级屏蔽 contextmenu —— 覆盖画面、HUD、面板等所有区域
+  // 1) window + 捕获阶段拦截 contextmenu —— 比 document 冒泡更早，
+  //    即使某个子元素 stopPropagation 也无法让浏览器弹出菜单
+  window.addEventListener('contextmenu', function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    return false;
+  }, true);
+  // 1b) document 级兜底（覆盖 shadow DOM / iframe 外层的常规区域）
   document.addEventListener('contextmenu', function (ev) { ev.preventDefault(); return false; });
+  // 1c) 非左键的 click/auxclick 也一并吞掉（中键、侧键不触发浏览器默认行为）
+  window.addEventListener('auxclick', function (ev) {
+    if (ev.button !== 0) { ev.preventDefault(); ev.stopPropagation(); }
+  }, true);
+  // 1d) 右键 pointerup 阻止（pointerdown 必须放行，否则游戏右键重击会失效）
+  window.addEventListener('pointerup', function (ev) {
+    if (ev.button === 2) { ev.preventDefault(); }
+  }, true);
   // 2) 屏蔽鼠标侧键（浏览器前进/后退）
   document.addEventListener('mousedown', function (ev) {
     if (ev.button === 3 || ev.button === 4) ev.preventDefault();
@@ -6213,6 +5856,13 @@ function init() {
 window.FishGame = {
   init: init,
   __debug: {
+    getGun: function(){return gun;},
+    getCombatFxStats: function(){return combatFx.stats();},
+    getParticles: function(){return particles;},
+    fireBossBall: fireBossBall,
+    updateBossWeaponAim: updateBossWeaponAim,
+    setParticles: function(on){save.settings.particles=!!on;if(!on && combatFx)combatFx.clear();},
+    previewExplosion: function(x,y,z,r){if(save.settings.particles){var p=new THREE.Vector3(x,y,z);combatFx.explosion(p,r||4);spawnBurst(p,0xffce83,28,5);}},
     getState: function () { return state; },
     getCamFx: function () { return camFx; },
     getWave: function () { return wave; },
@@ -6307,7 +5957,7 @@ window.FishGame = {
     },
     spawnBossNow: spawnBoss,                             // 测试用：立即生成一只 Boss
     clearBossNow: function () {                          // 测试用：移除当前 Boss
-      if (boss) { scene.remove(boss.mesh); boss = null; hideBossBar(); }
+      if (boss) { removeEnemyVisual(boss); boss = null; hideBossBar(); }
     },
     getBossVariant: function () {
       return boss ? { name: boss.variant.name, mode: boss.mode, hp: boss.hp, maxHp: boss.maxHp } : null;
@@ -6331,6 +5981,11 @@ window.FishGame = {
         envBuilt: envBuilt, envObjects: envObjects.length,
         obstacles: obstacles.length, wallMeshes: wallMeshes.length,
         enemies: enemies.filter(function (e) { return e.alive; }).length,
+        trackedEnemies: enemies.length,
+        renderCalls: renderer.info.render.calls,
+        triangles: renderer.info.render.triangles,
+        geometries: renderer.info.memory.geometries,
+        textures: renderer.info.memory.textures,
       };
     },
     getRandomCovers: function () { return randomCovers.map(function (m) { return { x: +m.position.x.toFixed(2), z: +m.position.z.toFixed(2) }; }); },
@@ -6455,9 +6110,9 @@ window.FishGame = {
     clearProjectiles: function () {
       for (var i = 0; i < fishBullets.length; i++) scene.remove(fishBullets[i].mesh);
       fishBullets = [];
-      for (var j = 0; j < bossShots.length; j++) scene.remove(bossShots[j].mesh);
+      for (var j = 0; j < bossShots.length; j++) FishArt.disposeTree(bossShots[j].mesh);
       bossShots = [];
-      for (var k = 0; k < grenades.length; k++) scene.remove(grenades[k].mesh);
+      for (var k = 0; k < grenades.length; k++) FishArt.disposeTree(grenades[k].mesh);
       grenades = [];
     },
     getFireCount: function () { return dbgFireCount; },
@@ -6512,8 +6167,8 @@ window.FishGame = {
       return e;
     },
     removeBoss: function () {
-      if (boss) { scene.remove(boss.mesh); boss = null; }
-      for (var i = 0; i < bossShots.length; i++) scene.remove(bossShots[i].mesh);
+      if (boss) { removeEnemyVisual(boss); boss = null; }
+      for (var i = 0; i < bossShots.length; i++) FishArt.disposeTree(bossShots[i].mesh);
       bossShots = [];
       hideBossBar();
     },

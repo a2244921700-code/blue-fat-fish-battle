@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>3D射击 · 蓝色肥鱼大作战 V0.5.2</title>
+<title>3D射击 · 蓝色肥鱼大作战 V0.5.3</title>
 <script>
 /* 全局错误条：任何未捕获的运行错误都会显示在屏幕底部，便于排查 */
 window.addEventListener('error', function (e) {
@@ -17,7 +17,7 @@ document.addEventListener('click', function (e) {
     var el = document.getElementById('error-bar');
     if (el) {
       el.style.display = 'block';
-      el.textContent = '游戏脚本未加载成功（three.min.js / fish-texture.js / game.js 可能加载失败），请按 Ctrl+F5 强制刷新重试。';
+      el.textContent = '游戏脚本未加载成功（three.min.js / fish-texture.js / art.js / game.js 可能加载失败），请按 Ctrl+F5 强制刷新重试。';
     }
   }
 });
@@ -680,7 +680,7 @@ window.addEventListener('load', function () {
 <!-- 主菜单 -->
 <div id="menu-overlay" class="overlay">
   <div class="panel">
-    <h1>蓝色肥鱼大作战<span class="ver-badge">V0.5.2</span></h1>
+    <h1>蓝色肥鱼大作战<span class="ver-badge">V0.5.3</span></h1>
     <div class="sub-title">3D 第一人称射击 · Three.js</div>
     <div class="menu-hero">
       <img id="fish-preview" class="fish-preview" alt="蓝色大肥鱼">
@@ -840,6 +840,9 @@ window.addEventListener('load', function () {
 <!-- 依赖（全部本地化，离线可玩） -->
 <script src="lib/three.min.js"></script>
 <script src="assets/fish-texture.js"></script>
+<script src="assets/enemy-textures.js"></script>
+<script src="js/art.js"></script>
+<script src="js/combat-art.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

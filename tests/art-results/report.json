@@ -1,0 +1,124 @@
+{
+  "initial": {
+    "children": 68,
+    "meshes": 194,
+    "envBuilt": true,
+    "envObjects": 66,
+    "obstacles": 61,
+    "wallMeshes": 70,
+    "enemies": 0,
+    "trackedEnemies": 0,
+    "renderCalls": 108,
+    "triangles": 11404,
+    "geometries": 124,
+    "textures": 17
+  },
+  "shot": {
+    "dead": true,
+    "mag": 6,
+    "score": 10
+  },
+  "fishInfo": {
+    "depth": 0.09000000357627869,
+    "shadow": true,
+    "depthMaterial": true
+  },
+  "themes": [
+    {
+      "theme": {
+        "index": 0,
+        "name": "晴日沙漠"
+      },
+      "rule": "基准环境"
+    },
+    {
+      "theme": {
+        "index": 1,
+        "name": "黄昏"
+      },
+      "rule": "补给刷新间隔 -20%"
+    },
+    {
+      "theme": {
+        "index": 2,
+        "name": "沙尘暴"
+      },
+      "rule": "视野骤降，但敌人索敌距离同步 -30%"
+    },
+    {
+      "theme": {
+        "index": 3,
+        "name": "血月"
+      },
+      "rule": "敌我伤害双双 +10%（高风险高回报）"
+    },
+    {
+      "theme": {
+        "index": 4,
+        "name": "深夜"
+      },
+      "rule": "视野最差，但手雷伤害 +30%、半径 +1 米"
+    }
+  ],
+  "cycles": [
+    {
+      "children": 2,
+      "meshes": 92,
+      "envBuilt": false,
+      "envObjects": 0,
+      "obstacles": 0,
+      "wallMeshes": 0,
+      "enemies": 0,
+      "trackedEnemies": 0,
+      "renderCalls": 175,
+      "triangles": 17848,
+      "geometries": 77,
+      "textures": 31
+    },
+    {
+      "children": 2,
+      "meshes": 92,
+      "envBuilt": false,
+      "envObjects": 0,
+      "obstacles": 0,
+      "wallMeshes": 0,
+      "enemies": 0,
+      "trackedEnemies": 0,
+      "renderCalls": 190,
+      "triangles": 19204,
+      "geometries": 77,
+      "textures": 31
+    },
+    {
+      "children": 2,
+      "meshes": 92,
+      "envBuilt": false,
+      "envObjects": 0,
+      "obstacles": 0,
+      "wallMeshes": 0,
+      "enemies": 0,
+      "trackedEnemies": 0,
+      "renderCalls": 189,
+      "triangles": 19162,
+      "geometries": 77,
+      "textures": 31
+    },
+    {
+      "children": 2,
+      "meshes": 92,
+      "envBuilt": false,
+      "envObjects": 0,
+      "obstacles": 0,
+      "wallMeshes": 0,
+      "enemies": 0,
+      "trackedEnemies": 0,
+      "renderCalls": 134,
+      "triangles": 13948,
+      "geometries": 77,
+      "textures": 31
+    }
+  ],
+  "errors": [],
+  "shaderErrors": [],
+  "offline": "passed"
+}
