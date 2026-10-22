@@ -191,23 +191,33 @@ function palm(x, z, dry) {
   var r = seeded(Math.round((x + 50) * 192 + z + 50)), g = new THREE.Group();
   var height = 4.6 + r() * 1.2;
   var path = new THREE.CatmullRomCurve3([new THREE.Vector3(0,0,0),new THREE.Vector3(.12,height*.4,.1),new THREE.Vector3(.38,height,.18)]);
-  var trunk = new THREE.Mesh(new THREE.TubeGeometry(path, 9, 0.18, 7, false), mat('wood'));
+  var trunk = new THREE.Mesh(new THREE.TubeGeometry(path, 20, 0.18, 10, false), mat('wood'));
   trunk.castShadow = true; trunk.receiveShadow = true; g.add(trunk);
+  // 环状叶痕、椰果和羽状小叶提供近景结构，不再使用整片宽三角叶。
+  var collarGeo=cache.palmCollar||(cache.palmCollar=shared(new THREE.TorusGeometry(.18,.035,4,10)));
+  var scars=new THREE.InstancedMesh(collarGeo,mat('base'),22),dummy=new THREE.Object3D();
+  for(var k=0;k<22;k++){var t=(k+.3)/22,p=path.getPoint(t);dummy.position.copy(p);dummy.rotation.set(Math.PI/2,0,t*.12);dummy.scale.setScalar(1-t*.22);dummy.updateMatrix();scars.setMatrixAt(k,dummy.matrix);}
+  scars.computeBoundingSphere();scars.castShadow=true;g.add(scars);
+  var nutGeo=cache.palmNut||(cache.palmNut=shared(new THREE.SphereGeometry(.15,8,6)));
+  var nuts=new THREE.InstancedMesh(nutGeo,mat('wood'),5);
+  for(var n=0;n<5;n++){var na=n/5*Math.PI*2;dummy.position.set(.38+Math.cos(na)*.22,height-.13, .18+Math.sin(na)*.22);dummy.rotation.set(0,0,na);dummy.scale.set(1,1.25,1);dummy.updateMatrix();nuts.setMatrixAt(n,dummy.matrix);}
+  nuts.computeBoundingSphere();nuts.castShadow=true;g.add(nuts);
   var pos = [], cols = [], color = new THREE.Color();
   function vertex(v) { pos.push(v[0],v[1],v[2]); cols.push(color.r,color.g,color.b); }
-  for (var j = 0; j < 11; j++) {
-    var a = j / 11 * Math.PI * 2, len = 2.6 + r() * 1.2;
-    color.setHex(dry ? (j % 2 ? 0x8b9153 : 0xb1a764) : (j % 2 ? 0x477f61 : 0x749965));
-    for (var s = 0; s < 7; s++) {
-      var t = s / 7, u = (s + 1) / 7;
-      function at(k, side) {
-        var width = Math.sin(k * Math.PI) * 0.31;
-        return [0.38 + Math.cos(a) * k * len - Math.sin(a) * width * side,
-          height + Math.sin(k * Math.PI) * .65 - k * k * 1.3 - Math.abs(side) * .08,
-          0.18 + Math.sin(a) * k * len + Math.cos(a) * width * side];
-      }
-      var p0=at(t,-1), p1=at(t,1), p2=at(u,-1), p3=at(u,1);
-      [p0,p2,p1,p1,p2,p3].forEach(vertex);
+  for (var j = 0; j < 18; j++) {
+    var a=j/18*Math.PI*2,len=2.4+r()*1.5,lift=j%3===0?1.4:.75;
+    function at(t,side,width){return [.38+Math.cos(a)*t*len-Math.sin(a)*width*side,height+Math.sin(t*Math.PI)*lift-t*t*1.25,.18+Math.sin(a)*t*len+Math.cos(a)*width*side];}
+    for(var s=0;s<12;s++){
+      var t=s/12,u=(s+1)/12;
+      color.setHex(dry?0x99955b:0x789064);
+      [at(t,-1,.035),at(u,-1,.025),at(t,1,.035),at(t,1,.035),at(u,-1,.025),at(u,1,.025)].forEach(vertex);
+      if(s===0)continue;
+      [-1,1].forEach(function(side){
+        var width=Math.sin(t*Math.PI)*(.40+r()*.16),p0=at(t,side,.018),p1=at(t+.06,side,.018);
+        var tip=at(Math.min(1,t+.17),side,width),mid=at(t+.085,side,width*.57);tip[1]-=.27;mid[1]-=.07;
+        color.setHex(dry?(s%2?0x8e9252:0xaaa162):(s%2?0x406f51:0x678f5c));
+        [p0,mid,p1,p1,mid,tip].forEach(vertex);
+      });
     }
   }
   var geo = new THREE.BufferGeometry();
@@ -247,15 +257,7 @@ function build(scene, obstacles, poolWater) {
     }
   });
   var caps=wallCaps(root,capRects);
-  // 中央拱门：跨在现有 3.5m 门洞上方，不缩窄门洞。
-  [[0,9.04,0],[0,-9.04,Math.PI],[-11.04,0,-Math.PI/2],[11.04,0,Math.PI/2]].forEach(function (p) {
-    var shape=new THREE.Shape(); shape.absarc(0,3.4,2.04,0,Math.PI,false);
-    shape.lineTo(-1.75,3.4); shape.absarc(0,3.4,1.75,Math.PI,0,true); shape.closePath();
-    var arch=new THREE.Mesh(new THREE.ExtrudeGeometry(shape,{depth:.18,bevelEnabled:false,curveSegments:16}),mat('trim'));
-    arch.position.set(p[0],0,p[1]); arch.rotation.y=p[2]; arch.castShadow=true; root.add(arch);
-    var crest=new THREE.Mesh(new THREE.OctahedronGeometry(.23),mat('bronze'));
-    crest.position.set(p[0],5.1,p[1]); root.add(crest);
-  });
+  // 有厚度的分块门楼由 scene-detail.js 负责，避免与旧薄拱重复。
   // 百叶窗、窗台与嵌墙灯。只用几种实例化材质。
   [-1,1].forEach(function (side) {
     [-6.2,6.2].forEach(function (x) {
@@ -306,8 +308,16 @@ function build(scene, obstacles, poolWater) {
   }
   mesas.computeBoundingSphere();root.add(mesas);
   // 低矮草叶和碎石用实例绘制，避免数百个独立 draw call。
-  var grassGeo=new THREE.BufferGeometry();
-  grassGeo.setAttribute('position',new THREE.Float32BufferAttribute([-.16,0,0,.16,0,0,.08,1,0,0,0,-.16,0,0,.16,0,.8,-.08],3));grassGeo.computeVertexNormals();
+  var grassGeo=new THREE.BufferGeometry(),blades=[];
+  for(var blade=0;blade<9;blade++){
+    var a=blade/9*Math.PI*2,h=.5+(blade%4)*.16;
+    for(var seg=0;seg<3;seg++){
+      function tip(t,side){var w=(1-t)*.033;return [Math.cos(a)*t*t*.4-Math.sin(a)*w*side,t*h,Math.sin(a)*t*t*.4+Math.cos(a)*w*side];}
+      var p0=tip(seg/3,-1),p1=tip(seg/3,1),p2=tip((seg+1)/3,-1),p3=tip((seg+1)/3,1);
+      [p0,p1,p2,p1,p3,p2].forEach(function(p){blades.push(p[0],p[1],p[2]);});
+    }
+  }
+  grassGeo.setAttribute('position',new THREE.Float32BufferAttribute(blades,3));grassGeo.computeVertexNormals();
   var grassMat=new THREE.MeshStandardMaterial({color:0x9b9b62,side:THREE.DoubleSide,roughness:1});
   var grassPositions=[];
   for(var tries=0;tries<800&&grassPositions.length<160;tries++){
@@ -323,18 +333,8 @@ function build(scene, obstacles, poolWater) {
   // 绿洲边缘的石块与纹理水面。
   for(var k=0;k<36;k++){var ang=k/36*Math.PI*2;b.box('trim',-28+Math.cos(ang)*4.32,.19,28+Math.sin(ang)*4.32,.57,.34,.37,-ang);}
   if(poolWater)poolWater.material=mat('water');
-  // 两片遮阳布为回廊提供色彩和清晰的轮廓，不侵入地面走线。
+  // 精细条纹曲面遮阳篷由 scene-detail.js 生成。
   var clothUniform={value:0};
-  var clothMat=new THREE.MeshStandardMaterial({color:0x377f80,side:THREE.DoubleSide,roughness:1});
-  clothMat.onBeforeCompile=function(shader){
-    shader.uniforms.uBreeze=clothUniform;
-    shader.vertexShader='uniform float uBreeze;\n'+shader.vertexShader;
-    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ntransformed.z += sin(position.x * 1.8 + uBreeze) * 0.09;');
-  };
-  [-17,17].forEach(function(x){
-    var roof=new THREE.Mesh(new THREE.PlaneGeometry(9.2,6,16,8),clothMat);roof.rotation.x=-Math.PI/2;roof.position.set(x,3.5,6);roof.receiveShadow=true;root.add(roof);
-    b.box('wood',x,3.56,3,9.5,.11,.11);b.box('wood',x,3.56,9,9.5,.11,.11);
-  });
   // 发光灯芯不使用额外动态点光源；夜间仍可辨认路径。
   var lampMat=new THREE.MeshStandardMaterial({color:0xffd798,emissive:0xffb85e,emissiveIntensity:.35,roughness:.4});
   [-9,9].forEach(function(x){
@@ -354,6 +354,7 @@ function build(scene, obstacles, poolWater) {
 }
 function setTheme(world, idx) {
   if(!world)return;
+  FishSceneDetail.setTheme(world.detail,idx);
   world.lamp.emissiveIntensity=idx>=3?2.3:.35;
   world.stars.visible=idx>=3; world.sun.visible=idx!==2;
   world.sun.material.color.setHex([0xffecc9,0xffc58e,0xe5cd99,0xe98c84,0xcbdcf1][idx]);
@@ -361,6 +362,7 @@ function setTheme(world, idx) {
 }
 function update(world, time) {
   if(!world)return;
+  FishSceneDetail.update(world.detail,time);
   world.clothTime.value=time*.65;
   if(world.water){world.water.material.map.offset.set(time*.006,time*.003);world.water.material.bumpMap.offset.set(-time*.009,time*.004);}
   world.palms.forEach(function(p,i){p.rotation.z=Math.sin(time*.9+i*1.7)*.018;});

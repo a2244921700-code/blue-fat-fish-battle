@@ -425,6 +425,15 @@ var WEAPONS = {
     reserveMagMul: 6,            // 备弹上限 = 当前弹夹容量 × 6
     auto: true,                  // 全自动：按住持续射击
   },
+  // 射手的鱼人手枪：弹匣更大、节奏稍慢、单发略低，与玩家手枪形成手感差异。
+  // 只在对战模式开放（无尽模式仍按 1/2/3 三武器）。
+  fishpistol: {
+    key: '4', name: '鱼人手枪', magSize: 12, shootInterval: 0.20, reloadTime: 1.35,
+    damageMul: 0.9, recoil: 0.10, spread: 0.006, reserveStart: 48,
+    reserveMagMul: 7,
+    auto: false,
+    pvpOnly: true,
+  },
   knife: {
     key: '3', name: '匕首', melee: true,
     magSize: 0, reserveStart: 0, reserveMagMul: 0,
@@ -450,6 +459,9 @@ var MAG_TIERS = {
     { name: '手枪中扩容弹夹', size: 12 },
     { name: '手枪大扩容弹夹', size: 15 },
   ],
+  fishpistol: [
+    { name: '标准弹夹',       size: 12 },
+  ],
   rifle: [
     { name: '标准弹夹',       size: 25 },
     { name: '步枪小扩容弹夹', size: 35 },
@@ -458,12 +470,13 @@ var MAG_TIERS = {
     { name: '步枪弹鼓',       size: 120 },
   ],
 };
-var magTier = { pistol: 0, rifle: 0 };   // 每把枪当前装备的扩容等级（0 = 标准）
+var magTier = { pistol: 0, rifle: 0, fishpistol: 0 };   // 每把枪当前装备的扩容等级（0 = 标准）
 
 var currentWeapon = 'pistol';
 var weaponAmmo = {
   pistol: { mag: 7, reserve: 42 },
   rifle: { mag: 25, reserve: 100 },
+  fishpistol: { mag: 12, reserve: 48 },   // 对战模式专用（射手鱼的配枪）
 };
 
 /** 当前武器弹夹容量（按已装备的扩容等级） */
@@ -503,14 +516,50 @@ function ammoBoxChance() {
 }
 
 /** 备弹上限（手枪 ×8 / 步枪 ×6，按当前弹夹容量计算） */
+// ---------------------------------------------------------------- 歼灭战专用武器数据
+// 数值照搬 CS2（AK-47 / USP / P250）：伤害、射速、换弹、弹匣、散布。
+// 与无尽模式的 WEAPONS 完全独立 —— 无尽模式仍是「升级成长 + 弹夹扩容」那套。
+var PVP_WEAPON_DEFS = {
+  rifle: {
+    key: '1', name: '突击步枪', csName: 'AK-47',
+    magSize: 30, shootInterval: 0.100, reloadTime: 2.43,
+    damage: 36, damageMul: 1, recoil: 0.020, spread: 0.012,
+    reserveMagMul: 3, auto: true,
+  },
+  pistol: {
+    key: '2', name: '手枪', csName: 'USP',
+    magSize: 12, shootInterval: 0.170, reloadTime: 2.17,
+    damage: 35, damageMul: 1, recoil: 0.015, spread: 0.004,
+    reserveMagMul: 4, auto: false,
+  },
+  fishpistol: {
+    key: '3', name: '鱼人手枪', csName: 'P250',
+    magSize: 13, shootInterval: 0.150, reloadTime: 2.27,
+    damage: 38, damageMul: 1, recoil: 0.018, spread: 0.008,
+    reserveMagMul: 4, auto: false,
+  },
+};
+
+/** 歼灭战里取武器定义（无尽模式返回 null，表示继续用 WEAPONS） */
+function pvpWeaponDef(id) {
+  var w = id || currentWeapon;
+  return (gameMode === 'pvp' && PVP_WEAPON_DEFS[w]) ? PVP_WEAPON_DEFS[w] : null;
+}
+
 function reserveMaxNow(weapon) {
   var w = weapon || currentWeapon;
+  var pv = pvpWeaponDef(w);
+  if (pv) return pv.magSize * (pv.reserveMagMul || 3);   // 歼灭战：固定备弹上限
   var def = WEAPONS[w];
   if (!def) return 999;
   var mag = magTierInfo(w) ? magTierInfo(w).size : def.magSize;
   return mag * (def.reserveMagMul || 6);
 }
-function weaponDef() { return WEAPONS[currentWeapon]; }
+function weaponDef() {
+  // 歼灭战使用独立的 FPS 武器数据；无尽模式沿用 WEAPONS（含升级/扩容）
+  var pv = pvpWeaponDef(currentWeapon);
+  return pv || WEAPONS[currentWeapon] || WEAPONS.pistol;
+}
 
 /** 切换武器（保存当前弹药、载入目标弹药、切模型、刷新 HUD） */
 function switchWeapon(id) {
@@ -543,10 +592,12 @@ function switchWeapon(id) {
 /** 切换模型并从 muzzleTip 锚点定位枪焰，恢复被打断的换弹/攻击姿势。 */
 function applyWeaponVisual() {
   if (!gun.group) return;
-  gun.pistolGroup.visible = currentWeapon === 'pistol';
-  gun.rifleGroup.visible = currentWeapon === 'rifle';
-  gun.knifeGroup.visible = currentWeapon === 'knife';
-  gun.activeModel = currentWeapon === 'rifle' ? gun.rifleGroup : currentWeapon === 'knife' ? gun.knifeGroup : gun.pistolGroup;
+  // 鱼人手枪沿用玩家手枪的模型（数值不同，外观复用最省）
+  var visualId = currentWeapon === 'fishpistol' ? 'pistol' : currentWeapon;
+  gun.pistolGroup.visible = visualId === 'pistol';
+  gun.rifleGroup.visible = visualId === 'rifle';
+  gun.knifeGroup.visible = visualId === 'knife';
+  gun.activeModel = visualId === 'rifle' ? gun.rifleGroup : visualId === 'knife' ? gun.knifeGroup : gun.pistolGroup;
   gun.muzzleTip = gun.activeModel.muzzleTip;
   gun.flashMesh.visible = false;
   gun.flashT = 0; gun.light.intensity = 0; gun.recoil = 0; gun.knifeAnim = null;
@@ -1266,6 +1317,7 @@ function spawnRandomCovers() {
     m.geometry.dispose();
     m.geometry = new THREE.BoxGeometry(sx, h, sz);
     m.material = FishArt.material('crate');
+    FishSceneDetail.dressCrate(m);
     randomCovers.push(m);
     placed++;
   }
@@ -1570,12 +1622,12 @@ function buildEnvironment() {
     wallMeshes.push(bar);
   });
 
-  // ===== 每局随机掩体（首次构建时生成，重开时重新随机）=====
-  spawnRandomCovers();
-
   worldArt = FishArt.build(scene, obstacles, poolWater);
   // 原墙顶已由合并檐口接管；同步加入射线遮挡，保留从高处射击的阻挡行为。
   wallMeshes.push(worldArt.wallCaps);
+  worldArt.detail = FishSceneDetail.build(scene, obstacles, wallMeshes);
+  // 先登记固定陈设，再抽取掩体，防止随机箱子与新摊位、货车重叠。
+  spawnRandomCovers();
   scene.children.forEach(function (o) { if (o.userData.leaves) worldArt.palms.push(o.userData.leaves); });
   applyEnvTheme(envIndex, false);
 
@@ -1657,13 +1709,14 @@ function drawMiniMap() {
     var dx = wx - px, dz = wz - pz;
     return [C + (dx * cosY - dz * sinY) * scale, C + (dx * sinY + dz * cosY) * scale];
   }
-  // 普通敌人：红色小圆点
+  // 敌人：红色小圆点；歼灭战里的队友：青蓝色（方便一眼分辨敌友）
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
     if (!e.alive) continue;
     var sp = toScreen(e.mesh.position.x, e.mesh.position.z);
     x.beginPath(); x.arc(sp[0], sp[1], 3.2, 0, 6.283);
-    x.fillStyle = '#ff3b3b'; x.fill();
+    x.fillStyle = (e.isBot && e.team === 'red') ? '#4fd6ff' : '#ff3b3b';
+    x.fill();
   }
   // Boss：橙色描边的红色大圆点
   if (boss) {
@@ -2040,6 +2093,7 @@ function buildWaveComposition(stage) {
 function startWave(n) {
   // 死亡对象此前永久留在 enemies 中；清波时回收，避免长局不断堆积模型与材质。
   for (var dead = enemies.length - 1; dead >= 0; dead--) {
+    if (enemies[dead].isBot) continue;          // AI 玩家由对战模式自己管理重生
     if (!enemies[dead].alive) { removeEnemyVisual(enemies[dead]); enemies.splice(dead, 1); }
   }
   wave.number = n;
@@ -2083,6 +2137,7 @@ function checkStageUp() {
 /** 波次状态机（每帧） */
 function updateWaves(dt) {
   if (state !== 'playing') return;
+  if (gameMode === 'pvp') return;      // 对战模式没有波次与 Boss
 
   // Boss 存活期间：波次暂停，玩家专心 Boss 战
   if (boss) {
@@ -2209,6 +2264,7 @@ function updateEnemies(dt) {
   var baseChase = CFG.fishChaseSpeed + Math.min(CFG.fishChaseBonus, kills * 0.15);
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
+    if (e.isBot) continue;             // AI 玩家由 updatePvpBots 单独驱动
 
     // 死亡重生
     if (!e.alive) {
@@ -2400,6 +2456,17 @@ function clampFish(e) {
 function updateFishVisuals(dt) {
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
+    // AI 玩家：朝向/呼吸/阴影由 updatePvpBots 处理，这里只播死亡碎裂动画
+    if (e.isBot) {
+      if (!e.alive && e.dyingT > 0) {
+        e.dyingT -= dt;
+        var k = Math.max(0, e.dyingT / 0.28);
+        e.mesh.scale.setScalar(0.35 + 0.65 * k);
+        e.mesh.position.y = e.baseY + (1 - k) * 0.7;
+        if (e.dyingT <= 0) e.mesh.visible = false;
+      }
+      continue;
+    }
     if (!e.alive) {
       if (e.groundShadow) e.groundShadow.visible = false;
       // 死亡碎裂动画：快速缩小 + 轻微上浮，播完再隐藏
@@ -2490,6 +2557,8 @@ function updateFishVisuals(dt) {
 }
 
 function killFish(e, hitPoint) {
+  // 对战模式：击杀 AI 只记分 + 触发重生，不掉落、不分裂、不计连杀
+  if (e && e.isBot) { pvpOnBotKilled(e); return; }
   e.alive = false;
   e.respawnTimer = 99999;   // 波次制：敌人不重生（下一波由波次系统补足）
   if (!e.isChild) rollKillRewards();   // 子鱼不掉战利品
@@ -3071,6 +3140,7 @@ function rollGunDamage() {
 
 /** 当前弹匣容量（按武器已装备的扩容等级） */
 function magSizeNow() {
+  if (pvpWeaponDef(currentWeapon)) return weaponDef().magSize;   // 歼灭战：固定弹匣，无扩容
   var info = magTierInfo(currentWeapon);
   return info ? info.size : weaponDef().magSize;
 }
@@ -3777,6 +3847,7 @@ function spawnArmorItem() {
 }
 
 function updateItems(dt) {
+  if (gameMode === 'pvp') return;    // 对战模式不刷补给
   if (state === 'playing') {
     itemTimer -= dt;
     if (itemTimer <= 0) {
@@ -4116,6 +4187,7 @@ function updateBossShots(dt) {
 }
 
 function updateBoss(dt) {
+  if (gameMode === 'pvp') return;    // 对战模式没有 Boss
   // Boss 刷新已改由波次系统驱动（每清理 bossEveryWaves 波出现一次）
   if (!boss) return;
   var m = boss.mesh;
@@ -4514,6 +4586,7 @@ function shootOnce() {
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
     if (!e.alive) continue;
+    if (e.isBot && e.team === 'red') continue;    // 歼灭战：不打自家队友
     var c = e.mesh.position;
     var t = raySphere(_rayOrigin, _rayDir, c, CFG.fishHitRadius);
     if (t > 0 && t < wallDist && t < bestT) { bestT = t; best = e; hitBoss = false; }
@@ -4628,6 +4701,660 @@ function shootOnce() {
 
 // ---------------------------------------------------------------- 伤害 / 结算
 // src = { name: 怪物名, atk: 攻击方式 }（Debug 日志用，可缺省）
+// ================================================================ 射击对战 · 歼灭战（单机 AI）
+// 规则照搬传统 FPS 歼灭战：红蓝两队回合制对抗，每回合淘汰对方全员得 1 分，
+// 先拿到 winRounds 分者获胜，最多 maxRounds 回合。单机版为「玩家 vs N 个 AI」。
+var gameMode = 'endless';                  // 'endless' | 'pvp'
+var PVP = {
+  active: false, over: false,
+  roundNum: 1, myRounds: 0, botRounds: 0,
+  maxRounds: 7, winRounds: 4,
+  roundState: 'idle',                      // 'idle' | 'prepare' | 'live' | 'over'
+  prepareT: 0,
+  mySkin: 'normal', myWeapon: 'pistol',
+  teamSize: 4,          // 每队人数（红队 = 玩家 + teamSize-1 个 AI 队友，蓝队 = teamSize 个 AI）
+  myKills: 0, myDeaths: 0,
+};
+var PVP_SKIN_LIST = [
+  { id: 'normal', name: '常规鱼',   desc: '原版蓝色大肥鱼' },
+  { id: 'melee',  name: '女仆鱼',   desc: 'Q版女仆装（近战/护盾形象）' },
+  { id: 'ranged', name: '服务生鱼', desc: 'Q版服务生装（射手形象）' },
+];
+// 主武器固定为突击步枪（对应 CS 的 AK-47），玩家选择的是副武器
+var PVP_PRIMARY_ID = 'rifle';
+var PVP_SIDEARM_LIST = [
+  { id: 'pistol',     name: '手枪',     desc: 'USP · 35 伤害 / 12 发 / 353 RPM' },
+  { id: 'fishpistol', name: '鱼人手枪', desc: 'P250 · 38 伤害 / 13 发 / 400 RPM' },
+];
+var PVP_TEAM_OPTIONS = [3, 4, 5];   // 3v3 / 4v4 / 5v5
+var PVP_BOT_HP = 100;        // AI 血量（与玩家同口径：100 HP）
+var PVP_PREPARE = 2.0;       // 每回合开战前的准备时间
+var PVP_VIEW_RANGE = 48;     // AI 视野距离（米）
+var PVP_FOV_COS = -0.34;     // 视野锥半角约 110°（cos 值，>= 该值视为在视野内）
+var PVP_REACT = 0.28;        // 发现目标后的反应延迟（秒）
+var PVP_LOSE_SIGHT = 4.0;    // 失去视野后继续搜索的时长（秒）
+
+function pvpSkinTex(skinId) {
+  if (skinId === 'melee') return enemyTexture('shield', false);
+  if (skinId === 'ranged') return enemyTexture('normal', true);
+  return fishTex;
+}
+
+/** 随机出生点。nearPlayer=true 时靠近玩家（队友），否则放在远处（敌人） */
+function pvpSpawnPos(nearPlayer) {
+  var minD = nearPlayer ? 8 : 24;
+  var maxD = nearPlayer ? 20 : 46;
+  for (var i = 0; i < 40; i++) {
+    var ang = rand(0, Math.PI * 2);
+    var dist = rand(minD, maxD);
+    var x = player.pos.x + Math.cos(ang) * dist;
+    var z = player.pos.z + Math.sin(ang) * dist;
+    var lim = CFG.arena - 4;
+    if (Math.abs(x) > lim || Math.abs(z) > lim) continue;
+    if (pointInObstacle(x, z, 1.6)) continue;
+    return new THREE.Vector3(x, CFG.fishBaseY, z);
+  }
+  return new THREE.Vector3(rand(-20, 20), CFG.fishBaseY, rand(-20, 20));
+}
+
+/**
+ * 命中标记（hitmarker）：FPS 的标准命中反馈。
+ * 白色小叉 = 打中；红色 = 击杀。默认 0.18 秒后消失。
+ */
+var hitmarkerTimer = null;
+function showHitmarker(isKill) {
+  var el = document.getElementById('hitmarker');
+  if (!el) return;
+  el.classList.remove('show', 'kill');
+  void el.offsetWidth;
+  el.classList.add('show');
+  if (isKill) el.classList.add('kill');
+  clearTimeout(hitmarkerTimer);
+  hitmarkerTimer = setTimeout(function () {
+    el.classList.remove('show', 'kill');
+  }, isKill ? 260 : 180);
+}
+
+/** 队友昵称池（联机版会换成真实玩家名） */
+var PVP_TEAM_NAMES = ['蓝莓', '小鲸', '阿肥', '海盐', '浪花', '小鱼干', '珊瑚', '泡泡'];
+var pvpNameCursor = 0;
+
+/**
+ * 生成一个头顶名牌 Sprite。
+ * 只在队友身上挂：玩家视角能立刻区分敌友（敌人不显示任何标签）。
+ */
+function makeTeamTag(text) {
+  var canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 64;
+  var g = canvas.getContext('2d');
+  if (!g) return null;
+  // 底框
+  g.fillStyle = 'rgba(10, 30, 55, 0.72)';
+  var r = 14;
+  g.beginPath();
+  g.moveTo(r, 0); g.lineTo(256 - r, 0); g.quadraticCurveTo(256, 0, 256, r);
+  g.lineTo(256, 64 - r); g.quadraticCurveTo(256, 64, 256 - r, 64);
+  g.lineTo(r, 64); g.quadraticCurveTo(0, 64, 0, 64 - r);
+  g.lineTo(0, r); g.quadraticCurveTo(0, 0, r, 0);
+  g.closePath(); g.fill();
+  // 描边
+  g.strokeStyle = 'rgba(120, 200, 255, 0.85)';
+  g.lineWidth = 3; g.stroke();
+  // 文本
+  g.font = 'bold 30px "Microsoft YaHei", sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#bfe9ff';
+  g.fillText(text, 128, 33);
+
+  var tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  var mat = new THREE.SpriteMaterial({
+    map: tex, transparent: true, depthTest: false, depthWrite: false,
+  });
+  var sp = new THREE.Sprite(mat);
+  sp.scale.set(2.0, 0.5, 1);
+  sp.position.set(0, 1.85, 0);       // 头顶上方（角色高度约 1.5 米）
+  sp.renderOrder = 20;
+  return sp;
+}
+
+/** 给红队 AI 队友挂名牌 */
+function attachTeamTag(e) {
+  if (e.teamTag) return;
+  var name = PVP_TEAM_NAMES[pvpNameCursor % PVP_TEAM_NAMES.length] + (pvpNameCursor >= PVP_TEAM_NAMES.length ? String(pvpNameCursor) : '');
+  pvpNameCursor++;
+  e.pvpName = name;
+  var tag = makeTeamTag(name);
+  if (tag) {
+    e.mesh.add(tag);
+    e.teamTag = tag;
+  }
+}
+
+/** 生成一个 AI 玩家。team: 'red' = 玩家队友，'blue' = 敌方 */
+function pvpSpawnBot(team) {
+  team = team || 'blue';
+  var skin = PVP_SKIN_LIST[Math.floor(Math.random() * PVP_SKIN_LIST.length)];
+  // 副武器随机（主武器固定步枪，符合 FPS「主+副」携带习惯）
+  var side = Math.random() < 0.5 ? 'pistol' : 'fishpistol';
+  var pos = pvpSpawnPos(team === 'red');
+  var e = {
+    kind: 'pvpbot', isBot: true, team: team, alive: true,
+    pvpSkin: skin.id,
+    pvpPrimary: 'rifle', pvpSidearm: side, pvpWeapon: 'rifle',
+    mesh: new THREE.Mesh(FishArt.fishGeometry(CFG.fishSize), makeFishMaterial(pvpSkinTex(skin.id))),
+    hp: PVP_BOT_HP, maxHp: PVP_BOT_HP,
+    baseY: CFG.fishBaseY, phase: rand(0, Math.PI * 2),
+    // 行为树状态：patrol → alert → engage → search
+    aiState: 'patrol', aiTimer: 0, target: null, lastKnown: null,
+    fireTimer: rand(0.4, 1.2), burstLeft: 0, burstGap: 0,
+    strafeT: 0, strafeDir: Math.random() < 0.5 ? 1 : -1,
+    hurt: 0, ranged: true, state: 'pvp', respawnTimer: 0, dyingT: 0,
+    waypoint: new THREE.Vector3(pos.x, 0, pos.z), waitTimer: 0,
+    alertT: 0,
+  };
+  e.mesh.castShadow = true;
+  e.mesh.position.copy(pos);
+  e.gunMesh = FishCombat.fishGun();
+  e.gunMesh.position.set(0.62, -0.18, 0.30);
+  e.mesh.add(e.gunMesh);
+  e.groundShadow = FishArt.shadow(CFG.fishSize);
+  scene.add(e.groundShadow);
+  scene.add(e.mesh);
+  if (team === 'red') attachTeamTag(e);   // 队友头顶悬浮 ID（敌人不显示）
+  enemies.push(e);
+  return e;
+}
+
+/** 清掉场上所有 AI（回合切换/结束对局时用） */
+function pvpClearBots() {
+  for (var i = enemies.length - 1; i >= 0; i--) {
+    if (!enemies[i].isBot) continue;
+    removeEnemyVisual(enemies[i]);
+    enemies.splice(i, 1);
+  }
+}
+
+/** 指定阵营还活着的 AI 数量（不传则统计全部） */
+function pvpAliveBots(team) {
+  var n = 0;
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    if (!e || !e.isBot || !e.alive) continue;
+    if (team && e.team !== team) continue;
+    n++;
+  }
+  return n;
+}
+
+/**
+ * 感知判定：目标是否在该 AI 的视野内。
+ * 条件 = 距离在 PVP_VIEW_RANGE 内 + 处于前方视野锥 + 无墙体遮挡。
+ */
+function pvpCanSee(bot, tx, tz) {
+  var dx = tx - bot.mesh.position.x, dz = tz - bot.mesh.position.z;
+  var dist = Math.sqrt(dx * dx + dz * dz);
+  if (dist > PVP_VIEW_RANGE) return false;
+  // 视野锥：用 bot 当前朝向（mesh.rotation.y，+Z 为前）与目标方向的点积
+  var fx = Math.sin(bot.mesh.rotation.y), fz = Math.cos(bot.mesh.rotation.y);
+  var dot = (dx * fx + dz * fz) / (dist || 1);
+  if (dot < PVP_FOV_COS) return false;        // 背身/侧后方看不到
+  return hasLineOfSight(bot.mesh.position.x, bot.mesh.position.y + 0.5, bot.mesh.position.z);
+}
+
+/**
+ * 选目标：找视野内最近的敌人。
+ * 红队 bot 只打蓝队；蓝队 bot 打玩家和红队 bot。
+ */
+function pvpFindTarget(bot) {
+  var best = null, bestD = Infinity;
+  if (bot.team === 'red') {
+    for (var i = 0; i < enemies.length; i++) {
+      var e = enemies[i];
+      if (!e || !e.isBot || e.team !== 'blue' || !e.alive) continue;
+      var d = (e.mesh.position.x - bot.mesh.position.x) ** 2 + (e.mesh.position.z - bot.mesh.position.z) ** 2;
+      if (d < bestD && pvpCanSee(bot, e.mesh.position.x, e.mesh.position.z)) { bestD = d; best = e; }
+    }
+    return best;
+  }
+  // 蓝队：优先看玩家，再看红队 bot
+  if (player.hp > 0 && PVP.roundState === 'live' && pvpCanSee(bot, player.pos.x, player.pos.z)) {
+    best = { isPlayer: true, x: player.pos.x, z: player.pos.z };
+    bestD = (player.pos.x - bot.mesh.position.x) ** 2 + (player.pos.z - bot.mesh.position.z) ** 2;
+  }
+  for (var j = 0; j < enemies.length; j++) {
+    var r = enemies[j];
+    if (!r || !r.isBot || r.team !== 'red' || !r.alive) continue;
+    var rd = (r.mesh.position.x - bot.mesh.position.x) ** 2 + (r.mesh.position.z - bot.mesh.position.z) ** 2;
+    if (rd < bestD && pvpCanSee(bot, r.mesh.position.x, r.mesh.position.z)) { bestD = rd; best = r; }
+  }
+  return best;
+}
+
+/** 对 AI 造成伤害（红蓝通用） */
+function pvpDamageBot(e, dmg) {
+  if (!e || !e.alive) return;
+  e.hp -= dmg;
+  e.hurt = 0.15;
+  if (e.hp <= 0) pvpKillBotEntity(e, null);
+}
+
+/** 击倒一个 AI：标记死亡并播碎裂动画，同时按阵营结算 */
+function pvpKillBotEntity(e, killerIsPlayer) {
+  if (!e.alive) return;
+  e.alive = false;
+  e.dyingT = 0.28;
+  e.respawnTimer = 0;
+  if (e.groundShadow) e.groundShadow.visible = false;
+  if (killerIsPlayer) {
+    PVP.myKills = (PVP.myKills || 0) + 1;
+    showHitmarker(true);            // 击杀确认（红色击杀标记）
+  }
+}
+
+/** 刷新顶部回合比分条 */
+function updatePvpScore() {
+  var el = document.getElementById('pvp-score');
+  if (!el) return;
+  var rd = el.querySelector('.ps-round');
+  var mine = el.querySelector('.ps-mine');
+  var bots = el.querySelector('.ps-bots');
+  var goal = el.querySelector('.ps-goal');
+  var live = el.querySelector('.ps-live');
+  if (rd) rd.textContent = '第 ' + PVP.roundNum + ' 回合';
+  if (mine) mine.textContent = '红队 ' + PVP.myRounds;
+  if (bots) bots.textContent = '蓝队 ' + PVP.botRounds;
+  if (goal) goal.textContent = '先拿 ' + PVP.winRounds + ' 回合';
+  if (live) live.textContent = '存活 ' + (pvpAliveBots('red') + 1) + ' vs ' + pvpAliveBots('blue');
+}
+
+/** 开一个新回合：红蓝双方重新部署，准备 2 秒后开打 */
+function pvpStartRound() {
+  if (!PVP.active) return;
+  PVP.roundState = 'prepare';
+  PVP.prepareT = PVP_PREPARE;
+  pvpClearBots();
+  player.hp = CFG.maxHp;
+  armorStacks = 0;
+  player.pos.set(0, 0, 18);
+  player.yaw = 0; player.pitch = 0;
+  ammo.reloading = false; ammo.reloadTimer = 0;
+  ammo.mag = magSizeNow();
+  ammo.reserve = reserveMaxNow(currentWeapon);
+  updateHUD(); updateArmorHUD(); updateAmmoHUD();
+  // 红队 = 玩家 + (teamSize-1) 个 AI 队友；蓝队 = teamSize 个 AI
+  for (var r = 0; r < PVP.teamSize - 1; r++) pvpSpawnBot('red');
+  for (var b = 0; b < PVP.teamSize; b++) pvpSpawnBot('blue');
+  updatePvpScore();
+  showDialog('第 ' + PVP.roundNum + ' 回合',
+    '红队 ' + PVP.teamSize + ' vs 蓝队 ' + PVP.teamSize + '　淘汰对方全员即赢下本回合', 2200);
+}
+
+function pvpBeginLive() {
+  PVP.roundState = 'live';
+  showNotice('开始！');
+}
+
+/** 回合结束：按当前比分决定继续还是终局 */
+function pvpEndRound(win) {
+  if (!PVP.active || PVP.roundState === 'over') return;
+  PVP.roundState = 'over';
+  if (win) PVP.myRounds++; else PVP.botRounds++;
+  updatePvpScore();
+  showDialog(win ? '红队赢下本回合' : '蓝队赢下本回合',
+    '红队 ' + PVP.myRounds + ' : ' + PVP.botRounds + ' 蓝队', 2000);
+  var done = (PVP.myRounds >= PVP.winRounds) || (PVP.botRounds >= PVP.winRounds) ||
+             (PVP.roundNum >= PVP.maxRounds);
+  setTimeout(function () {
+    if (!PVP.active) return;
+    if (done) pvpEnd(PVP.myRounds > PVP.botRounds);
+    else { PVP.roundNum++; pvpStartRound(); }
+  }, 2000);
+}
+
+/** AI 射击：朝目标点打一条带误差的射线 */
+function pvpBotShoot(e, targetPos, wdef) {
+  var origin = e.mesh.position.clone();
+  origin.y += 0.55;
+  var dir = targetPos.clone().sub(origin).normalize();
+  var err = (wdef.spread || 0.01) * 3.2 + 0.035;
+  dir.x += rand(-err, err);
+  dir.y += rand(-err, err);
+  dir.z += rand(-err, err);
+  dir.normalize();
+  _raycaster.set(origin, dir);
+  _raycaster.far = PVP_VIEW_RANGE + 10;
+  var wh = _raycaster.intersectObjects(wallMeshes, false);
+  var wallDist = wh.length ? wh[0].distance : Infinity;
+  var muzzle = e.gunMesh && e.gunMesh.muzzleTip ? e.gunMesh.muzzleTip.getWorldPosition(new THREE.Vector3()) : origin;
+  // 命中判定：玩家 / 敌对 AI
+  var hitDist = Infinity, hitPlayer = false, hitBot = null;
+  if (e.team === 'blue' && PVP.roundState === 'live') {
+    var tp = player.pos.clone(); tp.y += CFG.eyeHeight;
+    var t = raySphere(origin, dir, tp, CFG.fishHitRadius * 0.8);
+    if (t > 0 && t < hitDist) { hitDist = t; hitPlayer = true; }
+  }
+  for (var i = 0; i < enemies.length; i++) {
+    var o = enemies[i];
+    if (!o || !o.isBot || !o.alive) continue;
+    if (e.team === 'blue' ? o.team !== 'red' : o.team !== 'blue') continue;
+    var ot = raySphere(origin, dir, o.mesh.position, CFG.fishHitRadius);
+    if (ot > 0 && ot < hitDist) { hitDist = ot; hitPlayer = false; hitBot = o; }
+  }
+  if (combatFx && save.settings.particles) {
+    var end = origin.clone().addScaledVector(dir, Math.min(hitDist, wallDist, PVP_VIEW_RANGE));
+    combatFx.tracer(muzzle, end, e.team === 'red' ? 0x9fe4ff : 0xffc0c0, 0.012);
+  }
+  if (hitDist > wallDist) return;            // 被墙挡住
+  if (hitPlayer) {
+    damagePlayer(wdef.damage, { name: 'AI 玩家', atk: wdef.name });
+  } else if (hitBot) {
+    pvpDamageBot(hitBot, wdef.damage);
+  }
+}
+
+/** 每帧更新 AI 行为树与回合状态机 */
+function updatePvpBots(dt) {
+  if (!PVP.active) return;
+
+  if (PVP.roundState === 'prepare') {
+    PVP.prepareT -= dt;
+    for (var i0 = 0; i0 < enemies.length; i0++) {
+      var e0 = enemies[i0];
+      if (!e0 || !e0.isBot || !e0.alive) continue;
+      updateEnemyShadow(e0, CFG.fishSize);
+    }
+    if (PVP.prepareT <= 0) pvpBeginLive();
+    return;
+  }
+  if (PVP.roundState !== 'live') return;
+
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    if (!e || !e.isBot || !e.alive) continue;
+    var wdef = WEAPONS[e.pvpPrimary] && PVP_WEAPON_DEFS[e.pvpPrimary] ? PVP_WEAPON_DEFS[e.pvpPrimary] : PVP_WEAPON_DEFS.rifle;
+
+    // ---- 感知：每 0.15 秒扫一次视野，避免每帧做射线 ----
+    e.aiTimer -= dt;
+    if (e.aiTimer <= 0) {
+      e.aiTimer = 0.15;
+      var seen = pvpFindTarget(e);
+      if (seen) {
+        if (!e.target && e.aiState !== 'alert') { e.aiState = 'alert'; e.alertT = PVP_REACT; }
+        e.target = seen; e.lastSeenT = 0;
+      } else {
+        e.lastSeenT = (e.lastSeenT || 0) + 0.15;
+        if (e.aiState === 'engage' && e.lastSeenT > PVP_LOSE_SIGHT) {
+          e.aiState = 'search';
+          e.searchT = 3.0;
+          e.target = null;
+        }
+      }
+    }
+
+    // ---- 行为树分支 ----
+    if (e.aiState === 'alert') {
+      e.alertT -= dt;
+      if (e.target) {
+        var ax = e.target.isPlayer ? player.pos.x : e.target.mesh.position.x;
+        var az = e.target.isPlayer ? player.pos.z : e.target.mesh.position.z;
+        e.mesh.rotation.y = Math.atan2(ax - e.mesh.position.x, az - e.mesh.position.z);
+      }
+      if (e.alertT <= 0) e.aiState = 'engage';
+    } else if (e.aiState === 'engage' && e.target) {
+      var tx = e.target.isPlayer ? player.pos.x : e.target.mesh.position.x;
+      var tz = e.target.isPlayer ? player.pos.z : e.target.mesh.position.z;
+      var tdx = tx - e.mesh.position.x, tdz = tz - e.mesh.position.z;
+      var tdist = Math.sqrt(tdx * tdx + tdz * tdz) || 1;
+      e.mesh.rotation.y = Math.atan2(tdx, tdz);
+      // 保持 8~22 米交战距离 + 侧向拉扯
+      var fwd = tdist > 22 ? 1 : (tdist < 8 ? -1 : 0);
+      e.strafeT -= dt;
+      if (e.strafeT <= 0) { e.strafeT = rand(0.7, 1.8); e.strafeDir = Math.random() < 0.5 ? 1 : -1; }
+      var ux = tdx / tdist, uz = tdz / tdist;
+      var nx = -uz * e.strafeDir, nz = ux * e.strafeDir;
+      var spd = 3.6;
+      var px = e.mesh.position.x + (ux * fwd + nx * 0.7) * spd * dt;
+      var pz = e.mesh.position.z + (uz * fwd + nz * 0.7) * spd * dt;
+      if (!pointInObstacle(px, pz, 0.9) && Math.abs(px) < CFG.arena - 2 && Math.abs(pz) < CFG.arena - 2) {
+        e.mesh.position.x = px; e.mesh.position.z = pz;
+      }
+      // 开火：点射节奏
+      e.burstGap -= dt;
+      if (e.burstGap <= 0 && tdist < PVP_VIEW_RANGE) {
+        var tpos = new THREE.Vector3(tx, (e.target.isPlayer ? player.pos.y + CFG.eyeHeight : e.target.mesh.position.y + 0.3), tz);
+        pvpBotShoot(e, tpos, wdef);
+        e.burstGap = wdef.shootInterval * rand(1.6, 3.4);
+      }
+    } else if (e.aiState === 'search') {
+      e.searchT -= dt;
+      // 走向最后已知位置
+      if (!e.waypoint) e.waypoint = e.mesh.position.clone();
+      var sdx = e.waypoint.x - e.mesh.position.x, sdz = e.waypoint.z - e.mesh.position.z;
+      var sdist = Math.sqrt(sdx * sdx + sdz * sdz);
+      if (sdist > 1.2) {
+        e.mesh.rotation.y = Math.atan2(sdx, sdz);
+        var sx = e.mesh.position.x + (sdx / sdist) * 3.2 * dt;
+        var sz = e.mesh.position.z + (sdz / sdist) * 3.2 * dt;
+        if (!pointInObstacle(sx, sz, 0.9)) { e.mesh.position.x = sx; e.mesh.position.z = sz; }
+      }
+      if (e.searchT <= 0) { e.aiState = 'patrol'; e.target = null; }
+    } else {
+      // patrol：随机游走
+      if (!e.waypoint || e.mesh.position.distanceTo(e.waypoint) < 1.5) {
+        e.waypoint = new THREE.Vector3(rand(-CFG.arena + 6, CFG.arena - 6), 0, rand(-CFG.arena + 6, CFG.arena - 6));
+      }
+      var pdx = e.waypoint.x - e.mesh.position.x, pdz = e.waypoint.z - e.mesh.position.z;
+      var pdist = Math.sqrt(pdx * pdx + pdz * pdz) || 1;
+      e.mesh.rotation.y = Math.atan2(pdx, pdz);
+      var qx = e.mesh.position.x + (pdx / pdist) * 2.6 * dt;
+      var qz = e.mesh.position.z + (pdz / pdist) * 2.6 * dt;
+      if (!pointInObstacle(qx, qz, 0.9)) { e.mesh.position.x = qx; e.mesh.position.z = qz; }
+    }
+
+    // 视觉：呼吸 + 受击闪白 + 影子
+    e.mesh.position.y = e.baseY + Math.sin(time * 2.2 + e.phase) * 0.12;
+    if (e.hurt > 0) e.hurt = Math.max(0, e.hurt - dt);
+    e.mesh.material.color.setScalar(e.hurt > 0 ? 1.6 : 1);
+    updateEnemyShadow(e, CFG.fishSize);
+    // 队友名牌：远处淡出，避免遮挡视野
+    if (e.teamTag) {
+      var pd = player.pos.distanceTo(e.mesh.position);
+      e.teamTag.visible = pd < 42;
+      if (e.teamTag.material) e.teamTag.material.opacity = pd > 30 ? Math.max(0.15, (42 - pd) / 12) : 1;
+    }
+  }
+
+  // ---- 回合判定：任一方全灭即结束 ----
+  if (pvpAliveBots('blue') === 0) { pvpEndRound(true); return; }
+  if (player.hp <= 0) { pvpEndRound(false); return; }
+  if (pvpAliveBots('red') === 0 && player.hp <= 0) pvpEndRound(false);
+}
+
+/** 玩家击杀 AI（由 killFish 分流进入） */
+function pvpOnBotKilled(e) {
+  if (!PVP.active || PVP.roundState !== 'live') return;
+  pvpKillBotEntity(e, true);
+  var left = pvpAliveBots('blue');
+  if (left > 0) showNotice('击杀！蓝队还剩 ' + left + ' 人');
+}
+
+/** 玩家阵亡 → 红队本回合失败 */
+function pvpPlayerDied() {
+  if (!PVP.active || PVP.roundState !== 'live') return;
+  PVP.myDeaths = (PVP.myDeaths || 0) + 1;
+  player.hp = 0;
+  updateHUD();
+  pvpEndRound(false);
+}
+
+/** 结束整场比赛 */
+function pvpEnd(win) {
+  if (PVP.over) return;
+  PVP.over = true;
+  PVP.active = false;
+  PVP.roundState = 'idle';
+  pvpClearBots();
+  state = 'gameover';
+  if (document.exitPointerLock) document.exitPointerLock();
+  if (dom.finalScoreV) dom.finalScoreV.textContent = PVP.myRounds + ' : ' + PVP.botRounds;
+  var titleEl = document.querySelector('#gameover-overlay h1');
+  if (titleEl) titleEl.textContent = win ? '歼灭战胜利！' : '歼灭战失败';
+  // 结算字段换成歼灭战口径
+  var sl = document.querySelector('#gameover-overlay .stat-line');
+  var sd = document.querySelector('#gameover-overlay .stat-detail');
+  if (sl) sl.innerHTML = '回合比分 <b>' + PVP.myRounds + ' : ' + PVP.botRounds + '</b><br>本场击杀 <b>' +
+    (PVP.myKills || 0) + '</b> 个 AI · 阵亡 <b>' + (PVP.myDeaths || 0) + '</b> 次';
+  if (sd) sd.innerHTML = '共进行 <b>' + PVP.roundNum + '</b> 回合（先拿 ' + PVP.winRounds +
+    ' 回合获胜 · 最多 ' + PVP.maxRounds + ' 回合）<br>每回合淘汰对方全员即得 1 分';
+  var recEl = document.querySelector('#final-record');
+  if (recEl) { recEl.classList.add('hidden'); recEl.style.display = 'none'; }
+  var pscEl = document.getElementById('pvp-score');
+  if (pscEl) pscEl.classList.remove('show');
+  try { showOverlay('gameover'); } catch (e) { /* 极端 DOM 环境下静默 */ }
+}
+
+/** 开始一场歼灭战 */
+function startPvp(opts) {
+  opts = opts || {};
+  PVP.mySkin = opts.skin || 'normal';
+  PVP.myWeapon = opts.weapon || 'rifle';
+  PVP.teamSize = opts.teamSize || 4;
+  PVP.myKills = 0;
+  PVP.myDeaths = 0;
+  PVP.myRounds = 0;
+  PVP.botRounds = 0;
+  PVP.roundNum = 1;
+  PVP.over = false;
+  PVP.active = true;
+  PVP.roundState = 'idle';
+  gameMode = 'pvp';
+  // 清掉无尽模式的残余
+  pvpClearBots();
+  for (var i = enemies.length - 1; i >= 0; i--) { removeEnemyVisual(enemies[i]); }
+  enemies.length = 0;
+  if (boss) { scene.remove(boss.mesh); boss = null; hideBossBar(); }
+  items.length = 0;
+  state = 'playing';
+  hideAllOverlays();
+  setWeaponBarMode('pvp');
+  var sc = document.getElementById('pvp-score');
+  if (sc) sc.classList.add('show');
+  switchWeapon(PVP.myWeapon);
+  pvpStartRound();
+  requestLockWithFallback();
+}
+
+// ---------------- 对战模式：武器栏与键位 ----------------
+var weaponBarOriginalHTML = null;
+
+/** 记录无尽模式的武器栏原始结构（init 时调用一次） */
+function captureWeaponBar() {
+  var wb = document.getElementById('weapon-bar');
+  if (wb && weaponBarOriginalHTML === null) weaponBarOriginalHTML = wb.innerHTML;
+}
+
+// 结算界面的字段：无尽模式与歼灭战共用同一个 overlay，进入对战前备份原始结构
+var gameoverStatHTML = null;
+function captureGameoverStats() {
+  if (gameoverStatHTML !== null) return;
+  // 冒烟测试的极简 DOM 桩没有 querySelector —— 直接跳过并留空，避免初始化崩溃
+  if (typeof document.querySelector !== 'function') {
+    gameoverStatHTML = { line: null, detail: null };
+    return;
+  }
+  var sl = document.querySelector('#gameover-overlay .stat-line');
+  var sd = document.querySelector('#gameover-overlay .stat-detail');
+  gameoverStatHTML = {
+    line: sl ? sl.innerHTML : null,
+    detail: sd ? sd.innerHTML : null,
+  };
+}
+
+/**
+ * 切换武器栏显示：
+ *   无尽模式 1 手枪 / 2 步枪 / 3 匕首
+ *   对战模式 1 步枪 / 2 手枪 / 3 鱼人手枪
+ */
+function setWeaponBarMode(mode) {
+  var wb = document.getElementById('weapon-bar');
+  if (!wb) return;
+  if (mode === 'pvp') {
+    // 主武器固定步枪，副武器是玩家在选人页挑的那把（USP / P250）
+    var sideDef = PVP_WEAPON_DEFS[PVP.myWeapon] || PVP_WEAPON_DEFS.pistol;
+    wb.innerHTML =
+      '<div class="wslot" data-wkey="1">1 主武器</div>' +
+      '<div class="wslot" data-wkey="' + sideDef.key + '">2 ' + sideDef.name + '</div>' +
+      '<div class="wslot" data-wkey="3">3 匕首</div>';
+  } else if (weaponBarOriginalHTML !== null) {
+    wb.innerHTML = weaponBarOriginalHTML;
+  }
+  ammoHudKey = '';          // 强制刷新一次高亮
+  updateAmmoHUD();
+}
+
+// ---------------- 对战模式：选人界面 ----------------
+var pvpSelWeapon = 'pistol', pvpSelSkin = 'normal', pvpSelTeam = 4;
+
+function renderPvpSelect() {
+  var wo = document.getElementById('pvp-weapons');
+  if (wo) {
+    wo.innerHTML = '';
+    // 主武器固定（不可改），先展示一张锁定卡
+    var fixed = document.createElement('div');
+    fixed.className = 'pvp-card selected';
+    fixed.style.opacity = '0.75';
+    fixed.innerHTML = '<div class="pc-name">突击步枪（主武器 · 固定）</div>' +
+      '<div class="pc-desc">AK-47 · 36 伤害 / 30 发 / 600 RPM</div>';
+    wo.appendChild(fixed);
+    // 副武器二选一
+    PVP_SIDEARM_LIST.forEach(function (w) {
+      var d = document.createElement('div');
+      d.className = 'pvp-card' + (w.id === pvpSelWeapon ? ' selected' : '');
+      d.innerHTML = '<div class="pc-name">' + w.name + '（副武器）</div><div class="pc-desc">' + w.desc + '</div>';
+      d.addEventListener('click', function () { pvpSelWeapon = w.id; renderPvpSelect(); });
+      wo.appendChild(d);
+    });
+  }
+  var so = document.getElementById('pvp-skins');
+  if (so) {
+    so.innerHTML = '';
+    PVP_SKIN_LIST.forEach(function (s) {
+      var d = document.createElement('div');
+      d.className = 'pvp-card' + (s.id === pvpSelSkin ? ' selected' : '');
+      var thumb = '';
+      if (s.id === 'normal' && fishTex && fishTex.image) thumb = fishTex.image.src || '';
+      else if (s.id === 'melee' && enemyTex.melee && enemyTex.melee.image) thumb = enemyTex.melee.image.src || '';
+      else if (s.id === 'ranged' && enemyTex.ranged && enemyTex.ranged.image) thumb = enemyTex.ranged.image.src || '';
+      d.innerHTML = '<div class="pc-name">' + s.name + '</div><div class="pc-desc">' + s.desc + '</div>' +
+        (thumb ? '<div class="pc-thumb" style="background-image:url(' + thumb + ')"></div>' : '');
+      d.addEventListener('click', function () { pvpSelSkin = s.id; renderPvpSelect(); });
+      so.appendChild(d);
+    });
+  }
+  var bo = document.getElementById('pvp-bots');
+  if (bo) {
+    bo.innerHTML = '';
+    PVP_TEAM_OPTIONS.forEach(function (n) {
+      var d = document.createElement('div');
+      d.className = 'pvp-card' + (n === pvpSelTeam ? ' selected' : '');
+      d.innerHTML = '<div class="pc-name">' + n + ' v ' + n + '</div><div class="pc-desc">' +
+        '红队：你 + ' + (n - 1) + ' 个 AI 队友<br>蓝队：' + n + ' 个 AI</div>';
+      d.addEventListener('click', function () { pvpSelTeam = n; renderPvpSelect(); });
+      bo.appendChild(d);
+    });
+  }
+}
+
+function showPvpSelect() {
+  state = 'levelSelect';
+  Sfx.click && Sfx.click();
+  hideAllOverlays();
+  renderPvpSelect();
+  showOverlay('pvp');
+}
+
+/** 开始一局对战 */
 function damagePlayer(d, src) {
   var hurtKind = hurtKindOf(src);
   if (state !== 'playing' || hurtCdByKind[hurtKind] > 0) return;
@@ -4649,7 +5376,10 @@ function damagePlayer(d, src) {
   Sfx.hurt();
   if (dom.damageFlash) dom.damageFlash.style.opacity = '0.85';
   updateHUD();
-  if (player.hp <= 0) gameOver();
+  if (player.hp <= 0) {
+    if (gameMode === 'pvp' && PVP.active) { pvpPlayerDied(); return; }
+    gameOver();
+  }
 }
 
 // 战败界面任意点击/按键（用户手势）→ 立即解锁战败曲播放（绕过自动播放策略）
@@ -4685,6 +5415,17 @@ function gameOver(reason) {
 
 // toMenu = true：通关/结算后回到主菜单（完整重置世界，不直接进入游戏）
 function restartGame(toMenu) {
+  // 离开对局时清掉歼灭战状态，避免 gameMode 残留影响无尽模式的死亡判定
+  if (gameMode === 'pvp' || PVP.active) {
+    gameMode = 'endless';
+    PVP.active = false;
+    PVP.over = false;
+    PVP.roundState = 'idle';
+    pvpClearBots();
+    var pscEl = document.getElementById('pvp-score');
+    if (pscEl) pscEl.classList.remove('show');
+    setWeaponBarMode('endless');
+  }
   if (overEl) { overEl.pause(); overEl.currentTime = 0; }   // 关闭战败曲
   if (bgmEl) bgmEl.currentTime = 0;                          // 默认 BGM 从头（播放在手势内由 requestLock/updateBgm 触发）
   if (bossEl) { bossEl.pause(); bossEl.currentTime = 0; }    // 战斗曲关闭
@@ -4701,10 +5442,11 @@ function restartGame(toMenu) {
   score = 0; kills = 0; playingTime = 0;
   runTookDamage = false;                // 新一局重置「完美无瑕」标志
   currentWeapon = 'pistol';                            // 重开回到手枪
-  magTier = { pistol: 0, rifle: 0 };                   // 扩容弹夹不继承，回到标准弹夹
+  magTier = { pistol: 0, rifle: 0, fishpistol: 0 };    // 扩容弹夹不继承，回到标准弹夹
   weaponAmmo = {
     pistol: { mag: WEAPONS.pistol.magSize, reserve: WEAPONS.pistol.reserveStart },
     rifle:  { mag: WEAPONS.rifle.magSize,  reserve: WEAPONS.rifle.reserveStart },
+    fishpistol: { mag: WEAPONS.fishpistol.magSize, reserve: WEAPONS.fishpistol.reserveStart },
   };
   ammo.mag = WEAPONS.pistol.magSize;
   ammo.reserve = WEAPONS.pistol.reserveStart;
@@ -4855,8 +5597,12 @@ function showOverlay(which) {
   if (dom.settingsOverlay) dom.settingsOverlay.classList.toggle('hidden', which !== 'settings');
   if (dom.achievementsOverlay) dom.achievementsOverlay.classList.toggle('hidden', which !== 'achievements');
   if (dom.quitOverlay) dom.quitOverlay.classList.toggle('hidden', which !== 'quit');
+  var pvpOv = document.getElementById('pvp-overlay');
+  if (pvpOv) pvpOv.classList.toggle('hidden', which !== 'pvp');
 }
 function hideAllOverlays() {
+  var pvpOv = document.getElementById('pvp-overlay');
+  if (pvpOv) pvpOv.classList.add('hidden');
   dom.menuOverlay.classList.add('hidden');
   dom.pauseOverlay.classList.add('hidden');
   dom.gameoverOverlay.classList.add('hidden');
@@ -5126,9 +5872,17 @@ function onKeyDown(ev) {
   if (ev.code === 'KeyG' && state === 'playing') { throwGrenade(); }
   // 武器切换：数字键 1 / 2（小键盘 1/2 在开发者模式下留给刷怪快捷键）
   if (state === 'playing') {
-    var wKey = (ev.code === 'Digit1' || ev.code === 'Numpad1') ? 'pistol'
-             : (ev.code === 'Digit2' || ev.code === 'Numpad2') ? 'rifle'
-             : (ev.code === 'Digit3' || ev.code === 'Numpad3') ? 'knife' : null;
+    var wKey;
+    if (gameMode === 'pvp') {
+      // 歼灭战：1 主武器（步枪）/ 2 副武器（选人页选择）/ 3 匕首
+      wKey = (ev.code === 'Digit1' || ev.code === 'Numpad1') ? 'rifle'
+           : (ev.code === 'Digit2' || ev.code === 'Numpad2') ? PVP.myWeapon
+           : (ev.code === 'Digit3' || ev.code === 'Numpad3') ? 'knife' : null;
+    } else {
+      wKey = (ev.code === 'Digit1' || ev.code === 'Numpad1') ? 'pistol'
+           : (ev.code === 'Digit2' || ev.code === 'Numpad2') ? 'rifle'
+           : (ev.code === 'Digit3' || ev.code === 'Numpad3') ? 'knife' : null;
+    }
     var isNumpad = (ev.code === 'Numpad1' || ev.code === 'Numpad2' || ev.code === 'Numpad3');
     if (wKey && !(isNumpad && debugMode)) { switchWeapon(wKey); return; }
   }
@@ -5556,6 +6310,7 @@ function update(dt) {
     // 手枪为点射（只有按下瞬间发射，见 onMouseDown），步枪为按住连发
     if ((fireHeld || touchFiring) && weaponDef().auto) shootOnce();
     updateEnemies(dt);
+    updatePvpBots(dt);          // 对战模式：AI 玩家移动与射击
     updateItems(dt);
     updateBoss(dt);
     updateBossShots(dt);
@@ -5622,6 +6377,8 @@ function enterGameWorld() {
     save.tutorialShown = true;
     persistSave();
     setTimeout(function () {
+      // 延时回调里再判一次：玩家点「歼灭战」时 enterGameWorld 先于 startPvp 执行
+      if (gameMode === 'pvp') return;
       showNotice('【1 / 2 / 3】切换武器：手枪（点射）· 步枪（按住连发）· 匕首（右键重击）');
     }, 1100);
   }
@@ -5720,6 +6477,8 @@ function init() {
   mark('particles');
   loadFishTexture();
   loadEnemyTextures();          // 三种敌人专用贴图（Boss 少女 / Q版射手 / Q版近战）
+  captureWeaponBar();           // 记录无尽模式的武器栏结构，供对战模式切回时还原
+  captureGameoverStats();       // 记录无尽模式的结算字段，供对战模式切换
   mark('texture');
   // 开局弹药：手枪 7/42（扩容弹夹靠掉落，不继承）
   magTier = { pistol: 0, rifle: 0 };
@@ -5729,6 +6488,7 @@ function init() {
   weaponAmmo = {
     pistol: { mag: WEAPONS.pistol.magSize, reserve: WEAPONS.pistol.reserveStart },
     rifle:  { mag: WEAPONS.rifle.magSize,  reserve: WEAPONS.rifle.reserveStart },
+    fishpistol: { mag: WEAPONS.fishpistol.magSize, reserve: WEAPONS.fishpistol.reserveStart },
   };
   itemTimer = rand(CFG.itemIntervalMin, CFG.itemIntervalMax);
   // 血条数值由 HTML 静态 span 承载；仅在无子元素时兜底设置名字（避免 textContent 覆盖清除数字子元素）
@@ -5839,6 +6599,20 @@ function init() {
   var btnLevelBack = document.getElementById('btn-level-back');
   if (btnLevelDesert) btnLevelDesert.addEventListener('click', function () {
     if (state !== 'levelSelect') return;
+    gameMode = 'endless';                 // 从对战模式切回时重置
+    PVP.active = false;
+    var psc = document.getElementById('pvp-score');
+    if (psc) psc.classList.remove('show');
+    setWeaponBarMode('endless');
+    // 结算界面恢复成无尽模式口径
+    if (gameoverStatHTML) {
+      var gsl = document.querySelector('#gameover-overlay .stat-line');
+      var gsd = document.querySelector('#gameover-overlay .stat-detail');
+      if (gsl && gameoverStatHTML.line !== null) gsl.innerHTML = gameoverStatHTML.line;
+      if (gsd && gameoverStatHTML.detail !== null) gsd.innerHTML = gameoverStatHTML.detail;
+      var grec = document.querySelector('#final-record');
+      if (grec) grec.style.display = '';
+    }
     enterGameWorld();     // 首次进入时构建场景（主菜单不加载世界）
     hideAllOverlays();
     requestLockWithFallback();
@@ -5846,6 +6620,22 @@ function init() {
   if (btnLevelBack) btnLevelBack.addEventListener('click', function () {
     state = 'menu';
     showOverlay('menu');
+  });
+  // ---- 射击对战：入口 / 开始 / 返回 ----
+  var btnPvpMode = document.getElementById('btn-pvp-mode');
+  if (btnPvpMode) btnPvpMode.addEventListener('click', function () {
+    if (state !== 'levelSelect') return;
+    showPvpSelect();
+  });
+  var btnPvpStart = document.getElementById('btn-pvp-start');
+  if (btnPvpStart) btnPvpStart.addEventListener('click', function () {
+    enterGameWorld();      // 首次进入时构建场景
+    hideAllOverlays();
+    startPvp({ skin: pvpSelSkin, weapon: pvpSelWeapon, teamSize: pvpSelTeam });
+  });
+  var btnPvpBack = document.getElementById('btn-pvp-back');
+  if (btnPvpBack) btnPvpBack.addEventListener('click', function () {
+    showLevelSelect();
   });
   mark('buttons-bound');
   animate();
@@ -5900,6 +6690,36 @@ window.FishGame = {
         flashZ: +gun.flashMesh.position.z.toFixed(3),
         lightZ: gun.light ? +gun.light.position.z.toFixed(3) : null,
       };
+    },
+    getPvp: function () {
+      return {
+        mode: gameMode, active: PVP.active, over: PVP.over,
+        roundState: PVP.roundState, prepareT: +(PVP.prepareT || 0).toFixed(2),
+        roundNum: PVP.roundNum, myRounds: PVP.myRounds, botRounds: PVP.botRounds,
+        winRounds: PVP.winRounds, maxRounds: PVP.maxRounds,
+        bots: pvpAliveBots(),
+        botTotal: enemies.filter(function (e) { return e.isBot; }).length,
+        weapon: currentWeapon,
+      };
+    },
+    pvpSetRound: function (mine, bots, round) {
+      PVP.myRounds = mine | 0; PVP.botRounds = bots | 0;
+      if (round) PVP.roundNum = round | 0;
+      updatePvpScore();
+      updatePvpScore();
+    },
+    pvpKillBot: function () {
+      if (PVP.roundState !== 'live') return false;      // 准备/结算阶段不计击杀
+      var bot = enemies.filter(function (e) { return e.isBot && e.alive; })[0];
+      if (!bot) return false;
+      bot.hp = 0;
+      killFish(bot, bot.mesh.position.clone());
+      return true;
+    },
+    pvpHurtPlayer: function (d) {
+      player.hp = 1; hurtCd = 0; hurtCdByKind = { melee: 0, ranged: 0, blast: 0 };
+      damagePlayer(d || 50, { name: '测试', atk: '射击' });
+      return player.hp;
     },
     setDifficulty: function (k) { save.settings.difficulty = DIFFICULTY[k] ? k : 'normal'; },
     getDifficulty: function () { return { key: save.settings.difficulty || 'normal', name: difficultyNow().name, enemyDmg: difficultyNow().enemyDmg, supplyMul: difficultyNow().supplyMul }; },

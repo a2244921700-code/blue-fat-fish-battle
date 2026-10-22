@@ -1,0 +1,337 @@
+{
+  "models": {
+    "detail": {
+      "parts": 2001,
+      "triangles": 130088,
+      "batches": 155,
+      "solidColliders": 227
+    },
+    "stats": {
+      "children": 69,
+      "meshes": 379,
+      "envBuilt": true,
+      "envObjects": 67,
+      "obstacles": 288,
+      "wallMeshes": 117,
+      "enemies": 0,
+      "trackedEnemies": 0,
+      "renderCalls": 249,
+      "triangles": 150076,
+      "geometries": 279,
+      "textures": 22
+    },
+    "invalid": 0,
+    "areas": [
+      "石拱门楼/0",
+      "石拱门楼/1",
+      "石拱门楼/2",
+      "石拱门楼/3",
+      "庭院墙面/石基与花砖",
+      "城外建筑/0",
+      "城外建筑/1",
+      "城外建筑/2",
+      "城外建筑/3",
+      "城外建筑/4",
+      "城外建筑/5",
+      "城外建筑/6",
+      "城外建筑/7",
+      "城外建筑/8",
+      "城外建筑/9",
+      "北侧风塔",
+      "外围城防/垛口与射孔",
+      "西市/青绿陶器摊",
+      "东市/赭红织物摊",
+      "中央庭院/悬挂彩旗",
+      "绿洲/雕花叠水喷泉",
+      "陈设/陶罐与货运",
+      "建筑/角塔石带与檐托",
+      "植被与风化碎石"
+    ]
+  },
+  "paths": [
+    {
+      "name": "南门",
+      "progress": 7.999999999999972
+    },
+    {
+      "name": "北门",
+      "progress": 7.999999999999972
+    },
+    {
+      "name": "东门",
+      "progress": 7.999999999999976
+    },
+    {
+      "name": "西门",
+      "progress": 7.999999999999976
+    },
+    {
+      "name": "西市主路",
+      "progress": 7.999999999999972
+    },
+    {
+      "name": "东市主路",
+      "progress": 7.999999999999972
+    }
+  ],
+  "solids": [
+    {
+      "name": "陶罐",
+      "z": 12.600000000000009
+    },
+    {
+      "name": "货车",
+      "z": 21.49999999999995
+    },
+    {
+      "name": "市集柜台",
+      "z": 8.900000000000004
+    }
+  ],
+  "structure": {
+    "cartRayHit": {
+      "name": "陈设/陶罐与货运/timber",
+      "z": 19.010000228881836
+    },
+    "topSamples": [
+      {
+        "height": 5,
+        "actual": 5,
+        "coincident": 1
+      },
+      {
+        "height": 3.4,
+        "actual": 3.4000000953674316,
+        "coincident": 1
+      },
+      {
+        "height": 3.4,
+        "actual": 3.4000000953674316,
+        "coincident": 1
+      },
+      {
+        "height": 3.2,
+        "actual": 3.200000047683716,
+        "coincident": 1
+      },
+      {
+        "height": 3.2,
+        "actual": 3.200000047683716,
+        "coincident": 1
+      },
+      {
+        "height": 3,
+        "actual": 3,
+        "coincident": 1
+      },
+      {
+        "height": 3.8,
+        "actual": 3.8000000029802323,
+        "coincident": 1
+      },
+      {
+        "height": 3.45,
+        "actual": 3.450000047683716,
+        "coincident": 1
+      },
+      {
+        "height": 3.45,
+        "actual": 3.450000047683716,
+        "coincident": 1
+      }
+    ],
+    "spawn": [
+      {
+        "x": 0,
+        "z": 40,
+        "blocked": false
+      },
+      {
+        "x": -38,
+        "z": -30,
+        "blocked": false
+      },
+      {
+        "x": 38,
+        "z": -30,
+        "blocked": false
+      },
+      {
+        "x": 0,
+        "z": -22,
+        "blocked": false
+      },
+      {
+        "x": 30,
+        "z": 30,
+        "blocked": false
+      }
+    ]
+  },
+  "viewStats": [
+    {
+      "name": "01-gate",
+      "children": 82,
+      "meshes": 514,
+      "envBuilt": true,
+      "envObjects": 67,
+      "obstacles": 288,
+      "wallMeshes": 117,
+      "enemies": 6,
+      "trackedEnemies": 6,
+      "renderCalls": 265,
+      "triangles": 149636,
+      "geometries": 305,
+      "textures": 28
+    },
+    {
+      "name": "02-west-market",
+      "children": 82,
+      "meshes": 514,
+      "envBuilt": true,
+      "envObjects": 67,
+      "obstacles": 288,
+      "wallMeshes": 117,
+      "enemies": 6,
+      "trackedEnemies": 6,
+      "renderCalls": 213,
+      "triangles": 118980,
+      "geometries": 305,
+      "textures": 28
+    },
+    {
+      "name": "03-oasis",
+      "children": 82,
+      "meshes": 514,
+      "envBuilt": true,
+      "envObjects": 67,
+      "obstacles": 288,
+      "wallMeshes": 117,
+      "enemies": 6,
+      "trackedEnemies": 6,
+      "renderCalls": 121,
+      "triangles": 99408,
+      "geometries": 305,
+      "textures": 28
+    },
+    {
+      "name": "04-cart",
+      "children": 82,
+      "meshes": 514,
+      "envBuilt": true,
+      "envObjects": 67,
+      "obstacles": 288,
+      "wallMeshes": 117,
+      "enemies": 6,
+      "trackedEnemies": 6,
+      "renderCalls": 277,
+      "triangles": 151658,
+      "geometries": 305,
+      "textures": 28
+    },
+    {
+      "name": "05-overview",
+      "children": 82,
+      "meshes": 514,
+      "envBuilt": true,
+      "envObjects": 67,
+      "obstacles": 288,
+      "wallMeshes": 117,
+      "enemies": 6,
+      "trackedEnemies": 6,
+      "renderCalls": 384,
+      "triangles": 189312,
+      "geometries": 305,
+      "textures": 28
+    },
+    {
+      "name": "06-dusk",
+      "children": 82,
+      "meshes": 514,
+      "envBuilt": true,
+      "envObjects": 67,
+      "obstacles": 288,
+      "wallMeshes": 117,
+      "enemies": 6,
+      "trackedEnemies": 6,
+      "renderCalls": 270,
+      "triangles": 151524,
+      "geometries": 305,
+      "textures": 31
+    },
+    {
+      "name": "07-night",
+      "children": 82,
+      "meshes": 514,
+      "envBuilt": true,
+      "envObjects": 67,
+      "obstacles": 288,
+      "wallMeshes": 117,
+      "enemies": 6,
+      "trackedEnemies": 6,
+      "renderCalls": 271,
+      "triangles": 151524,
+      "geometries": 306,
+      "textures": 34
+    }
+  ],
+  "cycles": [
+    {
+      "children": 2,
+      "meshes": 92,
+      "envBuilt": false,
+      "envObjects": 0,
+      "obstacles": 0,
+      "wallMeshes": 0,
+      "enemies": 0,
+      "trackedEnemies": 0,
+      "renderCalls": 250,
+      "triangles": 150088,
+      "geometries": 52,
+      "textures": 29
+    },
+    {
+      "children": 2,
+      "meshes": 92,
+      "envBuilt": false,
+      "envObjects": 0,
+      "obstacles": 0,
+      "wallMeshes": 0,
+      "enemies": 0,
+      "trackedEnemies": 0,
+      "renderCalls": 250,
+      "triangles": 150088,
+      "geometries": 52,
+      "textures": 29
+    },
+    {
+      "children": 2,
+      "meshes": 92,
+      "envBuilt": false,
+      "envObjects": 0,
+      "obstacles": 0,
+      "wallMeshes": 0,
+      "enemies": 0,
+      "trackedEnemies": 0,
+      "renderCalls": 250,
+      "triangles": 150088,
+      "geometries": 52,
+      "textures": 29
+    },
+    {
+      "children": 2,
+      "meshes": 92,
+      "envBuilt": false,
+      "envObjects": 0,
+      "obstacles": 0,
+      "wallMeshes": 0,
+      "enemies": 0,
+      "trackedEnemies": 0,
+      "renderCalls": 250,
+      "triangles": 150088,
+      "geometries": 52,
+      "textures": 29
+    }
+  ],
+  "errors": []
+}

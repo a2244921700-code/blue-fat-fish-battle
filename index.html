@@ -374,6 +374,67 @@ window.addEventListener('load', function () {
     background-image: linear-gradient(140deg, #ebfdff 0%, #83e0ff 20%, #5d8bff 42%, #b285ff 64%, #6ec6ff 82%, #4d7dff 100%); }
   #combo-pop.rank-6 {
     background-image: linear-gradient(130deg, #f4feff 0%, #9fe9ff 16%, #57a7ff 34%, #4d6bff 50%, #c08aff 66%, #6ee0ff 82%, #3f8cff 100%); }
+  /* ---------- 命中标记（hitmarker） ---------- */
+  #hitmarker {
+    position: fixed; left: 50%; top: 50%; width: 28px; height: 28px;
+    transform: translate(-50%, -50%) rotate(45deg) scale(0.8);
+    pointer-events: none; z-index: 16; opacity: 0;
+    background:
+      linear-gradient(#ffffff, #ffffff) center / 2px 28px no-repeat,
+      linear-gradient(#ffffff, #ffffff) center / 28px 2px no-repeat;
+    filter: drop-shadow(0 0 3px rgba(0, 0, 0, .65));
+    transition: opacity .09s ease, transform .09s ease;
+  }
+  #hitmarker.show { opacity: 0.95; transform: translate(-50%, -50%) rotate(45deg) scale(1); }
+  #hitmarker.kill {
+    background:
+      linear-gradient(#ff5a5a, #ff5a5a) center / 2px 30px no-repeat,
+      linear-gradient(#ff5a5a, #ff5a5a) center / 30px 2px no-repeat;
+    filter: drop-shadow(0 0 6px rgba(255, 60, 60, .85));
+  }
+
+  /* ---------- 射击对战：选人页 ---------- */
+  #pvp-overlay .panel { max-width: 960px; }
+  .pvp-section { margin: 14px 0 6px; }
+  .pvp-label {
+    font-size: 13px; letter-spacing: 2px; color: #8fd7ff;
+    margin-bottom: 8px; font-weight: 800;
+  }
+  .pvp-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .pvp-card {
+    flex: 1 1 150px; min-width: 140px; padding: 10px 12px; cursor: pointer;
+    background: rgba(10, 26, 44, .72); border: 1px solid rgba(120, 200, 255, .22);
+    border-radius: 10px; transition: all .16s ease;
+  }
+  .pvp-card:hover { border-color: rgba(120, 200, 255, .55); transform: translateY(-1px); }
+  .pvp-card.selected {
+    border-color: #7fd4ff; background: rgba(30, 80, 130, .82);
+    box-shadow: 0 0 0 1px #7fd4ff inset, 0 0 14px rgba(90, 180, 255, .35);
+  }
+  .pvp-card .pc-name { font-size: 15px; font-weight: 800; color: #e8f6ff; }
+  .pvp-card .pc-desc { font-size: 11px; line-height: 1.45; color: #9fc4df; margin-top: 5px; }
+  .pvp-card .pc-thumb {
+    width: 100%; height: 76px; margin-top: 6px; border-radius: 6px;
+    background: radial-gradient(circle at 50% 40%, rgba(90,160,255,.25), rgba(0,0,0,0) 70%);
+    background-size: contain; background-repeat: no-repeat; background-position: center bottom;
+  }
+  #pvp-overlay .big-btn { display: block; margin: 14px auto 8px; min-width: 220px; }
+
+  /* 对战记分板（左上角 HUD 下方） */
+  #pvp-score {
+    position: fixed; left: 50%; top: 8px; transform: translateX(-50%);
+    z-index: 12; display: none; gap: 18px; align-items: center;
+    padding: 6px 18px; border-radius: 10px;
+    background: rgba(8, 20, 36, .78); border: 1px solid rgba(120, 200, 255, .28);
+    font-size: 14px; font-weight: 800; color: #e8f6ff;
+  }
+  #pvp-score.show { display: flex; }
+  #pvp-score .ps-round { color: #ffd76e; }
+  #pvp-score .ps-live { color: #9fc4df; font-size: 12px; font-weight: 600; }
+  #pvp-score .ps-mine { color: #6ee7a8; }
+  #pvp-score .ps-bots { color: #ff8a8a; }
+  #pvp-score .ps-goal { color: #9fc4df; font-weight: 600; font-size: 12px; }
+
   /* 对话框（剧情 / 旁白 / 播报通用）：底部居中，半透明卡片 */
   #dialog-box {
     position: fixed; left: 50%; bottom: 13vh; transform: translateX(-50%);
@@ -632,6 +693,14 @@ window.addEventListener('load', function () {
     <div class="reload-label">换弹中...</div>
     <div id="reload-bar"><div id="reload-fill"></div></div>
   </div>
+  <div id="hitmarker"></div>
+  <div id="pvp-score">
+    <span class="ps-round">第 1 回合</span>
+    <span class="ps-mine">红队 0</span>
+    <span class="ps-goal">先拿 4 回合</span>
+    <span class="ps-bots">蓝队 0</span>
+    <span class="ps-live">存活 4 vs 4</span>
+  </div>
   <div id="dialog-box">
     <div class="dialog-speaker"></div>
     <div class="dialog-text"></div>
@@ -726,8 +795,47 @@ window.addEventListener('load', function () {
           <div class="card-go">点击进入 ▶</div>
         </div>
       </div>
+      <div class="level-col">
+        <div class="mode-title">🔫 射击对战</div>
+        <div class="level-card" id="btn-pvp-mode">
+          <div class="card-title">射击对战 —— 单机 AI 对战</div>
+          <div class="card-tags">
+            <b>规则</b>：歼灭战 —— 回合制，红蓝两队淘汰对方全员得 1 分，先拿 <b>4 回合</b>获胜（最多 7 回合）<br>
+            <b>队伍</b>：红队 = 你 + AI 队友，蓝队 = 全 AI（3v3 / 4v4 / 5v5）<br>
+            <b>武器</b>：主武器固定突击步枪，副武器选手枪或鱼人手枪（数值照搬 CS2）<br>
+            <b>形象</b>：可选非 Boss 鱼的形象，对局中只在别人身上看到
+          </div>
+          <div class="card-go">点击进入 ▶</div>
+        </div>
+      </div>
     </div>
     <button id="btn-level-back" class="big-btn ghost">← 返回主菜单</button>
+  </div>
+</div>
+
+<!-- 射击对战 · 选人页 -->
+<div id="pvp-overlay" class="overlay hidden">
+  <div class="panel panel-wide">
+    <h1>歼灭战 · 准备</h1>
+    <div class="sub-title">回合制淘汰对抗 · 选择武器与形象（对局里看不到自己，但对手看得到）</div>
+
+    <div class="pvp-section">
+      <div class="pvp-label">武器（主武器固定 · 副武器可选）</div>
+      <div class="pvp-row" id="pvp-weapons"></div>
+    </div>
+
+    <div class="pvp-section">
+      <div class="pvp-label">你的形象</div>
+      <div class="pvp-row" id="pvp-skins"></div>
+    </div>
+
+    <div class="pvp-section">
+      <div class="pvp-label">队伍规模（红队 = 你 + AI 队友 / 蓝队 = AI）</div>
+      <div class="pvp-row" id="pvp-bots"></div>
+    </div>
+
+    <button id="btn-pvp-start" class="big-btn btn-start-glow">开始对战</button>
+    <button id="btn-pvp-back" class="big-btn ghost">← 返回模式选择</button>
   </div>
 </div>
 
@@ -842,6 +950,7 @@ window.addEventListener('load', function () {
 <script src="assets/fish-texture.js"></script>
 <script src="assets/enemy-textures.js"></script>
 <script src="js/art.js"></script>
+<script src="js/scene-detail.js"></script>
 <script src="js/combat-art.js"></script>
 <script src="js/game.js"></script>
 </body>

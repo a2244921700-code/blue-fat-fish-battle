@@ -1,6 +1,6 @@
 # 蓝色肥鱼大作战 🐟🔫
 
-> **2026-10-21 · Codex 场景与战斗优化补丁**：新增沙海哨站场景细节、程序化材质、原画浅弧模型；追加武器模型、枪焰弹道与爆炸特效，修正 Boss 瞄准和三管炮出膛位置，并完善资源回收。玩法版本沿用 V0.5.2，具体改动、验证结果和后续建议见 [CODEX_优化与开发建议.md](CODEX_优化与开发建议.md)。
+> **2026-10-22 · Codex 场景细化更新**：在现有 V0.5.3 上增加分块石拱门楼、城外多层建筑与圆顶风塔、双色市集、货车陶器、叠水喷泉和羽状棕榈；补充实体碰撞、分区域合批及场景重建回归。此前的武器、特效与墙顶修复继续保留。具体改动、实机截图和后续建议见 [CODEX_优化与开发建议.md](CODEX_优化与开发建议.md)。
 
 > **V0.5.3**（美术补丁）· 基于 Three.js 的 3D 第一人称射击游戏
 > （v0.2 系列：连杀评级、局内强化与敌人成长、护甲道具、技能面板、五场景 BGM 体系、开发者模式全套；
@@ -296,6 +296,7 @@
 ├── server.js             可选本地服务器（Node 标准库）
 ├── js/game.js            游戏逻辑与场景接入（CFG 配置在顶部）
 ├── js/art.js             Codex 美术模块：材质、场景细节、浅弧模型、资源释放
+├── js/scene-detail.js    精细场景：门楼、聚落、市集、喷泉、陈设、分区域合批
 ├── js/combat-art.js      Codex 战斗美术：武器模型、枪口瞄准、弹道与特效池
 ├── lib/three.min.js      Three.js r159（本地化）
 ├── assets/
@@ -309,10 +310,13 @@
 │   └── gameover.mp3      战败界面 BGM（燃尽的小曲）
 ├── images/               实机截图
 └── tests/
-    ├── smoke-test.js     无头冒烟测试（node tests/smoke-test.js，158 项）
+    ├── smoke-test.js     无头冒烟测试（node tests/smoke-test.js，179 项）
     ├── e2e-test.js       HTTP 服务测试（node tests/e2e-test.js）
     ├── browser-art-test.cjs  真实浏览器 / WebGL / 离线启动回归
     ├── browser-combat-test.cjs  武器 / Boss 朝向 / 特效与战斗资源回归
+    ├── browser-wall-top-test.cjs  墙顶重叠与实际落脚高度回归
+    ├── browser-scene-detail-test.cjs  细化场景通行 / 碰撞 / 遮挡 / 资源回收
+    ├── scene-detail-results/  场景细化前后对比、近景截图与验证报告
     └── art-results/     美术截图与浏览器验证报告
 ```
 
@@ -328,11 +332,11 @@
 
 ```bash
 cd 蓝色肥鱼大作战
-node tests/smoke-test.js    # 158 项无头冒烟测试
+node tests/smoke-test.js    # 179 项无头冒烟测试
 node tests/e2e-test.js      # 服务器端到端测试
 ```
 
-真实浏览器验证需开发环境安装 Playwright；Windows 默认使用已安装的 Edge。先运行 `node server.js`，再执行 `node tests/browser-art-test.cjs` 和 `node tests/browser-combat-test.cjs`。可通过 `PLAYWRIGHT_MODULE` 指定已有 Playwright 模块位置。这些工具仅用于测试，游戏仍不需要安装依赖。两轮改动、截图和回退说明见 [CODEX_优化与开发建议.md](CODEX_优化与开发建议.md)。
+真实浏览器验证需开发环境安装 Playwright；Windows 默认使用已安装的 Edge。先运行 `node server.js`，再执行 `node tests/browser-art-test.cjs`、`node tests/browser-combat-test.cjs`、`node tests/browser-wall-top-test.cjs` 和 `node tests/browser-scene-detail-test.cjs`。可通过 `PLAYWRIGHT_MODULE` 指定已有 Playwright 模块位置。HTTP 服务测试会自行启动服务器，运行前须关闭开发服务器。这些工具仅用于测试，游戏仍不需要安装依赖。改动、截图和回退说明见 [CODEX_优化与开发建议.md](CODEX_优化与开发建议.md)。
 
 ## 📜 开发日志（摘要）
 

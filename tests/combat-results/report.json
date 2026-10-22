@@ -35,10 +35,10 @@
         "wallMeshes": 0,
         "enemies": 0,
         "trackedEnemies": 0,
-        "renderCalls": 184,
-        "triangles": 15534,
-        "geometries": 106,
-        "textures": 17
+        "renderCalls": 330,
+        "triangles": 154800,
+        "geometries": 110,
+        "textures": 22
       },
       "fx": {
         "active": 0,
@@ -56,10 +56,10 @@
         "wallMeshes": 0,
         "enemies": 0,
         "trackedEnemies": 0,
-        "renderCalls": 184,
-        "triangles": 15534,
-        "geometries": 106,
-        "textures": 17
+        "renderCalls": 330,
+        "triangles": 154800,
+        "geometries": 110,
+        "textures": 22
       },
       "fx": {
         "active": 0,
@@ -77,10 +77,10 @@
         "wallMeshes": 0,
         "enemies": 0,
         "trackedEnemies": 0,
-        "renderCalls": 184,
-        "triangles": 15534,
-        "geometries": 106,
-        "textures": 17
+        "renderCalls": 326,
+        "triangles": 154496,
+        "geometries": 110,
+        "textures": 22
       },
       "fx": {
         "active": 0,
@@ -98,10 +98,10 @@
         "wallMeshes": 0,
         "enemies": 0,
         "trackedEnemies": 0,
-        "renderCalls": 184,
-        "triangles": 15534,
-        "geometries": 106,
-        "textures": 17
+        "renderCalls": 326,
+        "triangles": 154496,
+        "geometries": 110,
+        "textures": 22
       },
       "fx": {
         "active": 0,

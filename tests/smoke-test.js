@@ -114,6 +114,7 @@ const THREE = require(path.join(GAME_DIR, 'lib', 'three.min.js'));
 globalThis.THREE = THREE;
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'assets', 'fish-texture.js'), 'utf8'));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'art.js'), 'utf8'));
+(0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'scene-detail.js'), 'utf8'));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'combat-art.js'), 'utf8'));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'game.js'), 'utf8'));
 const dbg = window.FishGame.__debug;

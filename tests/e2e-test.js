@@ -31,15 +31,15 @@ async function main() {
     if (!cond) failed++;
   };
 
-  // 1) 并发 10 请求（浏览器多连接资源加载，包含两个美术模块）
+  // 1) 并发资源请求（浏览器多连接加载，包含场景与战斗美术模块）
   const t0 = Date.now();
   const urls = ['/index.html', '/lib/three.min.js', '/assets/fish-texture.js', '/js/game.js',
-                '/favicon.ico', '/index.html', '/js/game.js', '/lib/three.min.js', '/js/art.js', '/js/combat-art.js'];
+                '/favicon.ico', '/index.html', '/js/game.js', '/lib/three.min.js', '/js/art.js', '/js/combat-art.js', '/js/scene-detail.js'];
   const rs = await Promise.all(urls.map(u => get('http://127.0.0.1:8123' + u).then(r => r.status)));
   // favicon.ico 无对应文件，预期 404；其余资源必须全部 200
   check('并发资源全部200（favicon 404 属预期）',
     rs[0] === 200 && rs[1] === 200 && rs[2] === 200 && rs[3] === 200 &&
-    rs[4] === 404 && rs[5] === 200 && rs[6] === 200 && rs[7] === 200 && rs[8] === 200 && rs[9] === 200,
+    rs[4] === 404 && rs[5] === 200 && rs[6] === 200 && rs[7] === 200 && rs[8] === 200 && rs[9] === 200 && rs[10] === 200,
     rs.join(',') + ' | ' + (Date.now() - t0) + 'ms');
 
   // 2) 预连接空连接不影响服务器正常运行（部分安全软件会给回环流量加延迟，属环境现象）
