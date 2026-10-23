@@ -1777,6 +1777,40 @@ function buildPlayer() {
   syncCamera();
 }
 
+// ---------------------------------------------------------------- 散布与后坐力（FPS 手感）
+// spreadBloom: 0 = 首发精准，1 = 连射到最散；开火累加、停火衰减
+var spreadBloom = 0;
+var recoilSeq = 0;
+// 固定水平后坐力序列（左/右交替），比纯随机更可练、更可预测
+var RECOIL_PATTERN = [0.45, -0.52, 0.62, -0.38, 0.5, -0.6, 0.4, -0.45];
+var RECOIL_PITCH = 0.011;      // 每发抬枪幅度
+var RECOIL_YAW = 0.0075;       // 每发水平偏转幅度
+var BLOOM_PER_SHOT = 0.17;     // 每发增加的扩散
+var BLOOM_DECAY = 2.4;         // 每秒衰减
+
+/** 当前有效散布（基础散布 × 连射扩散） */
+function spreadNow() {
+  var w = weaponDef();
+  var base = (w && w.spread) ? w.spread : 0;
+  return base * (1 + spreadBloom * 2.6);
+}
+
+/** 准星随扩散张开（只在数值变化时写 DOM） */
+var lastCrossGap = -1;
+function updateCrosshairBloom() {
+  var gap = Math.round(spreadBloom * 14);
+  if (gap === lastCrossGap) return;
+  lastCrossGap = gap;
+  var ch = document.getElementById('crosshair');
+  if (!ch || typeof ch.querySelector !== 'function') return;
+  var up = ch.querySelector('.up'), down = ch.querySelector('.down');
+  var left = ch.querySelector('.left'), right = ch.querySelector('.right');
+  if (up) up.style.top = (-19 - gap) + 'px';
+  if (down) down.style.top = (8 + gap) + 'px';
+  if (left) left.style.left = (-19 - gap) + 'px';
+  if (right) right.style.left = (8 + gap) + 'px';
+}
+
 // ---------------------------------------------------------------- 蹲下（FPS 基础动作）
 // crouchT: 0 = 站立，1 = 完全蹲下；用指数插值平滑过渡
 var crouchT = 0;
@@ -4580,12 +4614,20 @@ function shootOnce() {
 
   camera.getWorldPosition(_rayOrigin);
   camera.getWorldDirection(_rayDir);
-  // 突击步枪：轻微散布（方向加随机偏移后再归一化）
-  if (wdef.spread > 0) {
-    _rayDir.x += rand(-1, 1) * wdef.spread;
-    _rayDir.y += rand(-1, 1) * wdef.spread;
-    _rayDir.z += rand(-1, 1) * wdef.spread * 0.5;
+  // 散布：首发精准，连射逐渐扩散（FPS 标准 bloom）；蹲下显著收敛
+  var sp = spreadNow() * (1 - 0.55 * crouchT);
+  if (sp > 0) {
+    _rayDir.x += rand(-1, 1) * sp;
+    _rayDir.y += rand(-1, 1) * sp;
+    _rayDir.z += rand(-1, 1) * sp * 0.5;
     _rayDir.normalize();
+  }
+  // 后坐力：抬枪 + 固定水平序列（可练的弹道，而不是纯随机）
+  if (gameMode === 'pvp') {
+    player.pitch = Math.min(1.35, player.pitch + RECOIL_PITCH * (1 + spreadBloom * 0.8) * (1 - 0.3 * crouchT));
+    player.yaw += RECOIL_PATTERN[recoilSeq % RECOIL_PATTERN.length] * RECOIL_YAW * (1 - 0.35 * crouchT);
+    recoilSeq++;
+    spreadBloom = Math.min(1, spreadBloom + BLOOM_PER_SHOT);
   }
   _raycaster.set(_rayOrigin, _rayDir);
   _raycaster.far = CFG.shootRange;
@@ -4798,7 +4840,9 @@ function showHitmarker(isKill) {
 
 /** 队友昵称池（联机版会换成真实玩家名） */
 var PVP_TEAM_NAMES = ['蓝莓', '小鲸', '阿肥', '海盐', '浪花', '小鱼干', '珊瑚', '泡泡'];
+var PVP_ENEMY_NAMES = ['赤潮', '暗流', '深海', '漩涡', '礁石', '寒潮', '逆浪', '沉船'];
 var pvpNameCursor = 0;
+var pvpEnemyCursor = 0;
 var pvpSkinCursor = 0;
 
 /**
@@ -4843,8 +4887,9 @@ function makeTeamTag(text) {
 /** 给红队 AI 队友挂名牌 */
 function attachTeamTag(e) {
   if (e.teamTag) return;
-  var name = PVP_TEAM_NAMES[pvpNameCursor % PVP_TEAM_NAMES.length] + (pvpNameCursor >= PVP_TEAM_NAMES.length ? String(pvpNameCursor) : '');
-  pvpNameCursor++;
+  var pool = (e.team === 'blue') ? PVP_ENEMY_NAMES : PVP_TEAM_NAMES;
+  var cur = (e.team === 'blue') ? pvpEnemyCursor++ : pvpNameCursor++;
+  var name = pool[cur % pool.length] + (cur >= pool.length ? String(cur) : '');
   e.pvpName = name;
   var tag = makeTeamTag(name);
   if (tag) {
@@ -4868,6 +4913,7 @@ function pvpSpawnBot(team) {
     pvpPrimary: 'rifle', pvpSidearm: side, pvpWeapon: 'rifle',
     mesh: new THREE.Mesh(FishArt.fishGeometry(CFG.fishSize), makeFishMaterial(pvpSkinTex(skin.id))),
     hp: PVP_BOT_HP, maxHp: PVP_BOT_HP,
+    kills: 0, deaths: 0,
     baseY: CFG.fishBaseY, phase: rand(0, Math.PI * 2),
     // 行为树状态：patrol → alert → engage → search
     aiState: 'patrol', aiTimer: 0, target: null, lastKnown: null,
@@ -4885,7 +4931,14 @@ function pvpSpawnBot(team) {
   e.groundShadow = FishArt.shadow(CFG.fishSize);
   scene.add(e.groundShadow);
   scene.add(e.mesh);
-  if (team === 'red') attachTeamTag(e);   // 队友头顶悬浮 ID（敌人不显示）
+  if (team === 'red') {
+    attachTeamTag(e);                     // 队友头顶悬浮 ID
+  } else {
+    // 敌人不挂 3D 名牌（方便区分敌友），但计分板需要名字
+    var ec = pvpEnemyCursor++;
+    e.pvpName = PVP_ENEMY_NAMES[ec % PVP_ENEMY_NAMES.length] +
+      (ec >= PVP_ENEMY_NAMES.length ? String(ec) : '');
+  }
   enemies.push(e);
   return e;
 }
@@ -4969,11 +5022,19 @@ function pvpKillBotEntity(e, killerIsPlayer) {
   e.alive = false;
   e.dyingT = 0.28;
   e.respawnTimer = 0;
+  e.deaths = (e.deaths || 0) + 1;
   if (e.groundShadow) e.groundShadow.visible = false;
   if (killerIsPlayer) {
     PVP.myKills = (PVP.myKills || 0) + 1;
     showHitmarker(true);            // 击杀确认（红色击杀标记）
   }
+  refreshScoreboard();
+}
+
+/** AI 击杀归属（对打时记到击杀者名下） */
+function pvpCreditKill(killer) {
+  if (killer) killer.kills = (killer.kills || 0) + 1;
+  refreshScoreboard();
 }
 
 /** 刷新顶部回合比分条 */
@@ -4999,6 +5060,9 @@ function pvpStartRound() {
   PVP.prepareT = PVP_PREPARE;
   pvpClearBots();
   pvpSkinCursor = 0;          // 每回合重新轮换皮肤
+  pvpEnemyCursor = 0;
+  spreadBloom = 0; recoilSeq = 0; lastCrossGap = -1;
+  updateCrosshairBloom();
   player.hp = CFG.maxHp;
   armorStacks = 0;
   player.pos.set(0, 0, 18);
@@ -5078,7 +5142,9 @@ function pvpBotShoot(e, targetPos, wdef) {
   if (hitPlayer) {
     damagePlayer(dmgNow, { name: 'AI 玩家', atk: wdef.name });
   } else if (hitBot) {
+    var wasAlive = hitBot.alive;
     pvpDamageBot(hitBot, dmgNow);
+    if (wasAlive && !hitBot.alive) pvpCreditKill(e);   // AI 互杀记账
   }
 }
 
@@ -5221,6 +5287,44 @@ function pvpHitDamage(e, dist, hitPoint) {
   return { damage: base * falloff * (isHead ? PVP_HEADSHOT_MUL : 1), isHead: isHead };
 }
 
+/** 计分板渲染（按住 Tab 显示） */
+function refreshScoreboard() {
+  if (gameMode !== 'pvp') return;
+  var sb = document.getElementById('scoreboard');
+  if (!sb) return;
+  var rd = document.getElementById('sb-round');
+  var rs = document.getElementById('sb-red-score');
+  var bs = document.getElementById('sb-blue-score');
+  if (rd) rd.textContent = String(PVP.roundNum);
+  if (rs) rs.textContent = String(PVP.myRounds);
+  if (bs) bs.textContent = String(PVP.botRounds);
+  function rowsFor(team, hostId, includePlayer) {
+    var host = document.getElementById(hostId);
+    if (!host) return;
+    var html = '';
+    if (includePlayer) {
+      html += '<div class="sb-row"><span>你</span><span>' + (PVP.myKills || 0) + ' / ' + (PVP.myDeaths || 0) + '</span></div>';
+    }
+    for (var i = 0; i < enemies.length; i++) {
+      var e = enemies[i];
+      if (!e || !e.isBot || e.team !== team) continue;
+      html += '<div class="sb-row' + (e.alive ? '' : ' dead') + '"><span>' + (e.pvpName || 'AI') +
+        '</span><span>' + (e.kills || 0) + ' / ' + (e.deaths || 0) + '</span></div>';
+    }
+    host.innerHTML = html;
+  }
+  rowsFor('red', 'sb-red-rows', true);
+  rowsFor('blue', 'sb-blue-rows', false);
+}
+
+/** 显示/隐藏计分板 */
+function setScoreboardVisible(v) {
+  var sb = document.getElementById('scoreboard');
+  if (!sb) return;
+  if (v) { refreshScoreboard(); sb.classList.remove('hidden'); }
+  else sb.classList.add('hidden');
+}
+
 /** 玩家击杀 AI（由 killFish 分流进入） */
 function pvpOnBotKilled(e) {
   if (!PVP.active || PVP.roundState !== 'live') return;
@@ -5261,6 +5365,7 @@ function pvpEnd(win) {
   if (recEl) { recEl.classList.add('hidden'); recEl.style.display = 'none'; }
   var pscEl = document.getElementById('pvp-score');
   if (pscEl) pscEl.classList.remove('show');
+  setScoreboardVisible(false);
   try { showOverlay('gameover'); } catch (e) { /* 极端 DOM 环境下静默 */ }
 }
 
@@ -5918,6 +6023,12 @@ function onKeyDown(ev) {
   if (state === 'cheat') { closeCheatCaught(); return; }   // 作弊被抓：任意键回主菜单
   if (handleKillCheat(ev.code)) return;   // 开发者模式 KILL 自毁序列（消费按键）
   handleDebugCheat(ev.code);          // 开发者模式秘技检测（任意状态下）
+  // Tab：按住查看计分板（歼灭战）
+  if (ev.code === 'Tab' && gameMode === 'pvp') {
+    ev.preventDefault();
+    if (state === 'playing') setScoreboardVisible(true);
+    return;
+  }
   if (ev.code === 'KeyR' && state === 'playing') { requestReload(); }
   if (ev.code === 'KeyG' && state === 'playing') { throwGrenade(); }
   // 武器切换：数字键 1 / 2（小键盘 1/2 在开发者模式下留给刷怪快捷键）
@@ -5994,7 +6105,10 @@ function onKeyDown(ev) {
     }
   }
 }
-function onKeyUp(ev) { keys[ev.code] = false; }
+function onKeyUp(ev) {
+  keys[ev.code] = false;
+  if (ev.code === 'Tab') setScoreboardVisible(false);   // 松开 Tab 收起计分板
+}
 
 // ---------------------------------------------------------------- 触屏控制（手机/平板）
 function initTouchControls() {
@@ -6238,6 +6352,13 @@ function updatePlayer(dt) {
   } else {
     player.onGround = false;
   }
+
+  // 散布衰减与后坐序列复位
+  if (spreadBloom > 0) {
+    spreadBloom = Math.max(0, spreadBloom - dt * BLOOM_DECAY);
+    if (spreadBloom <= 0) recoilSeq = 0;
+  }
+  updateCrosshairBloom();
 
   updateCamFx(dt);
   syncCamera();
@@ -6748,6 +6869,8 @@ window.FishGame = {
         lightZ: gun.light ? +gun.light.position.z.toFixed(3) : null,
       };
     },
+    getBloom: function () { return { bloom: +spreadBloom.toFixed(3), spread: +spreadNow().toFixed(5), recoilSeq: recoilSeq }; },
+    testShoot: function (n) { for (var i = 0; i < (n || 1); i++) shootOnce(); return spreadBloom; },
     getCrouch: function () { return { t: +crouchT.toFixed(3), eye: +eyeHeightNow().toFixed(3), base: CFG.eyeHeight }; },
     setCrouch: function (v) { crouchT = Math.max(0, Math.min(1, v)); syncCamera(); },
     pvpHitTest: function (dist, atHead) {

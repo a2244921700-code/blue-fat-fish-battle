@@ -374,6 +374,29 @@ window.addEventListener('load', function () {
     background-image: linear-gradient(140deg, #ebfdff 0%, #83e0ff 20%, #5d8bff 42%, #b285ff 64%, #6ec6ff 82%, #4d7dff 100%); }
   #combo-pop.rank-6 {
     background-image: linear-gradient(130deg, #f4feff 0%, #9fe9ff 16%, #57a7ff 34%, #4d6bff 50%, #c08aff 66%, #6ee0ff 82%, #3f8cff 100%); }
+  /* ---------- 计分板（按住 Tab） ---------- */
+  #scoreboard {
+    position: fixed; left: 50%; top: 16%; transform: translateX(-50%);
+    z-index: 22; min-width: 520px; padding: 14px 18px;
+    background: rgba(6, 18, 32, .88); border: 1px solid rgba(120, 200, 255, .35);
+    border-radius: 12px; color: #e8f6ff; pointer-events: none;
+    box-shadow: 0 10px 40px rgba(0,0,0,.5);
+  }
+  #scoreboard.hidden { display: none; }
+  #scoreboard .sb-title { text-align: center; font-size: 14px; letter-spacing: 3px; color: #9fd6ff; margin-bottom: 10px; }
+  #scoreboard .sb-cols { display: flex; gap: 18px; }
+  #scoreboard .sb-team { flex: 1; }
+  #scoreboard .sb-head {
+    font-size: 15px; font-weight: 800; padding: 5px 10px; border-radius: 7px; margin-bottom: 6px;
+    display: flex; justify-content: space-between;
+  }
+  #scoreboard .sb-team.red .sb-head { background: rgba(60, 150, 220, .28); color: #bfe9ff; }
+  #scoreboard .sb-team.blue .sb-head { background: rgba(200, 70, 80, .28); color: #ffc6c6; }
+  #scoreboard .sb-rows { font-size: 13px; line-height: 1.75; }
+  #scoreboard .sb-row { display: flex; justify-content: space-between; padding: 0 8px; }
+  #scoreboard .sb-row.dead { opacity: .42; }
+  #scoreboard .sb-tip { text-align: center; font-size: 11px; color: #6f93ad; margin-top: 10px; }
+
   /* ---------- 命中标记（hitmarker） ---------- */
   #hitmarker {
     position: fixed; left: 50%; top: 50%; width: 28px; height: 28px;
@@ -694,6 +717,20 @@ window.addEventListener('load', function () {
     <div id="reload-bar"><div id="reload-fill"></div></div>
   </div>
   <div id="hitmarker"></div>
+  <div id="scoreboard" class="hidden">
+    <div class="sb-title">歼灭战 · 第 <span id="sb-round">1</span> 回合</div>
+    <div class="sb-cols">
+      <div class="sb-team red">
+        <div class="sb-head">红队 <span id="sb-red-score">0</span></div>
+        <div class="sb-rows" id="sb-red-rows"></div>
+      </div>
+      <div class="sb-team blue">
+        <div class="sb-head">蓝队 <span id="sb-blue-score">0</span></div>
+        <div class="sb-rows" id="sb-blue-rows"></div>
+      </div>
+    </div>
+    <div class="sb-tip">按住 Tab 查看</div>
+  </div>
   <div id="pvp-score">
     <span class="ps-round">第 1 回合</span>
     <span class="ps-mine">红队 0</span>
