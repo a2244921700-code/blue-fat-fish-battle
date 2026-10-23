@@ -5027,13 +5027,17 @@ function pvpKillBotEntity(e, killerIsPlayer) {
   if (killerIsPlayer) {
     PVP.myKills = (PVP.myKills || 0) + 1;
     showHitmarker(true);            // 击杀确认（红色击杀标记）
+    pushKillFeed('你', e.pvpName || 'AI');
   }
   refreshScoreboard();
 }
 
 /** AI 击杀归属（对打时记到击杀者名下） */
-function pvpCreditKill(killer) {
-  if (killer) killer.kills = (killer.kills || 0) + 1;
+function pvpCreditKill(killer, victim) {
+  if (killer) {
+    killer.kills = (killer.kills || 0) + 1;
+    pushKillFeed(killer.pvpName || 'AI', (victim && victim.pvpName) || 'AI');
+  }
   refreshScoreboard();
 }
 
@@ -5144,7 +5148,7 @@ function pvpBotShoot(e, targetPos, wdef) {
   } else if (hitBot) {
     var wasAlive = hitBot.alive;
     pvpDamageBot(hitBot, dmgNow);
-    if (wasAlive && !hitBot.alive) pvpCreditKill(e);   // AI 互杀记账
+    if (wasAlive && !hitBot.alive) pvpCreditKill(e, hitBot);   // AI 互杀记账
   }
 }
 
@@ -5287,6 +5291,22 @@ function pvpHitDamage(e, dist, hitPoint) {
   return { damage: base * falloff * (isHead ? PVP_HEADSHOT_MUL : 1), isHead: isHead };
 }
 
+/** 击杀信息流：右下角滚动显示「击杀者 → 被击杀者」 */
+function pushKillFeed(killerName, victimName) {
+  var host = document.getElementById('killfeed');
+  if (!host || typeof host.appendChild !== 'function') return;
+  var row = document.createElement('div');
+  row.className = 'kf-row';
+  row.innerHTML = '<span class="kf-k">' + killerName + '</span>' +
+    '<span class="kf-arrow">→</span>' +
+    '<span class="kf-v">' + victimName + '</span>';
+  host.appendChild(row);
+  setTimeout(function () {
+    if (row.parentNode) row.parentNode.removeChild(row);
+  }, 3400);
+  while (host.children.length > 5) host.removeChild(host.firstChild);
+}
+
 /** 计分板渲染（按住 Tab 显示） */
 function refreshScoreboard() {
   if (gameMode !== 'pvp') return;
@@ -5338,6 +5358,7 @@ function pvpPlayerDied() {
   if (!PVP.active || PVP.roundState !== 'live') return;
   PVP.myDeaths = (PVP.myDeaths || 0) + 1;
   player.hp = 0;
+  pushKillFeed('蓝队', '你');
   updateHUD();
   pvpEndRound(false);
 }
@@ -6720,7 +6741,16 @@ function init() {
     if (lockMode === 'fallback') { state = 'playing'; hideAllOverlays(); return; }
     requestLockWithFallback();
   });
-  if (btnRestart) btnRestart.addEventListener('click', function () { restartGame(); });
+  if (btnRestart) btnRestart.addEventListener('click', function () {
+    // 歼灭战结束后「再来一局」应回到歼灭战选人页，而不是掉回无尽模式
+    var wasPvp = (gameMode === 'pvp') || PVP.over;
+    restartGame(true);                 // 先完整重置世界，回到主菜单态
+    if (wasPvp) {
+      PVP.over = false;
+      showLevelSelect();               // 进入模式选择
+      showPvpSelect();                 // 直接落到歼灭战选人页
+    }
+  });
   var btnVictoryRestart = document.getElementById('btn-victory-restart');
   if (btnVictoryRestart) btnVictoryRestart.addEventListener('click', function () {
     if (debugMode) { triggerCheatCaught(); return; }    // 开发者模式通关回主菜单 → 抓到你作弊咯！
@@ -6900,7 +6930,8 @@ window.FishGame = {
     },
     pvpKillBot: function () {
       if (PVP.roundState !== 'live') return false;      // 准备/结算阶段不计击杀
-      var bot = enemies.filter(function (e) { return e.isBot && e.alive; })[0];
+      // 只打敌方（蓝队），与玩家实际射击逻辑保持一致
+      var bot = enemies.filter(function (e) { return e.isBot && e.alive && e.team === 'blue'; })[0];
       if (!bot) return false;
       bot.hp = 0;
       killFish(bot, bot.mesh.position.clone());

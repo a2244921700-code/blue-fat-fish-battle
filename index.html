@@ -374,6 +374,22 @@ window.addEventListener('load', function () {
     background-image: linear-gradient(140deg, #ebfdff 0%, #83e0ff 20%, #5d8bff 42%, #b285ff 64%, #6ec6ff 82%, #4d7dff 100%); }
   #combo-pop.rank-6 {
     background-image: linear-gradient(130deg, #f4feff 0%, #9fe9ff 16%, #57a7ff 34%, #4d6bff 50%, #c08aff 66%, #6ee0ff 82%, #3f8cff 100%); }
+  /* ---------- 击杀信息流（右下角） ---------- */
+  #killfeed {
+    position: fixed; right: 14px; bottom: 120px; z-index: 14;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
+    pointer-events: none;
+  }
+  #killfeed .kf-row {
+    padding: 4px 10px; border-radius: 7px; font-size: 13px; font-weight: 700;
+    background: rgba(8, 20, 36, .78); border: 1px solid rgba(120, 200, 255, .25);
+    color: #dff2ff; animation: kfIn .18s ease-out;
+  }
+  #killfeed .kf-row .kf-k { color: #7fe0a8; }
+  #killfeed .kf-row .kf-v { color: #ff9a9a; }
+  #killfeed .kf-row .kf-arrow { color: #7fa8c4; margin: 0 6px; font-weight: 600; }
+  @keyframes kfIn { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+
   /* ---------- 计分板（按住 Tab） ---------- */
   #scoreboard {
     position: fixed; left: 50%; top: 16%; transform: translateX(-50%);
@@ -717,6 +733,7 @@ window.addEventListener('load', function () {
     <div id="reload-bar"><div id="reload-fill"></div></div>
   </div>
   <div id="hitmarker"></div>
+  <div id="killfeed"></div>
   <div id="scoreboard" class="hidden">
     <div class="sb-title">歼灭战 · 第 <span id="sb-round">1</span> 回合</div>
     <div class="sb-cols">
