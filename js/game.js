@@ -6715,10 +6715,26 @@ function init() {
   window.addEventListener('auxclick', function (ev) {
     if (ev.button !== 0) { ev.preventDefault(); ev.stopPropagation(); }
   }, true);
-  // 1d) 右键 pointerup 阻止（pointerdown 必须放行，否则游戏右键重击会失效）
+  // 1d) 右键 pointerup 阻止
   window.addEventListener('pointerup', function (ev) {
     if (ev.button === 2) { ev.preventDefault(); }
   }, true);
+  // 1e) 关键：Edge/Chrome 的「鼠标手势」是浏览器在 pointerdown + 拖动时自行识别的，
+  //     只有 contextmenu 的 preventDefault 拦不住。这里在捕获阶段对右键 pointerdown
+  //     调用 preventDefault —— 它只阻止浏览器默认行为，不会影响游戏自己的 mousedown 监听，
+  //     所以右键重击依然有效。
+  window.addEventListener('pointerdown', function (ev) {
+    if (ev.button === 2) { ev.preventDefault(); }
+  }, true);
+  // 1f) mousedown 同级别兜底（部分 Chromium 版本手势识别走 mousedown 路径）
+  window.addEventListener('mousedown', function (ev) {
+    if (ev.button === 2) { ev.preventDefault(); }
+  }, true);
+  // 1g) 禁掉指针手势与拖拽选区，避免浏览器把右键拖动当成手势输入
+  if (document.body) {
+    document.body.style.setProperty('touch-action', 'none');
+    document.body.style.setProperty('-ms-touch-action', 'none');
+  }
   // 2) 屏蔽鼠标侧键（浏览器前进/后退）
   document.addEventListener('mousedown', function (ev) {
     if (ev.button === 3 || ev.button === 4) ev.preventDefault();
