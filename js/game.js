@@ -1777,6 +1777,17 @@ function buildPlayer() {
   syncCamera();
 }
 
+// ---------------------------------------------------------------- 蹲下（FPS 基础动作）
+// crouchT: 0 = 站立，1 = 完全蹲下；用指数插值平滑过渡
+var crouchT = 0;
+var CROUCH_EYE_MUL = 0.38;     // 蹲下时视高降低 38%（1.7m -> 约 1.05m）
+var CROUCH_SPEED_MUL = 0.5;    // 蹲下移速减半
+
+/** 当前视高（蹲下会降低，跳跃/落地判定与相机共用） */
+function eyeHeightNow() {
+  return CFG.eyeHeight * (1 - CROUCH_EYE_MUL * crouchT);
+}
+
 function syncCamera() {
   var offX = 0, offY = 0, roll = 0, pitchOff = 0;
 
@@ -1820,7 +1831,7 @@ function syncCamera() {
     roll += Math.sin(camFx.landT * 24) * camFx.land * 0.03;
   }
 
-  camera.position.set(player.pos.x + offX, player.pos.y + CFG.eyeHeight + offY, player.pos.z);
+  camera.position.set(player.pos.x + offX, player.pos.y + eyeHeightNow() + offY, player.pos.z);
   camera.rotation.set(player.pitch + pitchOff, player.yaw, roll);
 }
 
@@ -4654,6 +4665,15 @@ function shootOnce() {
       return;
     }
     var rollF = rollGunDamage();                    // 小怪扣血（含暴击判定）
+    if (gameMode === 'pvp' && best.isBot) {
+      // 歼灭战：用 CS 口径的伤害（基础 × 距离衰减 × 爆头倍率），不吃无尽模式的升级与暴击
+      var pvpHit = pvpHitDamage(best, bestT, _hitPoint);
+      rollF = { damage: pvpHit.damage, isCrit: pvpHit.isHead };
+      if (pvpHit.isHead) {
+        spawnBurst(_hitPoint, 0xff8a4a, 16, 4.6);
+        showCritFeed(Math.round(pvpHit.damage));
+      }
+    }
     best.hp = (best.hp || 1) - rollF.damage;
     if (rollF.isCrit) {
       spawnBurst(_hitPoint, 0xffe066, 12, 4.0);     // 暴击金色火花
@@ -4665,6 +4685,7 @@ function shootOnce() {
     Sfx.hitFish();
     spawnBurst(_hitPoint, 0x9fd8ff, best.hp > 0 ? 6 : 12, best.hp > 0 ? 2.2 : 3.5);
     flashCrosshair();
+    if (gameMode === 'pvp' && best.hp > 0) showHitmarker(false);   // 普通命中：白色小叉
     if (best.hp <= 0) killFish(best, _hitPoint);
 
     // 穿甲弹：沿射线继续伤害主目标之后的敌人（每级 +1 个）
@@ -4778,6 +4799,7 @@ function showHitmarker(isKill) {
 /** 队友昵称池（联机版会换成真实玩家名） */
 var PVP_TEAM_NAMES = ['蓝莓', '小鲸', '阿肥', '海盐', '浪花', '小鱼干', '珊瑚', '泡泡'];
 var pvpNameCursor = 0;
+var pvpSkinCursor = 0;
 
 /**
  * 生成一个头顶名牌 Sprite。
@@ -4834,7 +4856,9 @@ function attachTeamTag(e) {
 /** 生成一个 AI 玩家。team: 'red' = 玩家队友，'blue' = 敌方 */
 function pvpSpawnBot(team) {
   team = team || 'blue';
-  var skin = PVP_SKIN_LIST[Math.floor(Math.random() * PVP_SKIN_LIST.length)];
+  // 皮肤轮换而不是纯随机：避免同一队全是同一形象（随机时 1/27 概率会撞）
+  var skin = PVP_SKIN_LIST[pvpSkinCursor % PVP_SKIN_LIST.length];
+  pvpSkinCursor++;
   // 副武器随机（主武器固定步枪，符合 FPS「主+副」携带习惯）
   var side = Math.random() < 0.5 ? 'pistol' : 'fishpistol';
   var pos = pvpSpawnPos(team === 'red');
@@ -4974,6 +4998,7 @@ function pvpStartRound() {
   PVP.roundState = 'prepare';
   PVP.prepareT = PVP_PREPARE;
   pvpClearBots();
+  pvpSkinCursor = 0;          // 每回合重新轮换皮肤
   player.hp = CFG.maxHp;
   armorStacks = 0;
   player.pos.set(0, 0, 18);
@@ -4987,7 +5012,8 @@ function pvpStartRound() {
   for (var b = 0; b < PVP.teamSize; b++) pvpSpawnBot('blue');
   updatePvpScore();
   showDialog('第 ' + PVP.roundNum + ' 回合',
-    '红队 ' + PVP.teamSize + ' vs 蓝队 ' + PVP.teamSize + '　淘汰对方全员即赢下本回合', 2200);
+    '红队 ' + PVP.teamSize + ' vs 蓝队 ' + PVP.teamSize +
+    '　淘汰对方全员即赢下本回合（Ctrl 蹲下 · 1/2 主副武器）', 2400);
 }
 
 function pvpBeginLive() {
@@ -5046,10 +5072,13 @@ function pvpBotShoot(e, targetPos, wdef) {
     combatFx.tracer(muzzle, end, e.team === 'red' ? 0x9fe4ff : 0xffc0c0, 0.012);
   }
   if (hitDist > wallDist) return;            // 被墙挡住
+  // 与玩家同口径的距离衰减（AI 不判爆头，玩家没有可命中的头部区域）
+  var ft = clamp((hitDist - PVP_FALLOFF_NEAR) / (PVP_FALLOFF_FAR - PVP_FALLOFF_NEAR), 0, 1);
+  var dmgNow = wdef.damage * (1 - (1 - PVP_FALLOFF_MIN) * ft);
   if (hitPlayer) {
-    damagePlayer(wdef.damage, { name: 'AI 玩家', atk: wdef.name });
+    damagePlayer(dmgNow, { name: 'AI 玩家', atk: wdef.name });
   } else if (hitBot) {
-    pvpDamageBot(hitBot, wdef.damage);
+    pvpDamageBot(hitBot, dmgNow);
   }
 }
 
@@ -5169,6 +5198,27 @@ function updatePvpBots(dt) {
   if (pvpAliveBots('blue') === 0) { pvpEndRound(true); return; }
   if (player.hp <= 0) { pvpEndRound(false); return; }
   if (pvpAliveBots('red') === 0 && player.hp <= 0) pvpEndRound(false);
+}
+
+// 爆头倍率：技能文档建议 1.5~2×；CS 用 4×，但我们 100 血 + 36 伤害的 TTK 已经 3 枪，
+// 取 2× 让「两枪爆头」成为可练的技巧，而不是一枪秒。
+var PVP_HEADSHOT_MUL = 2.0;
+var PVP_FALLOFF_NEAR = 20;   // 20 米内全额伤害
+var PVP_FALLOFF_FAR = 60;    // 60 米外只剩 50%
+var PVP_FALLOFF_MIN = 0.5;
+
+/**
+ * 歼灭战伤害结算：基础伤害 × 距离衰减 × 爆头倍率。
+ * 爆头判定 = 命中点在敌人立绘顶部 22% 区域内。
+ */
+function pvpHitDamage(e, dist, hitPoint) {
+  var w = weaponDef();
+  var base = (w && w.damage) ? w.damage : 30;
+  var t = clamp((dist - PVP_FALLOFF_NEAR) / (PVP_FALLOFF_FAR - PVP_FALLOFF_NEAR), 0, 1);
+  var falloff = 1 - (1 - PVP_FALLOFF_MIN) * t;
+  var topY = e.mesh.position.y + CFG.fishSize * 0.5;
+  var isHead = hitPoint.y >= (topY - CFG.fishSize * 0.22);
+  return { damage: base * falloff * (isHead ? PVP_HEADSHOT_MUL : 1), isHead: isHead };
 }
 
 /** 玩家击杀 AI（由 killFish 分流进入） */
@@ -6136,6 +6186,12 @@ function updatePlayer(dt) {
   var sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
   var mx = -sin * f + cos * s;
   var mz = -cos * f - sin * s;
+  // 蹲下：按住 Ctrl（或 C）平滑压低头部，移速减半
+  var wantCrouch = !!(keys.ControlLeft || keys.ControlRight || keys.KeyC);
+  var crouchTarget = wantCrouch ? 1 : 0;
+  crouchT += (crouchTarget - crouchT) * Math.min(1, dt * 12);
+  if (Math.abs(crouchT - crouchTarget) < 0.002) crouchT = crouchTarget;
+
   var len = Math.sqrt(mx * mx + mz * mz);
   var moving = len > 0.01;
   if (moving) {
@@ -6143,6 +6199,7 @@ function updatePlayer(dt) {
     // 移速：基础 ×（技能 + 连杀加成）；步枪大扩容弹夹在基础移速上扣 5%，弹鼓在最终移速上再扣 10%
     var wpen = weaponSpeedPenalty();
     var spdNow = CFG.walkSpeed * wpen.base * (1 + upgrades.speed * CFG.upgradeSpeedPerLevel + comboBonus().speed) * wpen.final;
+    spdNow *= (1 - CROUCH_SPEED_MUL * crouchT);   // 蹲下移速减半
     movePlayer(mx * spdNow * dt, mz * spdNow * dt);
     stepTimer += spdNow * dt;
     if (stepTimer > 2.6) { stepTimer = 0; Sfx.step(); }
@@ -6189,7 +6246,7 @@ function updatePlayer(dt) {
 // 3D 碰撞：仅当玩家身体垂直范围与障碍物重叠时才水平阻挡
 // （跳起可越过矮箱；顶棚等高架物下方可通行；角色可站上障碍物顶面）
 function playerBlocked(o, px, pz) {
-  var feet = player.pos.y, head = feet + CFG.eyeHeight;
+  var feet = player.pos.y, head = feet + eyeHeightNow();
   if (head <= o.min.y || feet >= o.max.y - 0.001) return false;
   var r = CFG.playerRadius;
   return px > o.min.x - r && px < o.max.x + r && pz > o.min.z - r && pz < o.max.z + r;
@@ -6690,6 +6747,16 @@ window.FishGame = {
         flashZ: +gun.flashMesh.position.z.toFixed(3),
         lightZ: gun.light ? +gun.light.position.z.toFixed(3) : null,
       };
+    },
+    getCrouch: function () { return { t: +crouchT.toFixed(3), eye: +eyeHeightNow().toFixed(3), base: CFG.eyeHeight }; },
+    setCrouch: function (v) { crouchT = Math.max(0, Math.min(1, v)); syncCamera(); },
+    pvpHitTest: function (dist, atHead) {
+      var bot = enemies.filter(function (e) { return e.isBot && e.alive; })[0];
+      if (!bot) return null;
+      var topY = bot.mesh.position.y + CFG.fishSize * 0.5;
+      var hp = new THREE.Vector3(bot.mesh.position.x, atHead ? topY - 0.05 : bot.mesh.position.y, bot.mesh.position.z);
+      var r = pvpHitDamage(bot, dist, hp);
+      return { damage: +r.damage.toFixed(2), isHead: r.isHead };
     },
     getPvp: function () {
       return {
