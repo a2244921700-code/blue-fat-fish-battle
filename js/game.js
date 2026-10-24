@@ -5603,18 +5603,19 @@ function startFromRoom() {
   if (!room) return;
   var slots = roomSlots(room);
   var redBots = slots.red.filter(function (s) { return s.kind === 'bot'; }).length;
-  enterGameWorld();
-  hideAllOverlays();
-  startPvp({
-    skin: pvpSelSkin,
-    weapon: pvpSelWeapon,
+  // 必须走 loadGameWorld：它负责「载入场景」的进度条动画与场景构建，
+  // 直接调 enterGameWorld 会跳过整个加载流程。
+  var pvpSeed = {
+    skin: INVENTORY.loadout.skin || pvpSelSkin,
+    weapon: INVENTORY.loadout.secondary || pvpSelWeapon,
     teamSize: room.teamSize,
     difficulty: room.difficulty,
     fillAI: room.fillAI,
     roomMode: room.mode,
     redBots: redBots,
     roomName: room.name,
-  });
+  };
+  loadGameWorld(function () { startPvp(pvpSeed); });
 }
 
 /** 无尽模式 · 地图选择 */
@@ -5960,7 +5961,11 @@ function renderAchievements() {
   if (prog) prog.textContent = '已解锁 ' + unlocked + ' / ' + total;
 }
 
+// 记录打开成就前所在的界面，关闭时原路返回（大厅 → 大厅，主菜单 → 主菜单）
+var achievementsReturnState = 'menu';
+
 function openAchievements() {
+  if (state !== 'achievements') achievementsReturnState = state;
   renderAchievements();
   state = 'achievements';
   hideAllOverlays();
@@ -5969,8 +5974,13 @@ function openAchievements() {
 }
 
 function closeAchievements() {
-  state = 'menu';
-  showOverlay('menu');
+  if (achievementsReturnState === 'levelSelect') {
+    state = 'levelSelect';
+    showLevelSelect();
+  } else {
+    state = 'menu';
+    showOverlay('menu');
+  }
 }
 
 /** 清空全部本地数据：成就 / 跨局统计 / 最佳记录（设置与解锁标志保留） */
@@ -6030,6 +6040,10 @@ function closeSettings() {
   } else if (settingsReturnState === 'gameover') {
     state = 'gameover';
     showOverlay('gameover');
+  } else if (settingsReturnState === 'levelSelect') {
+    // 从游戏大厅打开的设置，关闭后回到大厅而不是主菜单
+    state = 'levelSelect';
+    showLevelSelect();
   } else {
     state = 'menu';
     showOverlay('menu');
