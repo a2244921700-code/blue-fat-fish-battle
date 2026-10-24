@@ -6066,6 +6066,7 @@ var INV_STORE_KEY = 'bff_loadout_v1';
 
 function invLoad() {
   try {
+    if (typeof localStorage === 'undefined') return;   // 测试桩没有 localStorage
     var raw = localStorage.getItem(INV_STORE_KEY);
     if (raw) {
       var o = JSON.parse(raw);
@@ -6077,7 +6078,11 @@ function invLoad() {
 }
 
 function invSave() {
-  try { localStorage.setItem(INV_STORE_KEY, JSON.stringify(INVENTORY.loadout)); } catch (e) {}
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(INV_STORE_KEY, JSON.stringify(INVENTORY.loadout));
+    }
+  } catch (e) {}
   pvpSelSkin = INVENTORY.loadout.skin;
   pvpSelWeapon = INVENTORY.loadout.secondary;
 }
@@ -7161,7 +7166,9 @@ function init() {
   bind('btn-inventory', function () { showInventory(); });
   bind('btn-inv-back', function () { showLevelSelect(); });
   // 仓库分类切换（事件委托，按钮是静态的）
-  var invTabs = document.querySelectorAll('.inv-tab');
+  // 注意：冒烟测试的极简 DOM 桩只有 getElementById，没有 querySelectorAll
+  var invTabs = (typeof document.querySelectorAll === 'function')
+    ? document.querySelectorAll('.inv-tab') : [];
   for (var iti = 0; iti < invTabs.length; iti++) {
     (function (tab) {
       tab.addEventListener('click', function () {
