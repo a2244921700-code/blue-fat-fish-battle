@@ -2379,6 +2379,41 @@ function moveFishAvoiding(e, tx, tz, speed, dt, yLow, yHigh, pad) {
   }
 }
 
+// ---------------------------------------------------------------- 敌人软分离
+// 敌人之间没有物理碰撞，寻路可能让多个敌人走到同一点重叠在一起。
+// 这里每帧做一次轻量排斥，让它们自然散开（PVP 的 AI 玩家同样适用）。
+var _sepMinDist = 1.15;
+function separateEnemies(dt) {
+  var n = enemies.length;
+  if (n < 2) return;
+  for (var i = 0; i < n; i++) {
+    var a = enemies[i];
+    if (!a || !a.alive || !a.mesh) continue;
+    if (a.waitTimer >= 1000) continue;          // 测试/冻结状态的敌人不参与分离
+    for (var j = i + 1; j < n; j++) {
+      var b = enemies[j];
+      if (!b || !b.alive || !b.mesh) continue;
+      if (b.waitTimer >= 1000) continue;
+      var dx = b.mesh.position.x - a.mesh.position.x;
+      var dz = b.mesh.position.z - a.mesh.position.z;
+      var d2 = dx * dx + dz * dz;
+      if (d2 > _sepMinDist * _sepMinDist) continue;
+      var d = Math.sqrt(d2);
+      if (d < 0.001) {   // 完全重合：给一个随机方向推开
+        dx = rand(-1, 1); dz = rand(-1, 1);
+        d = Math.sqrt(dx * dx + dz * dz) || 1;
+      }
+      var push = (_sepMinDist - d) * 0.5;
+      var ux = dx / d, uz = dz / d;
+      var ax = a.mesh.position.x - ux * push, az = a.mesh.position.z - uz * push;
+      var bx = b.mesh.position.x + ux * push, bz = b.mesh.position.z + uz * push;
+      // 不推进障碍物里
+      if (!pointInObstacle(ax, az, 0.5)) { a.mesh.position.x = ax; a.mesh.position.z = az; }
+      if (!pointInObstacle(bx, bz, 0.5)) { b.mesh.position.x = bx; b.mesh.position.z = bz; }
+    }
+  }
+}
+
 function updateEnemies(dt) {
   var baseChase = CFG.fishChaseSpeed + Math.min(CFG.fishChaseBonus, kills * 0.15);
   for (var i = 0; i < enemies.length; i++) {
@@ -6966,6 +7001,7 @@ function update(dt) {
     if ((fireHeld || touchFiring) && weaponDef().auto) shootOnce();
     updateEnemies(dt);
     updatePvpBots(dt);          // 对战模式：AI 玩家移动与射击
+    separateEnemies(dt);        // 敌人之间互相推开，避免叠在一起
     updateItems(dt);
     updateBoss(dt);
     updateBossShots(dt);
