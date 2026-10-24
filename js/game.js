@@ -7031,8 +7031,9 @@ function init() {
   });
   var btnVictoryRestart = document.getElementById('btn-victory-restart');
   if (btnVictoryRestart) btnVictoryRestart.addEventListener('click', function () {
-    if (debugMode) { triggerCheatCaught(); return; }    // 开发者模式通关回主菜单 → 抓到你作弊咯！
-    restartGame(true);                                   // 通关 → 回到主菜单
+    if (debugMode) { triggerCheatCaught(); return; }    // 开发者模式通关 → 抓到你作弊咯！
+    restartGame(true);                                   // 先完整重置世界
+    showLevelSelect();                                   // 再回到游戏大厅
   });
   // 奖励卡片：点击选择对应技能（事件委托，卡片动态重建）
   if (dom.rewardCards) {
@@ -7065,7 +7066,8 @@ function init() {
   var btnPauseMenu = document.getElementById('btn-pause-menu');
   if (btnPauseMenu) btnPauseMenu.addEventListener('click', function () {
     if (state !== 'paused' && state !== 'gameover' && state !== 'playing') return;
-    restartGame(true);
+    restartGame(true);          // 完整重置世界
+    showLevelSelect();          // 回到游戏大厅（而不是主菜单）
   });
   // 主菜单：成就一览 / 退出游戏
   var btnAch = document.getElementById('btn-achievements');
