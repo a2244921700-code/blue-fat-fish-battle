@@ -780,6 +780,53 @@ window.addEventListener('load', function () {
   .lbtn.ghost:hover { color: #dff2ff; border-color: rgba(120, 200, 255, .6); background: rgba(40, 90, 140, .25); }
   .lobby-hint { font-size: 12px; color: #5f8299; letter-spacing: 1px; }
 
+  /* ---------- 玩家仓库 ---------- */
+  #inventory-overlay { align-items: stretch; justify-content: stretch; padding: 0; }
+  .shell-main.inv-main { grid-template-columns: 160px 1fr 300px; }
+  .inv-tabs { background: rgba(10, 24, 40, .7); border: 1px solid rgba(120, 200, 255, .14); border-radius: 11px; padding: 14px 12px; }
+  .inv-tab {
+    display: block; width: 100%; text-align: left; margin-bottom: 8px; padding: 10px 12px;
+    border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+    background: rgba(14, 32, 54, .8); color: #8fb4cc; border: 1px solid transparent;
+  }
+  .inv-tab:hover { color: #dff2ff; }
+  .inv-tab.active { background: rgba(60, 140, 210, .38); color: #fff; border-color: rgba(120, 200, 255, .6); }
+
+  .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; align-content: start; overflow-y: auto; }
+  .inv-item {
+    position: relative; background: rgba(12, 28, 46, .75); border: 2px solid rgba(120, 200, 255, .12);
+    border-radius: 10px; padding: 14px 8px 10px; text-align: center; cursor: pointer; transition: all .14s;
+  }
+  .inv-item:hover { border-color: rgba(120, 200, 255, .5); transform: translateY(-2px); }
+  .inv-item.selected { border-color: rgba(120, 200, 255, .85); background: rgba(24, 52, 82, .9); }
+  .inv-item.equipped { border-color: rgba(120, 220, 160, .7); }
+  .ii-icon { font-size: 30px; margin-bottom: 6px; }
+  .ii-name { font-size: 13px; font-weight: 800; color: #dff2ff; }
+  .ii-badge { font-size: 10px; color: #6f93ad; margin-top: 3px; }
+  .ii-eq {
+    position: absolute; top: 6px; right: 6px; font-size: 9px; padding: 1px 6px;
+    border-radius: 4px; background: rgba(120, 220, 160, .25); color: #b8ffd8; font-weight: 700;
+  }
+
+  .inv-detail { background: rgba(10, 24, 40, .75); border: 1px solid rgba(120, 200, 255, .16); border-radius: 11px; padding: 15px 14px; overflow-y: auto; }
+  .inv-detail-empty { color: #5f8299; font-size: 12px; text-align: center; padding: 30px 0; }
+  .id-name { font-size: 17px; font-weight: 900; color: #dff2ff; margin-bottom: 4px; }
+  .id-type { font-size: 11px; color: #6f93ad; margin-bottom: 12px; }
+  .id-row { display: flex; justify-content: space-between; font-size: 12px; padding: 5px 0; border-bottom: 1px solid rgba(120, 200, 255, .08); }
+  .id-row span { color: #6f93ad; }
+  .id-row b { color: #cfe8f8; }
+  .id-equip {
+    width: 100%; margin-top: 14px; padding: 10px 0; border-radius: 9px; font-size: 13px; font-weight: 800;
+    cursor: pointer; font-family: inherit; color: #fff;
+    background: linear-gradient(180deg, #3fa9f5, #1f7fc8); border: 1px solid rgba(160, 220, 255, .6);
+  }
+  .id-equip:hover { background: linear-gradient(180deg, #5bb8ff, #2b8fd8); }
+  .id-equip:disabled { background: rgba(14, 32, 54, .8); color: #6f93ad; border-color: rgba(120, 200, 255, .2); cursor: default; }
+
+  .inv-loadout { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8fb4cc; }
+  .inv-loadout b { color: #dff2ff; font-weight: 800; margin-right: 8px; }
+  .lo-tag { font-size: 10px; color: #5f8299; padding: 1px 5px; border-radius: 4px; background: rgba(120, 200, 255, .1); }
+
   /* ---------- 通用全屏页（房间列表 / 房间等待复用） ---------- */
   #roomlist-overlay, #room-overlay { align-items: stretch; justify-content: stretch; padding: 0; }
   .shell-page {
@@ -1263,6 +1310,14 @@ window.addEventListener('load', function () {
           </span>
           <span class="lm-arrow">▶</span>
         </button>
+        <button class="lm-item" id="btn-inventory">
+          <span class="lm-icon">🎒</span>
+          <span class="lm-text">
+            <b>玩家仓库</b>
+            <em>装备武器 · 选择形象</em>
+          </span>
+          <span class="lm-arrow">▶</span>
+        </button>
       </div>
 
       <!-- 中央：角色展示 -->
@@ -1361,6 +1416,36 @@ window.addEventListener('load', function () {
       </div>
     </div>
     <button id="btn-map-back" class="big-btn ghost">← 返回大厅</button>
+  </div>
+</div>
+
+<!-- 玩家仓库 -->
+<div id="inventory-overlay" class="overlay hidden">
+  <div class="shell-page">
+    <div class="shell-top">
+      <div class="st-left">
+        <button class="st-back" id="btn-inv-back">←</button>
+        <div class="st-title">玩家仓库</div>
+        <div class="st-sub">选择装备与形象 · 仅对射击对战生效</div>
+      </div>
+      <div class="st-right">
+        <div class="inv-loadout" id="inv-loadout"></div>
+      </div>
+    </div>
+
+    <div class="shell-main inv-main">
+      <div class="inv-tabs">
+        <div class="rf-title">分类</div>
+        <button class="inv-tab active" data-tab="weapon">🔫 武器</button>
+        <button class="inv-tab" data-tab="skin">👤 形象</button>
+      </div>
+
+      <div class="inv-grid" id="inv-grid"></div>
+
+      <div class="inv-detail" id="inv-detail">
+        <div class="inv-detail-empty">选择左侧物品查看详情</div>
+      </div>
+    </div>
   </div>
 </div>
 

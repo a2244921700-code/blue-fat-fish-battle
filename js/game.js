@@ -5865,7 +5865,8 @@ function showOverlay(which) {
   if (pvpOv) pvpOv.classList.toggle('hidden', which !== 'pvp');
   // 大厅新增界面：地图选择 / 房间列表 / 创建房间 / 房间等待
   [['map', 'map-overlay'], ['roomlist', 'roomlist-overlay'],
-   ['createroom', 'createroom-overlay'], ['room', 'room-overlay']].forEach(function (pair) {
+   ['createroom', 'createroom-overlay'], ['room', 'room-overlay'],
+   ['inventory', 'inventory-overlay']].forEach(function (pair) {
     var el = document.getElementById(pair[1]);
     if (el) el.classList.toggle('hidden', which !== pair[0]);
   });
@@ -5874,7 +5875,7 @@ function hideAllOverlays() {
   if(document.body)document.body.classList.remove('combat-suspended');
   var pvpOv = document.getElementById('pvp-overlay');
   if (pvpOv) pvpOv.classList.add('hidden');
-  ['map-overlay', 'roomlist-overlay', 'createroom-overlay', 'room-overlay'].forEach(function (id) {
+  ['map-overlay', 'roomlist-overlay', 'createroom-overlay', 'room-overlay', 'inventory-overlay'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.classList.add('hidden');
   });
@@ -6050,6 +6051,144 @@ function bindSettingsInputs() {
       persistSave();
       var d = difficultyNow();
       showNotice('难度：' + d.name + '（敌人伤害 ×' + d.enemyDmg + ' · 补给 ×' + d.supplyMul + '）');
+    });
+  }
+}
+
+// ---------------------------------------------------------------- 玩家仓库
+// 装备数据仅对射击对战生效；无尽模式仍用固定的三武器成长体系。
+var INVENTORY = {
+  tab: 'weapon',
+  selected: null,
+  loadout: { primary: 'rifle', secondary: 'pistol', melee: 'knife', skin: 'normal' },
+};
+var INV_STORE_KEY = 'bff_loadout_v1';
+
+function invLoad() {
+  try {
+    var raw = localStorage.getItem(INV_STORE_KEY);
+    if (raw) {
+      var o = JSON.parse(raw);
+      if (o && o.secondary && o.skin) INVENTORY.loadout = o;
+    }
+  } catch (e) { /* 本地存储不可用时静默 */ }
+  pvpSelSkin = INVENTORY.loadout.skin || 'normal';
+  pvpSelWeapon = INVENTORY.loadout.secondary || 'pistol';
+}
+
+function invSave() {
+  try { localStorage.setItem(INV_STORE_KEY, JSON.stringify(INVENTORY.loadout)); } catch (e) {}
+  pvpSelSkin = INVENTORY.loadout.skin;
+  pvpSelWeapon = INVENTORY.loadout.secondary;
+}
+
+function showInventory() {
+  state = 'levelSelect';
+  hideAllOverlays();
+  INVENTORY.selected = null;
+  renderInventory();
+  showOverlay('inventory');
+}
+
+/** 仓库物品清单 */
+function invItems() {
+  if (INVENTORY.tab === 'weapon') {
+    return [
+      { id: 'rifle', name: '突击步枪', slot: 'primary', def: PVP_WEAPON_DEFS.rifle },
+      { id: 'pistol', name: '手枪', slot: 'secondary', def: PVP_WEAPON_DEFS.pistol },
+      { id: 'fishpistol', name: '鱼人手枪', slot: 'secondary', def: PVP_WEAPON_DEFS.fishpistol },
+      { id: 'knife', name: '匕首', slot: 'melee', desc: '近战武器 · 左键轻击 / 右键重击（2 倍伤害）' },
+    ];
+  }
+  return PVP_SKIN_LIST.map(function (s) {
+    return { id: s.id, name: s.name, slot: 'skin', desc: s.desc };
+  });
+}
+
+function renderInventory() {
+  // 顶部当前配置
+  var bar = document.getElementById('inv-loadout');
+  if (bar) {
+    var lo = INVENTORY.loadout;
+    var side = PVP_WEAPON_DEFS[lo.secondary] || PVP_WEAPON_DEFS.pistol;
+    var skinName = '常规鱼';
+    PVP_SKIN_LIST.forEach(function (s) { if (s.id === lo.skin) skinName = s.name; });
+    bar.innerHTML =
+      '<span class="lo-tag">主武器</span><b>突击步枪</b>' +
+      '<span class="lo-tag">副武器</span><b>' + side.name + '</b>' +
+      '<span class="lo-tag">形象</span><b>' + skinName + '</b>';
+  }
+  // 分类高亮
+  var tabs = document.querySelectorAll('.inv-tab');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].classList.toggle('active', tabs[i].getAttribute('data-tab') === INVENTORY.tab);
+  }
+  // 网格
+  var grid = document.getElementById('inv-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  invItems().forEach(function (it) {
+    var equipped = (it.slot === 'primary' && INVENTORY.loadout.primary === it.id) ||
+                   (it.slot === 'secondary' && INVENTORY.loadout.secondary === it.id) ||
+                   (it.slot === 'melee' && INVENTORY.loadout.melee === it.id) ||
+                   (it.slot === 'skin' && INVENTORY.loadout.skin === it.id);
+    var d = document.createElement('div');
+    d.className = 'inv-item' + (equipped ? ' equipped' : '') + (INVENTORY.selected === it.id ? ' selected' : '');
+    var badge = it.slot === 'primary' ? '主武器' : it.slot === 'secondary' ? '副武器' : it.slot === 'melee' ? '近战' : '形象';
+    var icon = it.slot === 'skin' ? '🐟' : it.slot === 'melee' ? '🗡️' : '🔫';
+    d.innerHTML = '<div class="ii-icon">' + icon + '</div>' +
+      '<div class="ii-name">' + it.name + '</div>' +
+      '<div class="ii-badge">' + badge + '</div>' +
+      (equipped ? '<div class="ii-eq">' + (it.slot === 'skin' ? '使用中' : '已装备') + '</div>' : '');
+    d.addEventListener('click', function () {
+      INVENTORY.selected = it.id;
+      renderInventory();
+    });
+    grid.appendChild(d);
+  });
+  renderInvDetail();
+}
+
+function renderInvDetail() {
+  var host = document.getElementById('inv-detail');
+  if (!host) return;
+  var it = null;
+  invItems().forEach(function (x) { if (x.id === INVENTORY.selected) it = x; });
+  if (!it) {
+    host.innerHTML = '<div class="inv-detail-empty">选择左侧物品查看详情</div>';
+    return;
+  }
+  var rows = '';
+  if (it.def) {
+    rows += '<div class="id-row"><span>伤害</span><b>' + it.def.damage + '</b></div>';
+    rows += '<div class="id-row"><span>射速</span><b>' + Math.round(60 / it.def.shootInterval) + ' RPM</b></div>';
+    rows += '<div class="id-row"><span>弹匣</span><b>' + it.def.magSize + ' 发</b></div>';
+    rows += '<div class="id-row"><span>换弹</span><b>' + it.def.reloadTime + ' 秒</b></div>';
+    rows += '<div class="id-row"><span>散布</span><b>' + it.def.spread.toFixed(4) + '</b></div>';
+  } else {
+    rows += '<div class="id-row"><span>类型</span><b>角色形象</b></div>';
+    rows += '<div class="id-row"><span>说明</span><b>' + (it.desc || '') + '</b></div>';
+  }
+  var equipped = (it.slot === 'primary' && INVENTORY.loadout.primary === it.id) ||
+                 (it.slot === 'secondary' && INVENTORY.loadout.secondary === it.id) ||
+                 (it.slot === 'melee' && INVENTORY.loadout.melee === it.id) ||
+                 (it.slot === 'skin' && INVENTORY.loadout.skin === it.id);
+  var typeText = it.slot === 'primary' ? '主武器' : it.slot === 'secondary' ? '副武器' : it.slot === 'melee' ? '近战武器' : '角色形象';
+  host.innerHTML =
+    '<div class="id-name">' + it.name + '</div>' +
+    '<div class="id-type">' + typeText + '</div>' + rows +
+    '<button class="id-equip"' + (equipped ? ' disabled' : '') + '>' +
+      (equipped ? '当前已装备' : '装备') + '</button>';
+  var btn = host.querySelector('.id-equip');
+  if (btn && !equipped) {
+    btn.addEventListener('click', function () {
+      if (it.slot === 'primary') INVENTORY.loadout.primary = it.id;
+      else if (it.slot === 'secondary') INVENTORY.loadout.secondary = it.id;
+      else if (it.slot === 'melee') INVENTORY.loadout.melee = it.id;
+      else INVENTORY.loadout.skin = it.id;
+      invSave();
+      renderInventory();
+      if (typeof showNotice === 'function') showNotice('已装备：' + it.name);
     });
   }
 }
@@ -6789,7 +6928,16 @@ function loadGameWorld(ready){
       ready();state='loading';progress(92,'预热材质与着色器');await paint();
       renderer.compile(scene,camera);progress(100,'准备完成');await paint();
       sceneLoadPending=false;overlay.classList.add('hidden');state='playing';
-      if(pauseAfterLoad)pauseGameplay();else requestLockWithFallback();
+      if(pauseAfterLoad)pauseGameplay();else{
+        requestLockWithFallback();
+        // 进入全屏会强制退出指针锁定，而异步请求已脱离用户手势会被浏览器拒绝；
+        // 这里给出点击恢复的兜底提示（PVP 不经过全屏，所以不会出现这个情况）。
+        setTimeout(function(){
+          if(state==='playing'&&lockMode==='locked'&&!isPointerLocked()){
+            showNotice('点击画面任意位置锁定鼠标（也可按 F 全屏）');
+          }
+        },1000);
+      }
     }catch(err){sceneLoadPending=false;state='loading';label.textContent='载入失败：'+err.message;document.getElementById('loading-back').classList.remove('hidden');console.error(err);}
   })();
 }
@@ -6892,6 +7040,7 @@ function init() {
   Object.keys(idMap).forEach(function (key) { dom[key] = document.getElementById(idMap[key]); });
   initTouchControls();   // 触屏控件初始化（需在 dom 映射建立后）
 
+  invLoad();                     // 读取玩家仓库的装备（武器 + 形象）
   var preview = document.getElementById('fish-preview');
   if (preview && window.FISH_TEXTURE_DATA) preview.src = window.FISH_TEXTURE_DATA;
   // 游戏大厅也展示同一个蓝发女仆形象
@@ -6983,6 +7132,14 @@ function init() {
   document.addEventListener('visibilitychange',function(){if(document.hidden){if(sceneLoadPending)pauseAfterLoad=true;pauseGameplay();releaseGameplayInput();}});
   document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   window.addEventListener('resize', onResize);
+  // 点击画面重新请求指针锁定（全屏后手势失效的兜底路径）
+  document.addEventListener('click', function (ev) {
+    if (state !== 'playing' || lockMode !== 'locked') return;
+    if (isPointerLocked()) return;
+    var t = ev.target;
+    if (t && t.closest && t.closest('.overlay')) return;   // 不抢 UI 的点击
+    requestLockWithFallback();
+  }, false);
 
   mark('buttons-about-to-bind');
   var btnStart = document.getElementById('btn-start');
@@ -7000,6 +7157,19 @@ function init() {
   function bind(id, fn) {
     var el = document.getElementById(id);
     if (el) el.addEventListener('click', fn);
+  }
+  bind('btn-inventory', function () { showInventory(); });
+  bind('btn-inv-back', function () { showLevelSelect(); });
+  // 仓库分类切换（事件委托，按钮是静态的）
+  var invTabs = document.querySelectorAll('.inv-tab');
+  for (var iti = 0; iti < invTabs.length; iti++) {
+    (function (tab) {
+      tab.addEventListener('click', function () {
+        INVENTORY.tab = tab.getAttribute('data-tab');
+        INVENTORY.selected = null;
+        renderInventory();
+      });
+    })(invTabs[iti]);
   }
   bind('btn-lobby-ach', function () { openAchievements(); });
   bind('btn-lobby-settings', function () { openSettings(); });
