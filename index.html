@@ -659,6 +659,261 @@ window.addEventListener('load', function () {
   .rt-slot.bot .rt-tag { background: rgba(255, 200, 120, .16); color: #ffd98a; }
   .room-note { text-align: center; font-size: 12px; color: #7fa8c4; margin-bottom: 12px; }
 
+  /* ---------- 游戏大厅（标准 FPS 布局：顶栏 / 左模式 / 中角色 / 右信息） ---------- */
+  #level-overlay { align-items: stretch; justify-content: stretch; padding: 0; }
+  .lobby-shell {
+    width: 100%; height: 100%; display: flex; flex-direction: column;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(40, 110, 180, .34), transparent 62%),
+      linear-gradient(180deg, #07131f 0%, #040a12 100%);
+    color: #e8f6ff; font-family: inherit;
+  }
+  .lobby-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 22px; background: rgba(6, 16, 28, .82);
+    border-bottom: 1px solid rgba(120, 200, 255, .18); flex: 0 0 auto;
+  }
+  .lt-user { display: flex; align-items: center; gap: 11px; }
+  .lt-avatar {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: linear-gradient(135deg, #3fa9f5, #1b6fb5);
+    border: 2px solid rgba(160, 220, 255, .7);
+    background-size: cover; background-position: center;
+    box-shadow: 0 0 14px rgba(80, 170, 255, .5);
+  }
+  .lt-name { font-size: 15px; font-weight: 800; letter-spacing: .5px; }
+  .lt-lv { font-size: 11px; color: #7fa8c4; margin-top: 2px; }
+  .lt-lv b { color: #9fd6ff; }
+  .lt-nav { display: flex; gap: 6px; }
+  .lt-tab {
+    padding: 8px 20px; border-radius: 8px; border: 1px solid transparent;
+    background: transparent; color: #8fb4cc; font-size: 13px; font-weight: 700;
+    cursor: pointer; font-family: inherit; transition: all .15s;
+  }
+  .lt-tab:hover { color: #dff2ff; background: rgba(60, 130, 190, .22); }
+  .lt-tab.active { color: #dff2ff; background: rgba(60, 140, 210, .3); border-color: rgba(120, 200, 255, .4); }
+  .lt-icon {
+    width: 34px; height: 34px; border-radius: 8px; border: 1px solid rgba(120, 200, 255, .25);
+    background: rgba(14, 32, 54, .7); color: #9fc4df; font-size: 15px;
+    cursor: pointer; font-family: inherit;
+  }
+  .lt-icon:hover { color: #fff; border-color: rgba(255, 120, 120, .6); background: rgba(120, 40, 40, .4); }
+
+  .lobby-body {
+    flex: 1 1 auto; display: grid; grid-template-columns: 290px 1fr 270px;
+    gap: 18px; padding: 20px 22px; min-height: 0; overflow: hidden;
+  }
+  .lobby-modes { display: flex; flex-direction: column; gap: 9px; overflow-y: auto; }
+  .lm-title {
+    font-size: 11px; letter-spacing: 3px; color: #5f8299;
+    text-transform: uppercase; margin-bottom: 4px; padding-left: 4px;
+  }
+  .lm-item {
+    display: flex; align-items: center; gap: 12px; padding: 13px 14px;
+    border-radius: 11px; border: 1px solid rgba(120, 200, 255, .16);
+    background: linear-gradient(90deg, rgba(16, 38, 62, .82), rgba(10, 24, 40, .6));
+    color: #dff2ff; cursor: pointer; font-family: inherit; text-align: left;
+    transition: all .16s; position: relative; overflow: hidden;
+  }
+  .lm-item::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: #3fa9f5; opacity: 0; transition: opacity .16s;
+  }
+  .lm-item:hover { border-color: rgba(120, 200, 255, .55); background: linear-gradient(90deg, rgba(26, 60, 96, .95), rgba(14, 34, 56, .8)); transform: translateX(3px); }
+  .lm-item:hover::before { opacity: 1; }
+  .lm-item.locked { opacity: .38; cursor: not-allowed; }
+  .lm-icon { font-size: 24px; width: 34px; text-align: center; flex: 0 0 auto; }
+  .lm-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+  .lm-text b { font-size: 15px; font-weight: 800; }
+  .lm-text em { font-style: normal; font-size: 11px; color: #6f93ad; }
+  .lm-arrow { color: #3fa9f5; font-size: 12px; opacity: 0; transition: opacity .16s; }
+  .lm-item:hover .lm-arrow { opacity: 1; }
+  .lm-lock { font-size: 14px; opacity: .7; }
+
+  .lobby-stage {
+    position: relative; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; overflow: hidden;
+  }
+  .stage-glow {
+    position: absolute; width: 460px; height: 460px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(60, 150, 230, .28), transparent 66%);
+    filter: blur(18px); animation: stagePulse 5s ease-in-out infinite;
+  }
+  @keyframes stagePulse {
+    0%, 100% { transform: scale(1); opacity: .75; }
+    50% { transform: scale(1.07); opacity: 1; }
+  }
+  .lobby-hero-img {
+    position: relative; width: 300px; height: 300px; object-fit: contain;
+    filter: drop-shadow(0 14px 34px rgba(60, 150, 230, .55));
+    animation: heroFloat 4.5s ease-in-out infinite;
+  }
+  @keyframes heroFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+  }
+  .stage-name {
+    position: relative; margin-top: 6px; font-size: 13px; letter-spacing: 2px;
+    color: #8fc4e8; text-shadow: 0 0 12px rgba(80, 170, 255, .6);
+  }
+
+  .lobby-side { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+  .side-card {
+    background: rgba(10, 24, 40, .72); border: 1px solid rgba(120, 200, 255, .16);
+    border-radius: 10px; padding: 11px 13px;
+  }
+  .side-title { font-size: 12px; font-weight: 800; color: #9fd6ff; margin-bottom: 7px; letter-spacing: .5px; }
+  .side-body { font-size: 12px; line-height: 1.7; color: #b8d4e6; }
+  .side-body b { color: #ffd76e; }
+  .side-body.small { font-size: 11px; color: #7fa8c4; line-height: 1.65; }
+
+  .lobby-footer {
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 22px; background: rgba(6, 16, 28, .82);
+    border-top: 1px solid rgba(120, 200, 255, .18);
+  }
+  .lbtn {
+    padding: 9px 22px; border-radius: 9px; font-size: 13px; font-weight: 700;
+    cursor: pointer; font-family: inherit; transition: all .15s;
+  }
+  .lbtn.ghost { background: transparent; color: #8fb4cc; border: 1px solid rgba(120, 200, 255, .28); }
+  .lbtn.ghost:hover { color: #dff2ff; border-color: rgba(120, 200, 255, .6); background: rgba(40, 90, 140, .25); }
+  .lobby-hint { font-size: 12px; color: #5f8299; letter-spacing: 1px; }
+
+  /* ---------- 通用全屏页（房间列表 / 房间等待复用） ---------- */
+  #roomlist-overlay, #room-overlay { align-items: stretch; justify-content: stretch; padding: 0; }
+  .shell-page {
+    width: 100%; height: 100%; display: flex; flex-direction: column;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(40, 110, 180, .28), transparent 60%),
+      linear-gradient(180deg, #07131f 0%, #040a12 100%);
+    color: #e8f6ff; font-family: inherit;
+  }
+  .shell-top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 22px; background: rgba(6, 16, 28, .85);
+    border-bottom: 1px solid rgba(120, 200, 255, .18); flex: 0 0 auto; gap: 16px;
+  }
+  .st-left { display: flex; align-items: center; gap: 13px; min-width: 0; }
+  .st-back {
+    width: 36px; height: 36px; border-radius: 9px; flex: 0 0 auto;
+    border: 1px solid rgba(120, 200, 255, .28); background: rgba(14, 32, 54, .7);
+    color: #9fc4df; font-size: 15px; cursor: pointer; font-family: inherit;
+  }
+  .st-back:hover { color: #dff2ff; border-color: rgba(120, 200, 255, .6); background: rgba(40, 90, 140, .3); }
+  .st-title { font-size: 19px; font-weight: 900; letter-spacing: 1px; }
+  .st-sub { font-size: 11px; color: #6f93ad; margin-top: 1px; }
+  .st-right { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
+  .st-search {
+    width: 190px; padding: 8px 12px; border-radius: 8px; font-family: inherit; font-size: 13px;
+    background: rgba(10, 26, 44, .9); color: #e8f6ff;
+    border: 1px solid rgba(120, 200, 255, .26); outline: none;
+  }
+  .st-search:focus { border-color: rgba(120, 200, 255, .7); }
+  .st-btn {
+    padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 700;
+    cursor: pointer; font-family: inherit; transition: all .15s;
+    background: rgba(14, 32, 54, .8); color: #a8cde4; border: 1px solid rgba(120, 200, 255, .28);
+  }
+  .st-btn:hover { color: #dff2ff; border-color: rgba(120, 200, 255, .6); }
+  .st-btn.primary {
+    background: linear-gradient(180deg, #3fa9f5, #1f7fc8); color: #fff;
+    border-color: rgba(160, 220, 255, .6); box-shadow: 0 4px 16px rgba(40, 130, 210, .45);
+  }
+  .st-btn.primary:hover { background: linear-gradient(180deg, #5bb8ff, #2b8fd8); }
+
+  .shell-main { flex: 1 1 auto; display: grid; grid-template-columns: 190px 1fr; gap: 16px; padding: 18px 22px; min-height: 0; overflow: hidden; }
+
+  .rl-filters {
+    background: rgba(10, 24, 40, .7); border: 1px solid rgba(120, 200, 255, .14);
+    border-radius: 11px; padding: 14px 13px; overflow-y: auto;
+  }
+  .rf-title { font-size: 11px; letter-spacing: 3px; color: #5f8299; text-transform: uppercase; margin-bottom: 12px; }
+  .rf-group { margin-bottom: 18px; }
+  .rf-label { font-size: 12px; color: #8fb4cc; margin-bottom: 7px; font-weight: 700; }
+  .rf-chip {
+    display: inline-block; margin: 0 5px 5px 0; padding: 5px 12px;
+    border-radius: 7px; font-size: 12px; cursor: pointer; font-family: inherit;
+    background: rgba(14, 32, 54, .8); color: #8fb4cc; border: 1px solid rgba(120, 200, 255, .18);
+    transition: all .14s;
+  }
+  .rf-chip:hover { color: #dff2ff; border-color: rgba(120, 200, 255, .45); }
+  .rf-chip.active { background: rgba(60, 140, 210, .4); color: #fff; border-color: rgba(120, 200, 255, .65); }
+
+  .rl-table-wrap { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .rl-table-head, .rl-row {
+    display: grid; grid-template-columns: 1fr 110px 82px 82px 72px 92px;
+    align-items: center; gap: 8px; padding: 9px 14px; font-size: 13px;
+  }
+  .rl-table-head {
+    color: #5f8299; font-weight: 700; font-size: 11px; letter-spacing: 1px;
+    border-bottom: 1px solid rgba(120, 200, 255, .18); flex: 0 0 auto;
+  }
+  .rl-list { flex: 1 1 auto; overflow-y: auto; padding-top: 6px; }
+  .rl-row {
+    background: rgba(12, 28, 46, .72); border: 1px solid rgba(120, 200, 255, .1);
+    border-radius: 9px; margin-bottom: 6px; color: #cfe8f8; transition: all .14s;
+  }
+  .rl-row:hover { border-color: rgba(120, 200, 255, .45); background: rgba(18, 40, 64, .9); }
+  .rl-row .c-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rl-row .c-ping { color: #7fe0a8; font-size: 12px; }
+  .rl-mode-tag { font-size: 11px; padding: 2px 8px; border-radius: 5px; font-weight: 700; }
+  .rl-mode-tag.online { background: rgba(60, 150, 220, .26); color: #9fd6ff; }
+  .rl-mode-tag.bot { background: rgba(200, 150, 60, .26); color: #ffd98a; }
+  .rl-join {
+    width: 100%; padding: 6px 0; border-radius: 6px; font-size: 12px; font-weight: 700;
+    border: 1px solid rgba(120, 200, 255, .5); background: rgba(40, 110, 170, .35);
+    color: #dff2ff; cursor: pointer; font-family: inherit;
+  }
+  .rl-join:hover { background: rgba(60, 150, 220, .55); }
+  .rl-join:disabled { opacity: .35; cursor: not-allowed; }
+  .rl-empty { text-align: center; color: #5f8299; font-size: 13px; padding: 40px 0; }
+
+  .room-main {
+    flex: 1 1 auto; display: grid; grid-template-columns: 1fr 300px 1fr;
+    gap: 16px; padding: 18px 22px; min-height: 0; overflow: hidden;
+  }
+  .room-team {
+    background: rgba(10, 24, 40, .72); border-radius: 11px; padding: 12px 13px;
+    overflow-y: auto; min-height: 0;
+  }
+  .room-team.red { border: 1px solid rgba(80, 170, 235, .4); }
+  .room-team.blue { border: 1px solid rgba(220, 90, 100, .4); }
+  .rt-head {
+    display: flex; justify-content: space-between; font-size: 14px; font-weight: 800;
+    margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(120, 200, 255, .14);
+  }
+  .room-team.red .rt-head { color: #9fd6ff; }
+  .room-team.blue .rt-head { color: #ffb3b3; }
+  .rt-slots { display: flex; flex-direction: column; gap: 6px; }
+  .rt-slot {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 11px; border-radius: 8px; font-size: 13px;
+    background: rgba(8, 20, 34, .75); color: #cfe8f8;
+  }
+  .rt-slot.me { border: 1px solid rgba(120, 220, 160, .65); color: #b8ffd8; background: rgba(20, 50, 40, .55); }
+  .rt-slot.bot { color: #8fb4cc; }
+  .rt-slot.empty { color: #4d6a80; font-style: italic; }
+  .rt-slot .rt-tag { font-size: 10px; padding: 1px 7px; border-radius: 4px; background: rgba(120, 200, 255, .16); }
+  .rt-slot.bot .rt-tag { background: rgba(255, 200, 120, .16); color: #ffd98a; }
+
+  .room-center { display: flex; flex-direction: column; gap: 12px; align-items: stretch; justify-content: center; }
+  .rc-map {
+    background: rgba(10, 24, 40, .8); border: 1px solid rgba(120, 200, 255, .22);
+    border-radius: 12px; padding: 18px 12px; text-align: center;
+  }
+  .rc-map-thumb { font-size: 54px; line-height: 1.1; }
+  .rc-map-name { font-size: 16px; font-weight: 800; margin-top: 6px; color: #dff2ff; }
+  .rc-info { background: rgba(10, 24, 40, .7); border: 1px solid rgba(120, 200, 255, .14); border-radius: 10px; padding: 11px 13px; }
+  .rc-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; }
+  .rc-row span { color: #6f93ad; }
+  .rc-row b { color: #cfe8f8; font-weight: 700; }
+  .rc-sim {
+    padding: 8px 10px; border-radius: 8px; font-size: 11px; cursor: pointer; font-family: inherit;
+    background: rgba(14, 32, 54, .8); color: #8fb4cc; border: 1px dashed rgba(120, 200, 255, .3);
+  }
+  .rc-sim:hover { color: #dff2ff; border-color: rgba(120, 200, 255, .6); }
+
   /* ---------- 关卡选择 ---------- */
   .panel-wide { max-width: 780px; }
   .level-cols { display: flex; gap: 22px; justify-content: center; margin: 14px 0 24px; }
@@ -955,43 +1210,100 @@ window.addEventListener('load', function () {
   </div>
 </div>
 
-<!-- 关卡选择 -->
+<!-- 游戏大厅 -->
 <div id="level-overlay" class="overlay hidden">
-  <div class="panel panel-wide">
-    <h1>游戏大厅</h1>
-    <div class="sub-title">选择模式 · 开始你的战斗</div>
-    <div class="lobby-hero">
-      <img id="lobby-hero-img" class="lobby-hero-img" alt="蓝发女仆">
-    </div>
-    <div class="level-cols">
-      <div class="level-col mode-locked">
-        <div class="mode-title">🎯 闯关模式</div>
-        <div class="mode-desc">关卡剧情正在开发中…<br>完成无尽模式试炼后解锁 🔒<br><br>敬请期待！</div>
-      </div>
-      <div class="level-col">
-        <div class="mode-title">🌊 无尽模式</div>
-        <div class="level-card" id="btn-mode-endless">
-          <div class="card-title">🌊 无尽模式</div>
-          <div class="card-tags"><b>波次生存</b>：敌人一波比一波强，活到最后一刻<br><b>三武器</b>：手枪 / 步枪 / 匕首随时切换<br><b>成长</b>：击杀升级、击破 Boss 三选一强化<br><b>下一</b>：进入后选择地图120 发但降低移速）<br>每 5 波一场 Boss 战 · <b>五类 Boss</b>打法各不相同<br><b>每 10 波环境剧变</b>：黄昏 / 沙尘暴 / 血月 / 深夜<br>连杀评级带来移速与伤害增益，SSS 更可吸血</div>
-          <div class="card-go">点击进入 ▶</div>
+  <div class="lobby-shell">
+
+    <!-- 顶部玩家栏 -->
+    <div class="lobby-topbar">
+      <div class="lt-user">
+        <div class="lt-avatar" id="lobby-avatar"></div>
+        <div class="lt-meta">
+          <div class="lt-name" id="lobby-name">指挥官</div>
+          <div class="lt-lv">Lv.<b id="lobby-lv">1</b> · 最高分 <b id="lobby-best">0</b></div>
         </div>
       </div>
-      <div class="level-col">
-        <div class="mode-title">🔫 射击对战</div>
-        <div class="level-card" id="btn-mode-pvp">
-          <div class="card-title">🔫 射击对战</div>
-          <div class="card-tags">
-            <b>规则</b>：每队共享复活额度，阵亡扣 1、4 秒后复活；耗尽对手额度得 1 分，先拿 <b>4 回合</b>获胜<br>
-            <b>队伍</b>：红队 = 你 + AI 队友，蓝队 = 全 AI（6v6 / 8v8 / 12v12 / 16v16）<br>
-            <b>武器</b>：主武器固定突击步枪，副武器选手枪或鱼人手枪<br>
-            <b>形象</b>：可选非 Boss 鱼的形象，对局中只在别人身上看到
+      <div class="lt-nav">
+        <button class="lt-tab active">游戏大厅</button>
+        <button class="lt-tab" id="btn-lobby-ach">成就</button>
+        <button class="lt-tab" id="btn-lobby-settings">设置</button>
+      </div>
+      <div class="lt-right">
+        <button class="lt-icon" id="btn-lobby-quit" title="返回主菜单">✕</button>
+      </div>
+    </div>
+
+    <!-- 主体：左模式 / 中角色 / 右面板 -->
+    <div class="lobby-body">
+
+      <!-- 左侧：模式列表 -->
+      <div class="lobby-modes">
+        <div class="lm-title">选择模式</div>
+        <button class="lm-item locked" id="btn-mode-campaign" disabled>
+          <span class="lm-icon">🎯</span>
+          <span class="lm-text">
+            <b>闯关模式</b>
+            <em>剧情关卡 · 开发中</em>
+          </span>
+          <span class="lm-lock">🔒</span>
+        </button>
+        <button class="lm-item" id="btn-mode-endless">
+          <span class="lm-icon">🌊</span>
+          <span class="lm-text">
+            <b>无尽模式</b>
+            <em>波次生存 · 越打越强</em>
+          </span>
+          <span class="lm-arrow">▶</span>
+        </button>
+        <button class="lm-item" id="btn-mode-pvp">
+          <span class="lm-icon">🔫</span>
+          <span class="lm-text">
+            <b>射击对战</b>
+            <em>房间对战 · 联机 / 人机</em>
+          </span>
+          <span class="lm-arrow">▶</span>
+        </button>
+      </div>
+
+      <!-- 中央：角色展示 -->
+      <div class="lobby-stage">
+        <div class="stage-glow"></div>
+        <img id="lobby-hero-img" class="lobby-hero-img" alt="蓝发女仆">
+        <div class="stage-name">蓝发女仆 · 参战准备</div>
+      </div>
+
+      <!-- 右侧：信息面板 -->
+      <div class="lobby-side">
+        <div class="side-card">
+          <div class="side-title">📢 公告</div>
+          <div class="side-body">
+            歼灭战开放：红蓝两队共享复活额度，先拿 4 回合获胜。<br>
+            新地图「冰封港湾」制作中。
           </div>
-          <div class="card-go">点击进入 ▶</div>
+        </div>
+        <div class="side-card">
+          <div class="side-title">📊 战绩</div>
+          <div class="side-body">
+            最高分 <b id="side-best-score">0</b><br>
+            最长存活 <b id="side-best-time">0:00</b><br>
+            最高连杀 <b id="side-best-combo">—</b>
+          </div>
+        </div>
+        <div class="side-card">
+          <div class="side-title">🎮 操作</div>
+          <div class="side-body small">
+            WASD 移动 · 左键射击 · 右键重击<br>
+            Ctrl 蹲下 · R 换弹 · Tab 计分板
+          </div>
         </div>
       </div>
     </div>
-    <button id="btn-level-back" class="big-btn ghost">← 返回主菜单</button>
-    <div class="note" style="margin-top:10px">提示：无尽模式需要先选择地图；射击对战需要进入房间</div>
+
+    <!-- 底部操作栏 -->
+    <div class="lobby-footer">
+      <button class="lbtn ghost" id="btn-level-back">← 返回主菜单</button>
+      <div class="lobby-hint">选择左侧模式开始游戏</div>
+    </div>
   </div>
 </div>
 
@@ -1054,21 +1366,51 @@ window.addEventListener('load', function () {
 
 <!-- 射击对战 · 房间列表 -->
 <div id="roomlist-overlay" class="overlay hidden">
-  <div class="panel panel-wide">
-    <h1>射击对战</h1>
-    <div class="sub-title">加入现有房间，或创建自己的房间</div>
-    <div class="rl-toolbar">
-      <button id="btn-room-create" class="big-btn btn-start-glow">+ 创建房间</button>
-      <button id="btn-room-refresh" class="big-btn ghost">刷新列表</button>
+  <div class="shell-page">
+
+    <div class="shell-top">
+      <div class="st-left">
+        <button class="st-back" id="btn-roomlist-back">←</button>
+        <div class="st-title">射击对战</div>
+        <div class="st-sub">选择房间加入，或创建自己的房间</div>
+      </div>
+      <div class="st-right">
+        <input id="room-search" class="st-search" placeholder="搜索房间名…">
+        <button class="st-btn primary" id="btn-room-create">+ 创建房间</button>
+        <button class="st-btn" id="btn-room-refresh">刷新</button>
+      </div>
     </div>
-    <div class="rl-head">
-      <span class="rl-c-room">房间</span>
-      <span class="rl-c-mode">模式</span>
-      <span class="rl-c-size">人数</span>
-      <span class="rl-c-act">操作</span>
+
+    <div class="shell-main">
+      <div class="rl-filters">
+        <div class="rf-title">筛选</div>
+        <div class="rf-group">
+          <div class="rf-label">模式</div>
+          <button class="rf-chip active" data-filter="mode" data-value="all">全部</button>
+          <button class="rf-chip" data-filter="mode" data-value="online">联机</button>
+          <button class="rf-chip" data-filter="mode" data-value="bot">人机</button>
+        </div>
+        <div class="rf-group">
+          <div class="rf-label">人数</div>
+          <button class="rf-chip active" data-filter="size" data-value="all">全部</button>
+          <button class="rf-chip" data-filter="size" data-value="small">6v6</button>
+          <button class="rf-chip" data-filter="size" data-value="mid">8v8</button>
+          <button class="rf-chip" data-filter="size" data-value="big">12v12+</button>
+        </div>
+      </div>
+
+      <div class="rl-table-wrap">
+        <div class="rl-table-head">
+          <span class="c-name">房间名</span>
+          <span class="c-map">地图</span>
+          <span class="c-mode">模式</span>
+          <span class="c-size">人数</span>
+          <span class="c-ping">延迟</span>
+          <span class="c-act"></span>
+        </div>
+        <div class="rl-list" id="room-list"></div>
+      </div>
     </div>
-    <div class="rl-list" id="room-list"></div>
-    <button id="btn-roomlist-back" class="big-btn ghost">← 返回大厅</button>
   </div>
 </div>
 
@@ -1112,22 +1454,44 @@ window.addEventListener('load', function () {
 
 <!-- 房间等待 -->
 <div id="room-overlay" class="overlay hidden">
-  <div class="panel panel-wide">
-    <h1 id="room-title">房间</h1>
-    <div class="sub-title" id="room-sub">等待玩家加入…</div>
-    <div class="room-teams">
+  <div class="shell-page">
+
+    <div class="shell-top">
+      <div class="st-left">
+        <button class="st-back" id="btn-room-leave">←</button>
+        <div class="st-title" id="room-title">房间</div>
+        <div class="st-sub" id="room-sub">等待玩家加入…</div>
+      </div>
+      <div class="st-right">
+        <button class="st-btn primary" id="btn-room-start">开始对战</button>
+      </div>
+    </div>
+
+    <div class="room-main">
       <div class="room-team red">
         <div class="rt-head"><span>红队</span><span id="room-red-count">0 / 0</span></div>
         <div class="rt-slots" id="room-red-slots"></div>
       </div>
+
+      <div class="room-center">
+        <div class="rc-map">
+          <div class="rc-map-thumb">🏜️</div>
+          <div class="rc-map-name">沙漠城</div>
+        </div>
+        <div class="rc-info">
+          <div class="rc-row"><span>模式</span><b>歼灭战 · 回合制</b></div>
+          <div class="rc-row"><span>规则</span><b>共享复活额度 · 先拿 4 回合</b></div>
+          <div class="rc-row"><span>AI 补位</span><b id="room-fill-text">开</b></div>
+        </div>
+        <div class="room-note" id="room-note"></div>
+        <button class="rc-sim" id="btn-room-simjoin">模拟真人加入（演示顶替 AI）</button>
+      </div>
+
       <div class="room-team blue">
         <div class="rt-head"><span>蓝队</span><span id="room-blue-count">0 / 0</span></div>
         <div class="rt-slots" id="room-blue-slots"></div>
       </div>
     </div>
-    <div class="room-note" id="room-note"></div>
-    <button id="btn-room-start" class="big-btn btn-start-glow">开始对战</button>
-    <button id="btn-room-leave" class="big-btn ghost">← 离开房间</button>
   </div>
 </div>
 

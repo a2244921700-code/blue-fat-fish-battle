@@ -5347,15 +5347,32 @@ function roomCapacity(room) { return room.teamSize * 2; }
 function roomIsFull(room) { return roomHumanCount(room) >= roomCapacity(room); }
 
 /** 渲染房间列表 */
+/** 房间列表筛选状态 */
+var roomFilter = { mode: 'all', size: 'all', keyword: '' };
+var ROOM_PING = {};
+
+/** 渲染房间列表（含筛选与搜索） */
 function renderRoomList() {
   var host = document.getElementById('room-list');
   if (!host) return;
-  if (!LOBBY.rooms.length) {
-    host.innerHTML = '<div class="rl-empty">暂无房间，点击上方「创建房间」开一局</div>';
+  var list = LOBBY.rooms.filter(function (room) {
+    if (roomFilter.mode !== 'all' && room.mode !== roomFilter.mode) return false;
+    if (roomFilter.size !== 'all') {
+      var t = room.teamSize;
+      if (roomFilter.size === 'small' && t !== 6) return false;
+      if (roomFilter.size === 'mid' && t !== 8) return false;
+      if (roomFilter.size === 'big' && t < 12) return false;
+    }
+    if (roomFilter.keyword && room.name.indexOf(roomFilter.keyword) < 0) return false;
+    return true;
+  });
+  if (!list.length) {
+    host.innerHTML = '<div class="rl-empty">没有符合条件的房间，试试调整筛选或创建一个</div>';
     return;
   }
   host.innerHTML = '';
-  LOBBY.rooms.forEach(function (room) {
+  list.forEach(function (room) {
+    if (ROOM_PING[room.id] === undefined) ROOM_PING[room.id] = 12 + Math.floor(Math.random() * 48);
     var row = document.createElement('div');
     row.className = 'rl-row';
     var modeTag = room.mode === 'online'
@@ -5363,15 +5380,42 @@ function renderRoomList() {
       : '<span class="rl-mode-tag bot">人机</span>';
     var full = roomIsFull(room);
     row.innerHTML =
-      '<span class="rl-c-room">' + room.name + '</span>' +
-      '<span class="rl-c-mode">' + modeTag + '</span>' +
-      '<span class="rl-c-size">' + roomHumanCount(room) + ' / ' + roomCapacity(room) + '</span>' +
-      '<span class="rl-c-act"><button class="rl-join"' + (full ? ' disabled' : '') + '>' +
+      '<span class="c-name">' + room.name + '</span>' +
+      '<span class="c-map">沙漠城</span>' +
+      '<span class="c-mode">' + modeTag + '</span>' +
+      '<span class="c-size">' + roomHumanCount(room) + ' / ' + roomCapacity(room) + '</span>' +
+      '<span class="c-ping">' + ROOM_PING[room.id] + 'ms</span>' +
+      '<span class="c-act"><button class="rl-join"' + (full ? ' disabled' : '') + '>' +
         (full ? '已满' : '加入') + '</button></span>';
     var btn = row.querySelector('.rl-join');
     if (btn && !full) btn.addEventListener('click', function () { joinRoom(room.id); });
     host.appendChild(row);
   });
+}
+
+/** 绑定筛选芯片 */
+function bindRoomFilters() {
+  var chips = document.querySelectorAll('.rf-chip');
+  for (var i = 0; i < chips.length; i++) {
+    (function (chip) {
+      chip.addEventListener('click', function () {
+        var group = chip.getAttribute('data-filter');
+        var val = chip.getAttribute('data-value');
+        roomFilter[group] = val;
+        var siblings = document.querySelectorAll('.rf-chip[data-filter="' + group + '"]');
+        for (var k = 0; k < siblings.length; k++) siblings[k].classList.remove('active');
+        chip.classList.add('active');
+        renderRoomList();
+      });
+    })(chips[i]);
+  }
+  var search = document.getElementById('room-search');
+  if (search) {
+    search.addEventListener('input', function () {
+      roomFilter.keyword = search.value.trim();
+      renderRoomList();
+    });
+  }
 }
 
 /** 打开房间列表（首次进入时铺几个示例房间） */
@@ -5381,6 +5425,7 @@ function showRoomList() {
     LOBBY.rooms.push(makeRoom({ name: '沙漠城·标准对抗', mode: 'online', teamSize: 8, difficulty: 'normal' }));
     LOBBY.rooms.push(makeRoom({ name: '沙漠城·人机练习', mode: 'bot', teamSize: 8, difficulty: 'normal' }));
   }
+  bindRoomFilters();
   renderRoomList();
   showOverlay('roomlist');
 }
@@ -5452,6 +5497,8 @@ function renderRoom() {
       ' · AI ' + (room.difficulty === 'easy' ? '轻松' : room.difficulty === 'hard' ? '困难' : '普通') +
       (room.host ? ' · 你是房主' : '');
   }
+  var fillText = document.getElementById('room-fill-text');
+  if (fillText) fillText.textContent = room.mode === 'bot' ? '—（人机模式）' : (room.fillAI ? '开' : '关');
   if (note) {
     note.textContent = room.mode === 'online'
       ? (room.fillAI ? '人数不足时由高级 AI 补位；真人加入后会顶替一个 AI' : '本房关闭了 AI 补位，请等待真人加入')
@@ -6008,10 +6055,37 @@ function bindSettingsInputs() {
   }
 }
 
-// 关卡选择界面
+/** 刷新大厅顶栏与右侧面板数据 */
+function refreshLobbyInfo() {
+  var avatar = document.getElementById('lobby-avatar');
+  if (avatar && window.FISH_TEXTURE_DATA) {
+    avatar.style.backgroundImage = 'url("' + window.FISH_TEXTURE_DATA + '")';
+  }
+  var nameEl = document.getElementById('lobby-name');
+  if (nameEl) nameEl.textContent = '指挥官';
+  var best = (typeof bestRecords === 'object' && bestRecords) ? bestRecords : {};
+  var score = best.score || 0, timeSec = best.time || 0, combo = best.combo || 0;
+  function fmt(sec) {
+    var m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  var lvEl = document.getElementById('lobby-lv');
+  if (lvEl) lvEl.textContent = String(1 + Math.floor(score / 5000));
+  var bestEl = document.getElementById('lobby-best');
+  if (bestEl) bestEl.textContent = String(score);
+  var sb = document.getElementById('side-best-score');
+  if (sb) sb.textContent = String(score);
+  var st = document.getElementById('side-best-time');
+  if (st) st.textContent = fmt(timeSec);
+  var scEl = document.getElementById('side-best-combo');
+  if (scEl) scEl.textContent = combo > 0 ? String(combo) : '—';
+}
+
+// 游戏大厅（模式选择）
 function showLevelSelect() {
   state = 'levelSelect';
   hideAllOverlays();
+  refreshLobbyInfo();
   dom.levelOverlay.classList.remove('hidden');
 }
 
@@ -6928,6 +7002,9 @@ function init() {
     var el = document.getElementById(id);
     if (el) el.addEventListener('click', fn);
   }
+  bind('btn-lobby-ach', function () { showAchievements(); });
+  bind('btn-lobby-settings', function () { showSettings(); });
+  bind('btn-lobby-quit', function () { showOverlay('menu'); });
   bind('btn-mode-endless', function () { showMapSelect(); });
   bind('btn-mode-pvp', function () { showRoomList(); });
   bind('btn-map-desert', function () { startEndlessDesert(); });
@@ -6939,6 +7016,7 @@ function init() {
   bind('btn-cr-back', function () { showRoomList(); });
   bind('btn-room-start', function () { startFromRoom(); });
   bind('btn-room-leave', function () { leaveRoom(); });
+  bind('btn-room-simjoin', function () { simulateHumanJoin(); });
   var crModeEl = document.getElementById('cr-mode');
   if (crModeEl) crModeEl.addEventListener('change', updateCreateRoomFillRow);
 
