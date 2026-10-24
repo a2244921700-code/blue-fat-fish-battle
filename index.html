@@ -795,11 +795,29 @@ window.addEventListener('load', function () {
   .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; align-content: start; overflow-y: auto; }
   .inv-item {
     position: relative; background: rgba(12, 28, 46, .75); border: 2px solid rgba(120, 200, 255, .12);
-    border-radius: 10px; padding: 14px 8px 10px; text-align: center; cursor: pointer; transition: all .14s;
+    border-radius: 10px; padding: 10px 8px 10px; text-align: center; cursor: pointer; transition: all .14s;
+    display: flex; flex-direction: column;
   }
   .inv-item:hover { border-color: rgba(120, 200, 255, .5); transform: translateY(-2px); }
   .inv-item.selected { border-color: rgba(120, 200, 255, .85); background: rgba(24, 52, 82, .9); }
   .inv-item.equipped { border-color: rgba(120, 220, 160, .7); }
+  .ii-thumb {
+    width: 100%; height: 78px; margin-bottom: 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at 50% 62%, rgba(70, 150, 220, .22), transparent 72%);
+    border-radius: 8px; overflow: hidden;
+  }
+  .ii-thumb img {
+    max-width: 100%; max-height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 10px rgba(60, 140, 210, .45));
+  }
+  .ii-thumb-empty { color: #4d6a80; font-size: 24px; }
+  .ii-stats {
+    display: flex; justify-content: center; gap: 7px; flex-wrap: wrap;
+    margin-top: 6px; font-size: 10px; color: #6f93ad;
+  }
+  .ii-stats b { color: #ffd76e; font-weight: 800; }
   .ii-icon { font-size: 30px; margin-bottom: 6px; }
   .ii-name { font-size: 13px; font-weight: 800; color: #dff2ff; }
   .ii-badge { font-size: 10px; color: #6f93ad; margin-top: 3px; }

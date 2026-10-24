@@ -6095,6 +6095,85 @@ function showInventory() {
   showOverlay('inventory');
 }
 
+/** 取形象预览图（dataURL） */
+function invSkinImage(id) {
+  if (id === 'melee') return window.ENEMY_TEXTURES ? window.ENEMY_TEXTURES.melee : '';
+  if (id === 'ranged') return window.ENEMY_TEXTURES ? window.ENEMY_TEXTURES.ranged : '';
+  return window.FISH_TEXTURE_DATA || '';
+}
+
+/** 用 Canvas 画武器剪影（没有现成武器立绘，直接矢量绘制） */
+function invWeaponImage(id) {
+  var W = 200, H = 110;
+  var c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  var g = c.getContext('2d');
+  if (!g) return '';
+  g.clearRect(0, 0, W, H);
+  var metal = g.createLinearGradient(0, 40, 0, 80);
+  metal.addColorStop(0, '#8fb6cf');
+  metal.addColorStop(0.5, '#5c7f99');
+  metal.addColorStop(1, '#33505f');
+  var dark = '#243b47';
+  g.save();
+  g.translate(W / 2, H / 2);
+
+  if (id === 'rifle') {
+    // 枪身
+    g.fillStyle = metal;
+    g.fillRect(-78, -8, 118, 16);
+    // 枪管
+    g.fillStyle = dark;
+    g.fillRect(40, -4, 44, 7);
+    // 弹匣
+    g.fillStyle = dark;
+    g.beginPath(); g.moveTo(-8, 8); g.lineTo(14, 8); g.lineTo(8, 34); g.lineTo(-12, 34); g.closePath(); g.fill();
+    // 握把
+    g.beginPath(); g.moveTo(-44, 8); g.lineTo(-26, 8); g.lineTo(-32, 32); g.lineTo(-50, 32); g.closePath(); g.fill();
+    // 枪托
+    g.fillStyle = metal;
+    g.beginPath(); g.moveTo(-78, -8); g.lineTo(-96, -2); g.lineTo(-96, 12); g.lineTo(-78, 8); g.closePath(); g.fill();
+    // 瞄具
+    g.fillStyle = dark;
+    g.fillRect(-20, -14, 26, 6);
+  } else if (id === 'pistol' || id === 'fishpistol') {
+    var w = id === 'fishpistol' ? 1.12 : 1.0;
+    g.scale(w, w);
+    // 套筒
+    g.fillStyle = metal;
+    g.fillRect(-40, -10, 82, 18);
+    // 枪管口
+    g.fillStyle = dark;
+    g.fillRect(38, -6, 10, 10);
+    // 握把
+    g.fillStyle = dark;
+    g.beginPath(); g.moveTo(-34, 8); g.lineTo(-8, 8); g.lineTo(-16, 44); g.lineTo(-42, 44); g.closePath(); g.fill();
+    // 扳机护圈
+    g.strokeStyle = dark; g.lineWidth = 4;
+    g.beginPath(); g.arc(-2, 18, 11, -0.2, Math.PI * 0.95); g.stroke();
+    // 鱼人手枪加个鱼鳍标记
+    if (id === 'fishpistol') {
+      g.fillStyle = 'rgba(90, 200, 255, .85)';
+      g.beginPath(); g.moveTo(-6, -6); g.lineTo(10, -20); g.lineTo(22, -6); g.closePath(); g.fill();
+    }
+  } else if (id === 'knife') {
+    // 刀刃
+    var bl = g.createLinearGradient(-30, -30, 60, 20);
+    bl.addColorStop(0, '#dff2ff');
+    bl.addColorStop(1, '#8fb6cf');
+    g.fillStyle = bl;
+    g.beginPath(); g.moveTo(-18, 10); g.lineTo(46, -34); g.lineTo(64, -24); g.lineTo(2, 20); g.closePath(); g.fill();
+    // 护手
+    g.fillStyle = dark;
+    g.fillRect(-26, 4, 12, 22);
+    // 刀柄
+    g.fillStyle = '#3a2a1e';
+    g.beginPath(); g.moveTo(-26, 12); g.lineTo(-58, 26); g.lineTo(-52, 40); g.lineTo(-22, 26); g.closePath(); g.fill();
+  }
+  g.restore();
+  return c.toDataURL();
+}
+
 /** 仓库物品清单 */
 function invItems() {
   if (INVENTORY.tab === 'weapon') {
@@ -6131,8 +6210,11 @@ function renderInventory() {
   // 网格
   var grid = document.getElementById('inv-grid');
   if (!grid) return;
+  var items = invItems();
+  // 默认选中第一个，保证右侧详情一进来就有内容
+  if (!INVENTORY.selected && items.length) INVENTORY.selected = items[0].id;
   grid.innerHTML = '';
-  invItems().forEach(function (it) {
+  items.forEach(function (it) {
     var equipped = (it.slot === 'primary' && INVENTORY.loadout.primary === it.id) ||
                    (it.slot === 'secondary' && INVENTORY.loadout.secondary === it.id) ||
                    (it.slot === 'melee' && INVENTORY.loadout.melee === it.id) ||
@@ -6140,10 +6222,26 @@ function renderInventory() {
     var d = document.createElement('div');
     d.className = 'inv-item' + (equipped ? ' equipped' : '') + (INVENTORY.selected === it.id ? ' selected' : '');
     var badge = it.slot === 'primary' ? '主武器' : it.slot === 'secondary' ? '副武器' : it.slot === 'melee' ? '近战' : '形象';
-    var icon = it.slot === 'skin' ? '🐟' : it.slot === 'melee' ? '🗡️' : '🔫';
-    d.innerHTML = '<div class="ii-icon">' + icon + '</div>' +
+    // 预览图：形象用立绘，武器用 Canvas 剪影
+    var imgSrc = it.slot === 'skin' ? invSkinImage(it.id) : invWeaponImage(it.id);
+    var preview = imgSrc
+      ? '<div class="ii-thumb"><img src="' + imgSrc + '" alt="' + it.name + '"></div>'
+      : '<div class="ii-thumb ii-thumb-empty">?</div>';
+    // 卡片上的核心属性（武器才有）
+    var stats = '';
+    if (it.def) {
+      stats = '<div class="ii-stats">' +
+        '<span>伤害 <b>' + it.def.damage + '</b></span>' +
+        '<span>弹匣 <b>' + it.def.magSize + '</b></span>' +
+        '<span>射速 <b>' + Math.round(60 / it.def.shootInterval) + '</b></span>' +
+        '</div>';
+    } else if (it.slot === 'melee') {
+      stats = '<div class="ii-stats"><span>近战 <b>2×</b> 重击</span></div>';
+    }
+    d.innerHTML = preview +
       '<div class="ii-name">' + it.name + '</div>' +
       '<div class="ii-badge">' + badge + '</div>' +
+      stats +
       (equipped ? '<div class="ii-eq">' + (it.slot === 'skin' ? '使用中' : '已装备') + '</div>' : '');
     d.addEventListener('click', function () {
       INVENTORY.selected = it.id;
