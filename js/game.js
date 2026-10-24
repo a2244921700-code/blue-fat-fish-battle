@@ -183,6 +183,8 @@ var camFx = { shake: 0, sway: 0, swayT: 0, land: 0, landT: 0, lastLandV: 0, walk
 var keys = Object.create(null);
 var fireHeld = false;
 var shootCd = 0, hurtCd = 0, stepTimer = 0;
+var weaponSwitch = null; // 收枪 / 换装 / 举枪共用一个攻击锁，暂停时冻结。
+var killMedal = { chain: 0, streak: 0, window: 0, life: 0, serial: 0 };
 // 受伤无敌帧按来源分组：近战 / 远程 / 爆炸各算各的 ——
 // 否则 A 怪的伤害会屏蔽 B 怪（例如刚被咬过时，自爆鱼的 100 点核弹伤害会被整发吞掉）
 var hurtCdByKind = { melee: 0, ranged: 0, blast: 0 };
@@ -561,9 +563,8 @@ function weaponDef() {
   return pv || WEAPONS[currentWeapon] || WEAPONS.pistol;
 }
 
-/** 切换武器（保存当前弹药、载入目标弹药、切模型、刷新 HUD） */
-function switchWeapon(id) {
-  if (!WEAPONS[id] || id === currentWeapon) return;
+/** 模型完全收起后才提交装备和弹药；入口统一走 switchWeapon。 */
+function equipWeapon(id) {
   // 保存当前武器的弹药（近战武器没有弹药池）
   if (!WEAPONS[currentWeapon].melee && weaponAmmo[currentWeapon]) {
     weaponAmmo[currentWeapon].mag = ammo.mag;
@@ -585,8 +586,60 @@ function switchWeapon(id) {
 
   applyWeaponVisual();
   updateAmmoHUD();
-  showNotice('切换武器：' + def.name + '（' + def.key + ' 键切换）');
-  Sfx.reloadDone();
+}
+
+function switchWeapon(id) {
+  if (state !== 'playing' || player.hp <= 0 || weaponSwitch || !WEAPONS[id] || id === currentWeapon) return false;
+  if (gameMode === 'pvp' && (!PVP.active || (PVP.roundState !== 'live' && PVP.roundState !== 'prepare'))) return false;
+  weaponSwitch = { from: currentWeapon, to: id, t: 0, duration: id === 'rifle' ? .72 : id === 'knife' ? .48 : .56, swapped: false,
+    position: gun.group.position.clone(), rotation: gun.group.rotation.clone() };
+  ammo.reloading = false; ammo.reloadTimer = 0;
+  if (dom.reloadWrap) dom.reloadWrap.style.display = 'none';
+  gun.knifeAnim = null; gun.flashT = 0; gun.flashMesh.visible = false; gun.light.intensity = 0; gun.recoil = 0;
+  gun.pistolGroup.slide.position.z = 0; gun.rifleGroup.magazine.position.y = -.06;
+  updateWeaponSwitchHUD();
+  Sfx.reloadStart();
+  return true;
+}
+
+function updateWeaponSwitchHUD() {
+  var el = document.getElementById('weapon-switch');
+  if (el) {
+    el.classList.toggle('hidden', !weaponSwitch);
+    if (weaponSwitch) {
+      document.getElementById('weapon-switch-name').textContent = '换装 · ' + WEAPONS[weaponSwitch.to].name;
+      document.getElementById('weapon-switch-fill').style.width = (weaponSwitch.t / weaponSwitch.duration * 100) + '%';
+    }
+  }
+  if (document.body) document.body.classList.toggle('weapon-switching', !!weaponSwitch);
+}
+
+function cancelWeaponSwitch() {
+  weaponSwitch = null;
+  updateWeaponSwitchHUD();
+}
+
+function updateWeaponSwitch(dt) {
+  if (!weaponSwitch) return false;
+  var sw = weaponSwitch;
+  sw.t = Math.min(sw.duration, sw.t + dt);
+  var progress = sw.t / sw.duration, split = .42;
+  if (progress >= split && !sw.swapped) { sw.swapped = true; equipWeapon(sw.to); }
+  if (progress >= 1) { cancelWeaponSwitch(); Sfx.reloadDone(); return false; }
+  // smoothstep 使两个阶段首尾速度归零，模型在画面下方交换，避免可见的瞬间跳变。
+  var k = progress < split ? progress / split : (progress - split) / (1 - split);
+  k = k * k * (3 - 2 * k);
+  var down = progress < split ? k : 1 - k;
+  var melee = !!weaponDef().melee, y = melee ? -.22 : -.27, z = melee ? -.48 : -.55;
+  if (progress < split) {
+    gun.group.position.set(sw.position.x + (.42 - sw.position.x) * k, sw.position.y + (-1.05 - sw.position.y) * k, sw.position.z + (-.38 - sw.position.z) * k);
+    gun.group.rotation.set(sw.rotation.x + (.85 - sw.rotation.x) * k, sw.rotation.y + (.2 - sw.rotation.y) * k, sw.rotation.z + (-.32 - sw.rotation.z) * k);
+  } else {
+    gun.group.position.set(.28 + .14 * down, y + (-1.05 - y) * down, z + (-.38 - z) * down);
+    gun.group.rotation.set(.85 * down, .2 * down, -.32 * down);
+  }
+  updateWeaponSwitchHUD();
+  return true;
 }
 
 /** 切换模型并从 muzzleTip 锚点定位枪焰，恢复被打断的换弹/攻击姿势。 */
@@ -1475,7 +1528,7 @@ function updateEnvByWave() {
   if (want !== envIndex) applyEnvTheme(want, true);
 }
 
-function buildEnvironment() {
+function* buildEnvironmentSteps() {
   if (envBuilt) return;
   var beforeChildren = scene.children.slice();
   scene.background = skyTextureFor(0, ENV_THEMES[0]);
@@ -1548,6 +1601,7 @@ function buildEnvironment() {
   vWall(-34, 20, 28, 3.0);
   vWall(34, 20, 28, 3.0);
 
+  yield {progress:28,label:'搭建城墙与通道'};
   // ===== 木箱（沿用木箱纹理）=====
   var crateMat = FishArt.material('crate');
   function crate(cx, cz, stack) {
@@ -1622,9 +1676,11 @@ function buildEnvironment() {
     wallMeshes.push(bar);
   });
 
+  yield {progress:46,label:'布置场景物件'};
   worldArt = FishArt.build(scene, obstacles, poolWater);
   // 原墙顶已由合并檐口接管；同步加入射线遮挡，保留从高处射击的阻挡行为。
   wallMeshes.push(worldArt.wallCaps);
+  yield {progress:62,label:'生成建筑细节与纹理'};
   worldArt.detail = FishSceneDetail.build(scene, obstacles, wallMeshes);
   // 先登记固定陈设，再抽取掩体，防止随机箱子与新摊位、货车重叠。
   spawnRandomCovers();
@@ -1634,7 +1690,9 @@ function buildEnvironment() {
   // 记录本次新建的对象，供卸载时整体移除
   envObjects = scene.children.filter(function (o) { return beforeChildren.indexOf(o) < 0; });
   envBuilt = true;
+  yield {progress:76,label:'整理碰撞与场景资源'};
 }
+function buildEnvironment(){var steps=buildEnvironmentSteps();while(!steps.next().done){}}
 
 /** 卸载游戏场景（回主菜单时调用）：移除地图 / 灯光 / 云等全部环境对象并释放几何 */
 function unloadGameScene() {
@@ -1713,11 +1771,15 @@ function drawMiniMap() {
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
     if (!e.alive) continue;
-    var sp = toScreen(e.mesh.position.x, e.mesh.position.z);
+    var radarPos=e.mesh.position,age=0;
+    if(e.isBot&&e.team==='blue'){var contact=pvpTactics&&pvpTactics.contacts.red[e.pvpId];if(!contact||(age=pvpTactics.clock-contact.time)>3)continue;radarPos=contact.position;}
+    var sp = toScreen(radarPos.x, radarPos.z);
+    x.globalAlpha=age>0?Math.max(.25,1-age/3):1;
     x.beginPath(); x.arc(sp[0], sp[1], 3.2, 0, 6.283);
-    x.fillStyle = (e.isBot && e.team === 'red') ? '#4fd6ff' : '#ff3b3b';
+    x.fillStyle=e.isBot?(e.team==='red'?'#ff8c7c':'#73c1ff'):'#ff3b3b';
     x.fill();
   }
+  x.globalAlpha=1;
   // Boss：橙色描边的红色大圆点
   if (boss) {
     var bp = toScreen(boss.mesh.position.x, boss.mesh.position.z);
@@ -1766,7 +1828,7 @@ function drawMiniMap() {
   x.lineJoin = 'round';
   x.strokeStyle = '#ffffff'; x.lineWidth = 3;
   x.stroke();
-  x.fillStyle = '#2eff6a'; x.fill();
+  x.fillStyle = gameMode==='pvp'?'#ffb09c':'#2eff6a'; x.fill();
 }
 
 // ---------------------------------------------------------------- 玩家
@@ -1823,6 +1885,10 @@ function eyeHeightNow() {
 }
 
 function syncCamera() {
+  if(gameMode==='pvp'&&PVP.active&&player.hp<=0){
+    var ally=enemies.find(function(e){return e.isBot&&e.team==='red'&&e.alive;});
+    if(ally){camera.position.set(ally.mesh.position.x,ally.mesh.position.y+.5,ally.mesh.position.z);camera.rotation.set(0,ally.brain.yaw+Math.PI,0,'YXZ');return;}
+  }
   var offX = 0, offY = 0, roll = 0, pitchOff = 0;
 
   // ① 受击抖动：短促的高频位移（命中/被打时）
@@ -2503,7 +2569,7 @@ function updateFishVisuals(dt) {
     var e = enemies[i];
     // AI 玩家：朝向/呼吸/阴影由 updatePvpBots 处理，这里只播死亡碎裂动画
     if (e.isBot) {
-      if (!e.alive && e.dyingT > 0) {
+      if (!e.alive && e.dyingT > 0 && state === 'playing') {
         e.dyingT -= dt;
         var k = Math.max(0, e.dyingT / 0.28);
         e.mesh.scale.setScalar(0.35 + 0.65 * k);
@@ -2602,7 +2668,7 @@ function updateFishVisuals(dt) {
 }
 
 function killFish(e, hitPoint) {
-  // 对战模式：击杀 AI 只记分 + 触发重生，不掉落、不分裂、不计连杀
+  // 对战模式独立结算；视觉连杀徽章不参与无尽模式的评级增益。
   if (e && e.isBot) { pvpOnBotKilled(e); return; }
   e.alive = false;
   e.respawnTimer = 99999;   // 波次制：敌人不重生（下一波由波次系统补足）
@@ -2639,6 +2705,7 @@ function killFish(e, hitPoint) {
   // 分裂子鱼：只计击杀数，不计分 / 不计连杀 / 不计成就与统计
   //（否则一条分裂鱼相当于 3 次击杀，成为刷分与刷评级的燃料）
   if (!e.isChild) {
+    awardKillMedal(false);
     score += 10;
     unlockAchievement('firstBlood');     // 成就：初次猎杀
     bumpStat('totalKills', 1);           // 累计击杀（千鱼斩）
@@ -3093,7 +3160,7 @@ function updateAmmoHUD() {
     var slots = wbar.querySelectorAll('.wslot');
     for (var si = 0; si < slots.length; si++) {
       if (slots[si].classList) {
-        slots[si].classList.toggle('active', slots[si].getAttribute('data-wkey') === WEAPONS[currentWeapon].key);
+        slots[si].classList.toggle('active', slots[si].getAttribute('data-wkey') === (gameMode === 'pvp' ? (currentWeapon === 'rifle' ? '1' : currentWeapon === 'knife' ? '3' : '2') : WEAPONS[currentWeapon].key));
       }
     }
   }
@@ -3103,7 +3170,8 @@ function updateAmmoHUD() {
 
 // 换弹请求：R 键或弹夹打空时触发；备用为 0 时提示"弹药耗尽"且不换弹
 function requestReload() {
-  if (state !== 'playing' || ammo.reloading) return;
+  if(!pvpCanAct())return;
+  if (state !== 'playing' || ammo.reloading || weaponSwitch) return;
   if (weaponDef().melee) return;             // 近战武器不需要换弹
   if (ammo.mag >= magSizeNow()) return;
   if (ammo.reserve <= 0) {
@@ -3283,6 +3351,44 @@ function resetCombo() {
   hideComboPop();
 }
 
+// 击杀徽章独立于无尽模式评级：5 秒内连续击杀升级；生存连杀在阵亡/换回合时归零。
+// 同一帧爆炸击杀多名敌人也逐个计数，显示最高连杀，不堆叠遮挡准星。
+function awardKillMedal(isBoss) {
+  if (player.hp <= 0) return; // 阵亡后的延迟手雷仍记战绩，但不重启生存连杀。
+  killMedal.chain = killMedal.window > 0 ? killMedal.chain + 1 : 1;
+  killMedal.streak++; killMedal.window = 5; killMedal.life = 2.4; killMedal.serial++;
+  var el = document.getElementById('kill-medal');
+  if (!el) return;
+  var n = killMedal.chain, names = ['', '击杀确认', '双杀', '三连杀', '四连杀', '五连杀'];
+  var title = isBoss ? '巨兽击破' : (names[n] || n + ' 连杀');
+  var milestone = killMedal.streak >= 10 ? '势不可挡' : killMedal.streak >= 5 ? '锋芒毕露' : '本次生存';
+  el.setAttribute('data-tier', isBoss || n >= 5 ? 'legend' : n >= 3 ? 'hot' : n >= 2 ? 'multi' : 'single');
+  el.classList.toggle('boss-kill', !!isBoss);
+  document.getElementById('kill-medal-title').textContent = title;
+  document.getElementById('kill-medal-count').textContent = n > 1 ? '×' + n : '✓';
+  document.getElementById('kill-medal-detail').textContent = milestone + ' · ' + killMedal.streak + ' 击杀';
+  document.getElementById('kill-medal-window').style.transform = 'scaleX(1)';
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+}
+
+function resetKillMedal() {
+  killMedal.chain = 0; killMedal.streak = 0; killMedal.window = 0; killMedal.life = 0;
+  var el = document.getElementById('kill-medal'); if (el) el.classList.remove('show');
+}
+
+function updateKillMedal(dt) {
+  if (killMedal.window > 0) {
+    killMedal.window = Math.max(0, killMedal.window - dt);
+    if (!killMedal.window) killMedal.chain = 0;
+    var meter = document.getElementById('kill-medal-window');
+    if (meter) meter.style.transform = 'scaleX(' + (killMedal.window / 5) + ')';
+  }
+  if (killMedal.life > 0) {
+    killMedal.life = Math.max(0, killMedal.life - dt);
+    if (!killMedal.life) { var el = document.getElementById('kill-medal'); if (el) el.classList.remove('show'); }
+  }
+}
+
 // ---------------------------------------------------------------- 局内强化（无尽模式专属：击杀 Boss 3 选 1，不持久化）
 var UPGRADE_DEFS = {
   dmg:    { ico: '💥', name: '子弹强化', short: '威力 +1' },
@@ -3458,6 +3564,7 @@ function adjustSkill(id, delta) {
 
 // 打开技能等级查看面板：游戏暂停、默认 BGM 暂停、播放"进步的小曲"
 function openSkills() {
+  if(gameMode==='pvp')return;
   if (state !== 'playing') return;
   state = 'skills';
   renderSkillsPanel();
@@ -4374,6 +4481,7 @@ function defeatBoss() {
   unlockAchievement('firstBoss');      // 成就：巨兽猎人
   bumpStat('totalBoss', 1);
   addComboPoints(CFG.comboBossPoints); // 击败 Boss：连杀 +5 点，快速提升评级
+  awardKillMedal(true);
   rollKillRewards();              // Boss 击杀同样触发概率战利品
   player.hp = CFG.maxHp;          // 击败 Boss：生命回满
   // Boss 弹药奖励：两把枪都补满当前弹夹，并各获得「相当于一个弹夹容量」的备弹（受上限约束）
@@ -4418,9 +4526,11 @@ function updateNadeHUD() {
 }
 
 function throwGrenade() {
-  if (state !== 'playing') return;
+  if(!pvpCanAct())return;
+  if (state !== 'playing' || weaponSwitch) return;
   if (nadeCount <= 0) { showNotice('手雷不足'); return; }
   nadeCount -= 1;
+  if(gameMode==='pvp')PVP.protection=0;
   updateNadeHUD();
   camera.getWorldDirection(_rayDir);
   var origin = camera.getWorldPosition(new THREE.Vector3());
@@ -4440,11 +4550,18 @@ function throwGrenade() {
 function updateGrenades(dt) {
   for (var i = grenades.length - 1; i >= 0; i--) {
     var gr = grenades[i];
+    var previous=gameMode==='pvp'?gr.pos.clone():null;
     gr.vel.y += CFG.nadeDrop * dt;
     gr.pos.addScaledVector(gr.vel, dt);
     // 落地判定（地面或障碍物顶部），落地瞬间爆炸
     var landedNow = gr.pos.y <= 0.12;
-    if (!landedNow) {
+    if(!landedNow&&previous){
+      // FPS 手雷连续检查运动线段，接触墙面就爆炸，不把撞墙弹体抬到墙顶。
+      var motion=gr.pos.clone().sub(previous),length=motion.length();
+      if(length>0){motion.divideScalar(length);_raycaster.set(previous,motion);_raycaster.far=length+.10;var contacts=_raycaster.intersectObjects(wallMeshes,false);
+        if(contacts.length){landedNow=true;gr.pos.copy(contacts[0].point).addScaledVector(motion,-.12);}}
+    }
+    if (!landedNow && !previous) {
       for (var j = 0; j < obstacles.length; j++) {
         var o = obstacles[j];
         if (gr.pos.x > o.min.x - 0.1 && gr.pos.x < o.max.x + 0.1 &&
@@ -4456,6 +4573,7 @@ function updateGrenades(dt) {
         }
       }
     }
+    if(landedNow)gr.pos.y=Math.max(.12,gr.pos.y);
     gr.mesh.position.copy(gr.pos);
     if (landedNow) {
       explodeGrenade(gr);   // 落地即爆炸
@@ -4476,6 +4594,12 @@ function explodeGrenade(gr) {
   spawnBurst(new THREE.Vector3(center.x, 0.15, center.z), 0xa08a6a, 12, 2.5);
   playSfx('grenade', 0.72);   // 真实手雷爆炸声
   // 手雷数值（高爆手雷技能会提升伤害与半径）
+  if(gameMode==='pvp'){
+    if(PVP.roundState!=='live')return;
+    pvpTactics.noise('red',center,38);
+    enemies.forEach(function(e){var d=e.mesh.position.distanceTo(center);if(e.isBot&&e.alive&&e.team==='blue'&&d<5&&!pvpTactics.occluded(center,e.mesh.position))pvpDamageBot(e,90*(1-d/5),true);});
+    var pc=player.pos.clone();pc.y+=1;var pd=pc.distanceTo(center);if(pd<5&&!pvpTactics.occluded(center,pc))damagePlayer(90*(1-pd/5),{name:'自己',atk:'手雷'});return;
+  }
   var nade = nadeDamageNow();
   var nadeRadius = nade.radius;
   // 鱼：爆炸范围内按小怪血量扣伤
@@ -4529,7 +4653,8 @@ function raySphere(o, d, c, r) {
 // 轻击：范围 1 米、基础伤害 2；重击：伤害恒为轻击的 2 倍，速度更慢、动作明显不同。
 // 用于弹尽粮绝时「铤而走险」；伤害随「子弹强化」技能与连杀评级一起成长。
 function knifeAttack(heavy) {
-  if (state !== 'playing' || knifeCd > 0) return false;
+  if(!pvpCanAct())return false;
+  if (state !== 'playing' || knifeCd > 0 || weaponSwitch) return false;
   var def = WEAPONS.knife;
   knifeCd = heavy ? def.heavyCd : def.shootInterval;
   shootCd = Math.min(0.001, shootCd);              // 与射击冷却解耦
@@ -4537,7 +4662,8 @@ function knifeAttack(heavy) {
 
   // 伤害：基础 + 技能等级，再乘连杀评级加成；重击恒为轻击的 heavyMul 倍
   var base = (def.damage + upgrades.dmg) * (1 + comboBonus().damage);
-  var dmg = heavy ? base * def.heavyMul : base;
+  var dmg = gameMode==='pvp'?(heavy?65:35):(heavy?base*def.heavyMul:base);
+  if(gameMode==='pvp')PVP.protection=0;
 
   camera.getWorldPosition(_rayOrigin);
   camera.getWorldDirection(_rayDir);
@@ -4551,6 +4677,7 @@ function knifeAttack(heavy) {
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
     if (!e.alive) continue;
+    if(e.isBot&&(e.team==='red'||e.protection>0||pvpTactics.occluded(_rayOrigin,e.mesh.position)))continue;
     var toE = _tmpVec.copy(e.mesh.position).sub(_rayOrigin);
     var along = toE.dot(_rayDir);
     if (along < -0.25 || along > range) continue;
@@ -4572,7 +4699,8 @@ function knifeAttack(heavy) {
   var fxColor = heavy ? 0xffe8a0 : 0xffffff;
   if (best) {
     var hp = _tmpVec2.copy(best.mesh.position);
-    best.hp = (best.hp || 1) - dmg;
+    if(best.isBot){pvpDamageBot(best,dmg,true);if(best.alive)showHitmarker(false);}
+    else best.hp = (best.hp || 1) - dmg;
     spawnBurst(hp, fxColor, heavy ? 18 : 10, heavy ? 4.2 : 2.8);
     debugLog((heavy ? '重击' : '轻击') + '命中 ' + enemyName(best) + '，造成 ' + dmg.toFixed(1) + ' 点伤害', 'dbg-hit');
     if (best.hp <= 0) killFish(best, hp.clone());
@@ -4593,13 +4721,15 @@ function knifeAttack(heavy) {
 }
 
 function shootOnce() {
-  if (state !== 'playing' || shootCd > 0) return;
+  if(!pvpCanAct())return;
+  if (state !== 'playing' || shootCd > 0 || weaponSwitch) return;
   if (weaponDef().melee) { knifeAttack(false); return; }   // 近战武器：左键轻击
   if (ammo.reloading) return;               // 换弹期间不能射击
   if (ammo.mag <= 0) { requestReload(); return; }          // 弹夹打空：自动换弹（或提示弹药耗尽）
   var wdef = weaponDef();
   shootCd = wdef.shootInterval;
   ammo.mag -= 1;
+  if(gameMode==='pvp'){PVP.protection=0;pvpTactics.noise('red',player.pos,30);}
   // 真实枪声：每发子弹播放一次（连发与点射都一样）
   playSfx(currentWeapon === 'rifle' ? 'rifleShot' : 'pistolShot', currentWeapon === 'rifle' ? 0.5 : 0.6);
   updateAmmoHUD();
@@ -4639,7 +4769,7 @@ function shootOnce() {
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
     if (!e.alive) continue;
-    if (e.isBot && e.team === 'red') continue;    // 歼灭战：不打自家队友
+    if (e.isBot && (e.team === 'red' || e.protection > 0)) continue;    // 歼灭战：不打自家队友
     var c = e.mesh.position;
     var t = raySphere(_rayOrigin, _rayDir, c, CFG.fishHitRadius);
     if (t > 0 && t < wallDist && t < bestT) { bestT = t; best = e; hitBoss = false; }
@@ -4716,6 +4846,7 @@ function shootOnce() {
         showCritFeed(Math.round(pvpHit.damage));
       }
     }
+    if(best.isBot){pvpDamageBot(best,rollF.damage,true);if(best.alive)showHitmarker(false);Sfx.hitFish();return;}
     best.hp = (best.hp || 1) - rollF.damage;
     if (rollF.isCrit) {
       spawnBurst(_hitPoint, 0xffe066, 12, 4.0);     // 暴击金色火花
@@ -4769,506 +4900,169 @@ function shootOnce() {
 // 先拿到 winRounds 分者获胜，最多 maxRounds 回合。单机版为「玩家 vs N 个 AI」。
 var gameMode = 'endless';                  // 'endless' | 'pvp'
 var PVP = {
-  active: false, over: false,
-  roundNum: 1, myRounds: 0, botRounds: 0,
-  maxRounds: 7, winRounds: 4,
-  roundState: 'idle',                      // 'idle' | 'prepare' | 'live' | 'over'
-  prepareT: 0,
-  mySkin: 'normal', myWeapon: 'pistol',
-  teamSize: 4,          // 每队人数（红队 = 玩家 + teamSize-1 个 AI 队友，蓝队 = teamSize 个 AI）
-  myKills: 0, myDeaths: 0,
+  active:false,over:false,roundNum:1,myRounds:0,botRounds:0,maxRounds:7,winRounds:4,
+  roundState:'idle',prepareT:0,overT:0,mySkin:'normal',myWeapon:'pistol',teamSize:8,
+  myKills:0,myDeaths:0,tickets:{red:24,blue:24},ticketLimit:24,respawnT:0,protection:0,
+  difficulty:'normal',clock:0,hudT:0,roundTime:0,ticketMultiplier:3,lastGunSound:-1
 };
-var PVP_SKIN_LIST = [
-  { id: 'normal', name: '常规鱼',   desc: '原版蓝色大肥鱼' },
-  { id: 'melee',  name: '女仆鱼',   desc: 'Q版女仆装（近战/护盾形象）' },
-  { id: 'ranged', name: '服务生鱼', desc: 'Q版服务生装（射手形象）' },
-];
-// 主武器固定为突击步枪（对应 CS 的 AK-47），玩家选择的是副武器
-var PVP_PRIMARY_ID = 'rifle';
-var PVP_SIDEARM_LIST = [
-  { id: 'pistol',     name: '手枪',     desc: 'USP · 35 伤害 / 12 发 / 353 RPM' },
-  { id: 'fishpistol', name: '鱼人手枪', desc: 'P250 · 38 伤害 / 13 发 / 400 RPM' },
-];
-var PVP_TEAM_OPTIONS = [3, 4, 5];   // 3v3 / 4v4 / 5v5
-var PVP_BOT_HP = 100;        // AI 血量（与玩家同口径：100 HP）
-var PVP_PREPARE = 2.0;       // 每回合开战前的准备时间
-var PVP_VIEW_RANGE = 48;     // AI 视野距离（米）
-var PVP_FOV_COS = -0.34;     // 视野锥半角约 110°（cos 值，>= 该值视为在视野内）
-var PVP_REACT = 0.28;        // 发现目标后的反应延迟（秒）
-var PVP_LOSE_SIGHT = 4.0;    // 失去视野后继续搜索的时长（秒）
-
-function pvpSkinTex(skinId) {
-  if (skinId === 'melee') return enemyTexture('shield', false);
-  if (skinId === 'ranged') return enemyTexture('normal', true);
-  return fishTex;
+var PVP_SKIN_LIST=[{id:'normal',name:'常规鱼',desc:'原版蓝色大肥鱼'},{id:'melee',name:'女仆鱼',desc:'Q 版女仆装'},{id:'ranged',name:'服务生鱼',desc:'Q 版服务生装'}];
+var PVP_PRIMARY_ID='rifle';
+var PVP_SIDEARM_LIST=[{id:'pistol',name:'手枪',desc:'35 伤害 / 12 发 / 稳定点射'},{id:'fishpistol',name:'鱼人手枪',desc:'38 伤害 / 13 发 / 快速点射'}];
+var PVP_TEAM_OPTIONS=[6,8,12,16];
+var PVP_BOT_HP=100,PVP_PREPARE=3,PVP_VIEW_RANGE=48,PVP_RESPAWN=4;
+var pvpTactics=null,pvpActors=[],pvpBaseArt=null;
+var PVP_TEAM_NAMES=['蓝莓','小鲸','阿肥','海盐','浪花','小鱼干','珊瑚','泡泡','星砂','海螺','银鳍','浅滩','水母','潮汐','海风','灯塔'];
+var PVP_ENEMY_NAMES=['赤潮','暗流','深海','漩涡','礁石','寒潮','逆浪','沉船','潜流','白鲨','冰洋','浪涌','海啸','黑帆','鲸落','远洋'];
+function pvpSkinTex(id){return id==='melee'?enemyTexture('shield',false):id==='ranged'?enemyTexture('normal',true):fishTex;}
+var hitmarkerTimer=null;
+function showHitmarker(kill){var el=document.getElementById('hitmarker');if(!el)return;el.classList.remove('show','kill');void el.offsetWidth;el.classList.add('show');if(kill)el.classList.add('kill');clearTimeout(hitmarkerTimer);hitmarkerTimer=setTimeout(function(){el.classList.remove('show','kill');},kill?260:180);}
+function makeTeamTag(name){
+  var cv=document.createElement('canvas');cv.width=256;cv.height=64;var ctx=cv.getContext('2d');if(!ctx)return null;
+  ctx.fillStyle='rgba(39,24,27,.85)';ctx.fillRect(0,0,256,64);ctx.fillStyle='#ffb6aa';ctx.fillRect(0,0,5,64);ctx.font='bold 29px Microsoft YaHei';ctx.textAlign='center';ctx.fillText(name,128,43);
+  var tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;
+  var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:true,depthWrite:false}));sp.scale.set(1.7,.425,1);sp.position.set(0,1.45,0);return sp;
 }
-
-/** 随机出生点。nearPlayer=true 时靠近玩家（队友），否则放在远处（敌人） */
-function pvpSpawnPos(nearPlayer) {
-  var minD = nearPlayer ? 8 : 24;
-  var maxD = nearPlayer ? 20 : 46;
-  for (var i = 0; i < 40; i++) {
-    var ang = rand(0, Math.PI * 2);
-    var dist = rand(minD, maxD);
-    var x = player.pos.x + Math.cos(ang) * dist;
-    var z = player.pos.z + Math.sin(ang) * dist;
-    var lim = CFG.arena - 4;
-    if (Math.abs(x) > lim || Math.abs(z) > lim) continue;
-    if (pointInObstacle(x, z, 1.6)) continue;
-    return new THREE.Vector3(x, CFG.fishBaseY, z);
-  }
-  return new THREE.Vector3(rand(-20, 20), CFG.fishBaseY, rand(-20, 20));
-}
-
-/**
- * 命中标记（hitmarker）：FPS 的标准命中反馈。
- * 白色小叉 = 打中；红色 = 击杀。默认 0.18 秒后消失。
- */
-var hitmarkerTimer = null;
-function showHitmarker(isKill) {
-  var el = document.getElementById('hitmarker');
-  if (!el) return;
-  el.classList.remove('show', 'kill');
-  void el.offsetWidth;
-  el.classList.add('show');
-  if (isKill) el.classList.add('kill');
-  clearTimeout(hitmarkerTimer);
-  hitmarkerTimer = setTimeout(function () {
-    el.classList.remove('show', 'kill');
-  }, isKill ? 260 : 180);
-}
-
-/** 队友昵称池（联机版会换成真实玩家名） */
-var PVP_TEAM_NAMES = ['蓝莓', '小鲸', '阿肥', '海盐', '浪花', '小鱼干', '珊瑚', '泡泡'];
-var PVP_ENEMY_NAMES = ['赤潮', '暗流', '深海', '漩涡', '礁石', '寒潮', '逆浪', '沉船'];
-var pvpNameCursor = 0;
-var pvpEnemyCursor = 0;
-var pvpSkinCursor = 0;
-
-/**
- * 生成一个头顶名牌 Sprite。
- * 只在队友身上挂：玩家视角能立刻区分敌友（敌人不显示任何标签）。
- */
-function makeTeamTag(text) {
-  var canvas = document.createElement('canvas');
-  canvas.width = 256; canvas.height = 64;
-  var g = canvas.getContext('2d');
-  if (!g) return null;
-  // 底框
-  g.fillStyle = 'rgba(10, 30, 55, 0.72)';
-  var r = 14;
-  g.beginPath();
-  g.moveTo(r, 0); g.lineTo(256 - r, 0); g.quadraticCurveTo(256, 0, 256, r);
-  g.lineTo(256, 64 - r); g.quadraticCurveTo(256, 64, 256 - r, 64);
-  g.lineTo(r, 64); g.quadraticCurveTo(0, 64, 0, 64 - r);
-  g.lineTo(0, r); g.quadraticCurveTo(0, 0, r, 0);
-  g.closePath(); g.fill();
-  // 描边
-  g.strokeStyle = 'rgba(120, 200, 255, 0.85)';
-  g.lineWidth = 3; g.stroke();
-  // 文本
-  g.font = 'bold 30px "Microsoft YaHei", sans-serif';
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = '#bfe9ff';
-  g.fillText(text, 128, 33);
-
-  var tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  var mat = new THREE.SpriteMaterial({
-    map: tex, transparent: true, depthTest: false, depthWrite: false,
+function pvpCanAct(){return gameMode!=='pvp'||(PVP.active&&PVP.roundState==='live'&&player.hp>0&&PVP.respawnT<=0);}
+function pvpPlayerActor(){return {id:'player',team:'red',alive:player.hp>0&&PVP.respawnT<=0,position:player.pos,eyeY:player.pos.y+eyeHeightNow(),aimY:player.pos.y+eyeHeightNow()*.7,lowY:player.pos.y+.35,yaw:player.yaw+Math.PI,hp:player.hp};}
+function pvpActor(e){return {id:e.pvpId,team:e.team,alive:e.alive,position:e.mesh.position,eyeY:e.mesh.position.y+.45,aimY:e.mesh.position.y+.15,lowY:e.mesh.position.y-.65,hp:e.hp,sidearm:e.pvpSidearm,brain:e.brain,source:e};}
+function pvpBuildActors(){pvpActors=enemies.filter(function(e){return e.isBot;}).map(pvpActor);pvpActors.push(pvpPlayerActor());return pvpActors;}
+function pvpSpawnPos(team,slot){
+  // 固定两排部署位，候选仅在己方基地。按占用和敌方视线选择，绝不随机刷到地图中央。
+  var flip=team==='red'?1:-1,points=[];
+  var columns=[0,-1,1,-2,2,-3,3,-4,4];
+  for(var row=0;row<3;row++)for(var col=0;col<9;col++)points.push({x:columns[col]*2.7,y:CFG.fishBaseY,z:(41.5-row*2.1)*flip});
+  var best=null,score=-Infinity;
+  points.forEach(function(p,i){if(!pvpTactics.nav.clear(p.x,p.z))return;
+    var s=20-Math.abs(i-(slot%points.length))*.03;
+    if(player.hp>0&&team==='red'&&slot!==0&&Math.hypot(p.x-player.pos.x,p.z-player.pos.z)<1.5)s-=200;
+    enemies.forEach(function(e){if(!e.isBot||!e.alive)return;var d=Math.hypot(p.x-e.mesh.position.x,p.z-e.mesh.position.z);
+      if(d<1.6)s-=200;if(e.team!==team){s+=Math.min(35,d)*.1;if(!pvpTactics.occluded({x:p.x,y:1.5,z:p.z},{x:e.mesh.position.x,y:1.6,z:e.mesh.position.z}))s-=25;}
+    });if(s>score){score=s;best=p;}
   });
-  var sp = new THREE.Sprite(mat);
-  sp.scale.set(2.0, 0.5, 1);
-  sp.position.set(0, 1.85, 0);       // 头顶上方（角色高度约 1.5 米）
-  sp.renderOrder = 20;
-  return sp;
+  if(!best)throw new Error('己方部署区没有可用出生点');return new THREE.Vector3(best.x,best.y,best.z);
 }
-
-/** 给红队 AI 队友挂名牌 */
-function attachTeamTag(e) {
-  if (e.teamTag) return;
-  var pool = (e.team === 'blue') ? PVP_ENEMY_NAMES : PVP_TEAM_NAMES;
-  var cur = (e.team === 'blue') ? pvpEnemyCursor++ : pvpNameCursor++;
-  var name = pool[cur % pool.length] + (cur >= pool.length ? String(cur) : '');
-  e.pvpName = name;
-  var tag = makeTeamTag(name);
-  if (tag) {
-    e.mesh.add(tag);
-    e.teamTag = tag;
-  }
+function pvpResetLoadout(){
+  cancelWeaponSwitch();resetKillMedal();
+  ammo.reloading=false;ammo.reloadTimer=0;shootCd=0;knifeCd=0;spreadBloom=0;recoilSeq=0;lastCrossGap=-1;
+  Object.keys(PVP_WEAPON_DEFS).forEach(function(id){var w=PVP_WEAPON_DEFS[id];if(!w.magSize)return;weaponAmmo[id]={mag:w.magSize,reserve:w.magSize*(id==='rifle'?3:4)};});
+  currentWeapon='rifle';ammo.mag=weaponAmmo.rifle.mag;ammo.reserve=weaponAmmo.rifle.reserve;ammo.magSize=PVP_WEAPON_DEFS.rifle.magSize;
+  nadeCount=1;armorStacks=0;applyWeaponVisual();updateAmmoHUD();updateNadeHUD();updateArmorHUD();updateCrosshairBloom();
+  if(dom.reloadWrap)dom.reloadWrap.style.display='none';
 }
-
-/** 生成一个 AI 玩家。team: 'red' = 玩家队友，'blue' = 敌方 */
-function pvpSpawnBot(team) {
-  team = team || 'blue';
-  // 皮肤轮换而不是纯随机：避免同一队全是同一形象（随机时 1/27 概率会撞）
-  var skin = PVP_SKIN_LIST[pvpSkinCursor % PVP_SKIN_LIST.length];
-  pvpSkinCursor++;
-  // 副武器随机（主武器固定步枪，符合 FPS「主+副」携带习惯）
-  var side = Math.random() < 0.5 ? 'pistol' : 'fishpistol';
-  var pos = pvpSpawnPos(team === 'red');
-  var e = {
-    kind: 'pvpbot', isBot: true, team: team, alive: true,
-    pvpSkin: skin.id,
-    pvpPrimary: 'rifle', pvpSidearm: side, pvpWeapon: 'rifle',
-    mesh: new THREE.Mesh(FishArt.fishGeometry(CFG.fishSize), makeFishMaterial(pvpSkinTex(skin.id))),
-    hp: PVP_BOT_HP, maxHp: PVP_BOT_HP,
-    kills: 0, deaths: 0,
-    baseY: CFG.fishBaseY, phase: rand(0, Math.PI * 2),
-    // 行为树状态：patrol → alert → engage → search
-    aiState: 'patrol', aiTimer: 0, target: null, lastKnown: null,
-    fireTimer: rand(0.4, 1.2), burstLeft: 0, burstGap: 0,
-    strafeT: 0, strafeDir: Math.random() < 0.5 ? 1 : -1,
-    hurt: 0, ranged: true, state: 'pvp', respawnTimer: 0, dyingT: 0,
-    waypoint: new THREE.Vector3(pos.x, 0, pos.z), waitTimer: 0,
-    alertT: 0,
-  };
-  e.mesh.castShadow = true;
-  e.mesh.position.copy(pos);
-  e.gunMesh = FishCombat.fishGun();
-  e.gunMesh.position.set(0.62, -0.18, 0.30);
-  e.mesh.add(e.gunMesh);
-  e.groundShadow = FishArt.shadow(CFG.fishSize);
-  scene.add(e.groundShadow);
-  scene.add(e.mesh);
-  if (team === 'red') {
-    attachTeamTag(e);                     // 队友头顶悬浮 ID
-  } else {
-    // 敌人不挂 3D 名牌（方便区分敌友），但计分板需要名字
-    var ec = pvpEnemyCursor++;
-    e.pvpName = PVP_ENEMY_NAMES[ec % PVP_ENEMY_NAMES.length] +
-      (ec >= PVP_ENEMY_NAMES.length ? String(ec) : '');
-  }
-  enemies.push(e);
-  return e;
-}
-
-/** 清掉场上所有 AI（回合切换/结束对局时用） */
-function pvpClearBots() {
-  for (var i = enemies.length - 1; i >= 0; i--) {
-    if (!enemies[i].isBot) continue;
-    removeEnemyVisual(enemies[i]);
-    enemies.splice(i, 1);
-  }
-}
-
-/** 指定阵营还活着的 AI 数量（不传则统计全部） */
-function pvpAliveBots(team) {
-  var n = 0;
-  for (var i = 0; i < enemies.length; i++) {
-    var e = enemies[i];
-    if (!e || !e.isBot || !e.alive) continue;
-    if (team && e.team !== team) continue;
-    n++;
-  }
-  return n;
-}
-
-/**
- * 感知判定：目标是否在该 AI 的视野内。
- * 条件 = 距离在 PVP_VIEW_RANGE 内 + 处于前方视野锥 + 无墙体遮挡。
- */
-function pvpCanSee(bot, tx, tz) {
-  var dx = tx - bot.mesh.position.x, dz = tz - bot.mesh.position.z;
-  var dist = Math.sqrt(dx * dx + dz * dz);
-  if (dist > PVP_VIEW_RANGE) return false;
-  // 视野锥：用 bot 当前朝向（mesh.rotation.y，+Z 为前）与目标方向的点积
-  var fx = Math.sin(bot.mesh.rotation.y), fz = Math.cos(bot.mesh.rotation.y);
-  var dot = (dx * fx + dz * fz) / (dist || 1);
-  if (dot < PVP_FOV_COS) return false;        // 背身/侧后方看不到
-  return hasLineOfSight(bot.mesh.position.x, bot.mesh.position.y + 0.5, bot.mesh.position.z);
-}
-
-/**
- * 选目标：找视野内最近的敌人。
- * 红队 bot 只打蓝队；蓝队 bot 打玩家和红队 bot。
- */
-function pvpFindTarget(bot) {
-  var best = null, bestD = Infinity;
-  if (bot.team === 'red') {
-    for (var i = 0; i < enemies.length; i++) {
-      var e = enemies[i];
-      if (!e || !e.isBot || e.team !== 'blue' || !e.alive) continue;
-      var d = (e.mesh.position.x - bot.mesh.position.x) ** 2 + (e.mesh.position.z - bot.mesh.position.z) ** 2;
-      if (d < bestD && pvpCanSee(bot, e.mesh.position.x, e.mesh.position.z)) { bestD = d; best = e; }
-    }
-    return best;
-  }
-  // 蓝队：优先看玩家，再看红队 bot
-  if (player.hp > 0 && PVP.roundState === 'live' && pvpCanSee(bot, player.pos.x, player.pos.z)) {
-    best = { isPlayer: true, x: player.pos.x, z: player.pos.z };
-    bestD = (player.pos.x - bot.mesh.position.x) ** 2 + (player.pos.z - bot.mesh.position.z) ** 2;
-  }
-  for (var j = 0; j < enemies.length; j++) {
-    var r = enemies[j];
-    if (!r || !r.isBot || r.team !== 'red' || !r.alive) continue;
-    var rd = (r.mesh.position.x - bot.mesh.position.x) ** 2 + (r.mesh.position.z - bot.mesh.position.z) ** 2;
-    if (rd < bestD && pvpCanSee(bot, r.mesh.position.x, r.mesh.position.z)) { bestD = rd; best = r; }
-  }
-  return best;
-}
-
-/** 对 AI 造成伤害（红蓝通用） */
-function pvpDamageBot(e, dmg) {
-  if (!e || !e.alive) return;
-  e.hp -= dmg;
-  e.hurt = 0.15;
-  if (e.hp <= 0) pvpKillBotEntity(e, null);
-}
-
-/** 击倒一个 AI：标记死亡并播碎裂动画，同时按阵营结算 */
-function pvpKillBotEntity(e, killerIsPlayer) {
-  if (!e.alive) return;
-  e.alive = false;
-  e.dyingT = 0.28;
-  e.respawnTimer = 0;
-  e.deaths = (e.deaths || 0) + 1;
-  if (e.groundShadow) e.groundShadow.visible = false;
-  if (killerIsPlayer) {
-    PVP.myKills = (PVP.myKills || 0) + 1;
-    showHitmarker(true);            // 击杀确认（红色击杀标记）
-    pushKillFeed('你', e.pvpName || 'AI');
-  }
-  refreshScoreboard();
-}
-
-/** AI 击杀归属（对打时记到击杀者名下） */
-function pvpCreditKill(killer, victim) {
-  if (killer) {
-    killer.kills = (killer.kills || 0) + 1;
-    pushKillFeed(killer.pvpName || 'AI', (victim && victim.pvpName) || 'AI');
-  }
-  refreshScoreboard();
-}
-
-/** 刷新顶部回合比分条 */
-function updatePvpScore() {
-  var el = document.getElementById('pvp-score');
-  if (!el) return;
-  var rd = el.querySelector('.ps-round');
-  var mine = el.querySelector('.ps-mine');
-  var bots = el.querySelector('.ps-bots');
-  var goal = el.querySelector('.ps-goal');
-  var live = el.querySelector('.ps-live');
-  if (rd) rd.textContent = '第 ' + PVP.roundNum + ' 回合';
-  if (mine) mine.textContent = '红队 ' + PVP.myRounds;
-  if (bots) bots.textContent = '蓝队 ' + PVP.botRounds;
-  if (goal) goal.textContent = '先拿 ' + PVP.winRounds + ' 回合';
-  if (live) live.textContent = '存活 ' + (pvpAliveBots('red') + 1) + ' vs ' + pvpAliveBots('blue');
-}
-
-/** 开一个新回合：红蓝双方重新部署，准备 2 秒后开打 */
-function pvpStartRound() {
-  if (!PVP.active) return;
-  PVP.roundState = 'prepare';
-  PVP.prepareT = PVP_PREPARE;
-  pvpClearBots();
-  pvpSkinCursor = 0;          // 每回合重新轮换皮肤
-  pvpEnemyCursor = 0;
-  spreadBloom = 0; recoilSeq = 0; lastCrossGap = -1;
-  updateCrosshairBloom();
-  player.hp = CFG.maxHp;
-  armorStacks = 0;
-  player.pos.set(0, 0, 18);
-  player.yaw = 0; player.pitch = 0;
-  ammo.reloading = false; ammo.reloadTimer = 0;
-  ammo.mag = magSizeNow();
-  ammo.reserve = reserveMaxNow(currentWeapon);
-  updateHUD(); updateArmorHUD(); updateAmmoHUD();
-  // 红队 = 玩家 + (teamSize-1) 个 AI 队友；蓝队 = teamSize 个 AI
-  for (var r = 0; r < PVP.teamSize - 1; r++) pvpSpawnBot('red');
-  for (var b = 0; b < PVP.teamSize; b++) pvpSpawnBot('blue');
+function pvpRespawnPlayer(){
+  var p=pvpSpawnPos('red',0);player.pos.set(p.x,0,p.z);player.yaw=0;player.pitch=0;player.hp=100;player.velY=0;player.onGround=true;crouchT=0;
+  PVP.respawnT=0;PVP.protection=1.5;fireHeld=false;touchFiring=false;pvpResetLoadout();syncCamera();updateHUD();
+  document.body.classList.remove('pvp-dead');
   updatePvpScore();
-  showDialog('第 ' + PVP.roundNum + ' 回合',
-    '红队 ' + PVP.teamSize + ' vs 蓝队 ' + PVP.teamSize +
-    '　淘汰对方全员即赢下本回合（Ctrl 蹲下 · 1/2 主副武器）', 2400);
+}
+function pvpRespawnBot(e){
+  e.alive=false;var p=pvpSpawnPos(e.team,e.pvpSlot);e.mesh.position.copy(p);e.alive=true;e.hp=100;e.dyingT=0;e.respawnTimer=0;e.protection=1.5;e.hurt=0;
+  e.mesh.scale.setScalar(1);e.mesh.visible=true;e.mesh.material.opacity=1;e.mesh.material.color.setScalar(1);e.mesh.rotation.set(0,e.team==='red'?Math.PI:0,0);
+  e.shotFlash=0;
+  if(e.groundShadow)e.groundShadow.visible=true;e.brain=pvpTactics.reset(pvpActor(e),e.pvpSlot);e.aiState='advance';updateEnemyShadow(e,CFG.fishSize);
+}
+function pvpSpawnBot(team,slot){
+  var skin=PVP_SKIN_LIST[slot%3],pool=team==='red'?PVP_TEAM_NAMES:PVP_ENEMY_NAMES;
+  var e={kind:'pvpbot',isBot:true,team:team,alive:false,pvpId:team+'-'+slot,pvpSlot:slot,pvpName:pool[slot%pool.length],pvpSkin:skin.id,
+    pvpPrimary:'rifle',pvpSidearm:slot%2?'pistol':'fishpistol',pvpWeapon:'rifle',mesh:new THREE.Mesh(FishArt.fishGeometry(CFG.fishSize),makeFishMaterial(pvpSkinTex(skin.id))),
+    hp:100,maxHp:100,kills:0,deaths:0,baseY:CFG.fishBaseY,phase:slot*.7,hurt:0,ranged:true,state:'pvp',respawnTimer:0,dyingT:0};
+  e.mesh.castShadow=true;FishPvpArt.equip(e);e.groundShadow=FishArt.shadow(CFG.fishSize);scene.add(e.groundShadow);scene.add(e.mesh);
+  if(team==='red'){e.teamTag=makeTeamTag(e.pvpName);if(e.teamTag)e.mesh.add(e.teamTag);}
+  enemies.push(e);pvpRespawnBot(e);return e;
+}
+function pvpClearBots(){for(var i=enemies.length-1;i>=0;i--){if(enemies[i].isBot){removeEnemyVisual(enemies[i]);enemies.splice(i,1);}}pvpActors=[];}
+function pvpCleanup(){cancelWeaponSwitch();resetKillMedal();pvpClearBots();pvpTactics=null;if(pvpBaseArt)FishArt.disposeTree(pvpBaseArt);pvpBaseArt=null;document.body.classList.remove('pvp-mode','pvp-dead');var r=document.getElementById('pvp-respawn');if(r)r.classList.add('hidden');}
+function pvpAliveBots(team){return enemies.filter(function(e){return e.isBot&&e.alive&&(!team||e.team===team);}).length;}
+function pvpSpendTicket(team){if(PVP.roundState!=='live')return;PVP.tickets[team]=Math.max(0,PVP.tickets[team]-1);if(PVP.tickets[team]===0)pvpEndRound(team==='blue');updatePvpScore();}
+function pvpDamageBot(e,dmg,killer){
+  if(!PVP.active||PVP.roundState!=='live'||!e||!e.alive||e.protection>0)return false;
+  e.hp=Math.max(0,e.hp-dmg);e.hurt=.15;if(killer)pvpTactics.hit(pvpActor(e),killer===true?player.pos:killer.mesh.position);
+  if(e.hp<=0)pvpKillBotEntity(e,killer);return true;
+}
+function pvpKillBotEntity(e,killer){
+  if(!e.alive||PVP.roundState!=='live')return;e.alive=false;e.hp=0;e.dyingT=.28;e.respawnTimer=PVP_RESPAWN;e.deaths++;e.groundShadow.visible=false;
+  pvpActors.forEach(function(a){if(a.id===e.pvpId)a.alive=false;});
+  if(killer===true){PVP.myKills++;showHitmarker(true);awardKillMedal(false);pushKillFeed('你',e.pvpName);}else if(killer){killer.kills++;pushKillFeed(killer.pvpName,e.pvpName);}
+  pvpSpendTicket(e.team);refreshScoreboard();
+}
+function updatePvpScore(){
+  var el=document.getElementById('pvp-score');if(!el||!el.querySelector)return;
+  var seconds=Math.floor(PVP.roundTime);
+  var phase=PVP.roundState==='prepare'?'部署 '+Math.ceil(PVP.prepareT)+'s':PVP.roundState==='over'?'回合结束':Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0');
+  function set(cls,v){var n=el.querySelector(cls);if(n)n.textContent=v;}
+  set('.ps-round','ROUND '+String(PVP.roundNum).padStart(2,'0')+' / '+PVP.maxRounds);set('.ps-mine',PVP.tickets.red);set('.ps-bots',PVP.tickets.blue);
+  set('.ps-goal',PVP.myRounds+' : '+PVP.botRounds);set('.ps-live',phase);
+  set('.ps-red-alive','红队 · 我方  '+(pvpAliveBots('red')+(player.hp>0?1:0))+'/'+PVP.teamSize+' 存活');set('.ps-blue-alive','蓝队 · 敌方  '+pvpAliveBots('blue')+'/'+PVP.teamSize+' 存活');
+  var rb=el.querySelector('.ps-red-fill'),bb=el.querySelector('.ps-blue-fill');if(rb)rb.style.width=PVP.tickets.red/PVP.ticketLimit*100+'%';if(bb)bb.style.width=PVP.tickets.blue/PVP.ticketLimit*100+'%';
+  var resp=document.getElementById('pvp-respawn');if(resp){if(PVP.active&&player.hp<=0&&PVP.roundState==='live'){resp.classList.remove('hidden');resp.querySelector('b').textContent=Math.ceil(PVP.respawnT);resp.querySelector('small').textContent='4 秒后返回红队基地 · 剩余 '+PVP.tickets.red+' 额度';}else resp.classList.add('hidden');}
+  var status=document.getElementById('pvp-status');if(status)status.textContent=PVP.protection>0&&player.hp>0?'出生保护 '+PVP.protection.toFixed(1)+'s · 开火即解除':'阵亡扣 1 额度 · 归零换回合 · Tab 计分板';
+}
+function pvpStartRound(){
+  if(!PVP.active)return;PVP.roundState='prepare';PVP.prepareT=PVP_PREPARE;PVP.roundTime=0;PVP.tickets={red:PVP.ticketLimit,blue:PVP.ticketLimit};
+  pvpTactics.contacts={red:{},blue:{}};pvpTactics.noises=[];pvpActors=[];
+  grenades.forEach(function(g){FishArt.disposeTree(g.mesh);});grenades=[];
+  enemies.forEach(function(e){if(e.isBot)e.alive=false;});pvpRespawnPlayer();
+  if(!enemies.some(function(e){return e.isBot;})){for(var r=1;r<PVP.teamSize;r++)pvpSpawnBot('red',r);for(var b=0;b<PVP.teamSize;b++)pvpSpawnBot('blue',b);}else enemies.forEach(function(e){if(e.isBot)pvpRespawnBot(e);});
+  updatePvpScore();refreshScoreboard();showDialog('第 '+PVP.roundNum+' 回合 · 双方部署','每队 '+PVP.teamSize+' 人 / '+PVP.ticketLimit+' 共享额度 · 阵亡后 4 秒复活，任一队额度归零结束回合',2500);
+}
+function pvpBeginLive(){PVP.roundState='live';showNotice('开始！消耗蓝队复活额度');}
+function pvpEndRound(win){
+  if(!PVP.active||PVP.roundState==='over')return;PVP.roundState='over';PVP.overT=3;fireHeld=false;touchFiring=false;ammo.reloading=false;
+  cancelWeaponSwitch();applyWeaponVisual();
+  if(win)PVP.myRounds++;else PVP.botRounds++;updatePvpScore();
+  showDialog(win?'红队赢下本回合':'蓝队赢下本回合','回合比分 '+PVP.myRounds+' : '+PVP.botRounds+' · 3 秒后重新部署',3000);
+}
+function pvpBotShoot(actor,aim,wdef,error){
+  var e=actor.source;if(!e.alive||PVP.roundState!=='live')return false;
+  var origin=new THREE.Vector3(actor.position.x,actor.eyeY,actor.position.z),target=new THREE.Vector3(aim.x,aim.y,aim.z);
+  FishCombat.aimWeapon(e.gunMesh,target,0);e.mesh.updateMatrixWorld(true);var muzzle=e.gunMesh.muzzleTip.getWorldPosition(new THREE.Vector3());
+  if(pvpTactics.occluded(origin,target)||pvpTactics.occluded(muzzle,target))return false;
+  if(wdef.melee){
+    if(Math.hypot(aim.x-origin.x,aim.z-origin.z)>wdef.range)return false;
+    var foe=pvpActors.find(function(a){return a.id===e.brain.visibleId&&a.alive&&a.team!==e.team;});if(!foe)return false;
+    e.protection=0;if(combatFx&&save.settings.particles)combatFx.slash(muzzle,target.clone().sub(muzzle).normalize(),false);
+    if(foe.id==='player')damagePlayer(wdef.damage,{name:e.pvpName,atk:'匕首',bot:e});else pvpDamageBot(foe.source,wdef.damage,e);return true;
+  }
+  e.protection=0;var dir=target.clone().sub(origin).normalize();dir.x+=rand(-error,error);dir.y+=rand(-error,error);dir.z+=rand(-error,error);dir.normalize();
+  _raycaster.set(origin,dir);_raycaster.far=58;var walls=_raycaster.intersectObjects(wallMeshes,false),wallDist=walls.length?walls[0].distance:58;
+  var nearest=wallDist,victim=null;
+  pvpActors.forEach(function(a){if(a===actor||!a.alive)return;var center=new THREE.Vector3(a.position.x,a.aimY,a.position.z);var t=raySphere(origin,dir,center,a.id==='player'?.48:CFG.fishHitRadius);
+    if(t>0&&t<nearest){nearest=t;victim=a;}
+  });
+  if(combatFx&&save.settings.particles)combatFx.tracer(muzzle,origin.clone().addScaledVector(dir,nearest),e.team==='red'?0xffb7a5:0x9ddaff,.012);
+  e.shotFlash=.08;var attenuation=1-.5*clamp((nearest-20)/40,0,1),damage=wdef.damage*attenuation;
+  var soundDistance=e.mesh.position.distanceTo(player.pos);if(soundDistance<38&&PVP.clock-PVP.lastGunSound>.10){PVP.lastGunSound=PVP.clock;playSfx(e.pvpWeapon==='rifle'?'rifleShot':'pistolShot',.20*(1-soundDistance/42));}
+  if(victim&&victim.team!==e.team){if(victim.id==='player')damagePlayer(damage,{name:e.pvpName,atk:'步枪',bot:e});else pvpDamageBot(victim.source,damage,e);}
+  return true;
+}
+function updatePvpBots(dt){
+  if(!PVP.active)return;PVP.clock+=dt;PVP.hudT-=dt;
+  if(PVP.roundState==='prepare'){PVP.prepareT=Math.max(0,PVP.prepareT-dt);if(PVP.prepareT===0)pvpBeginLive();}
+  else if(PVP.roundState==='over'){
+    PVP.overT-=dt;if(PVP.overT<=0){if(PVP.myRounds>=PVP.winRounds||PVP.botRounds>=PVP.winRounds||PVP.roundNum>=PVP.maxRounds)pvpEnd(PVP.myRounds>PVP.botRounds);else{PVP.roundNum++;pvpStartRound();}}
+  }else if(PVP.roundState==='live'){
+    PVP.roundTime+=dt;
+    if(player.hp<=0){PVP.respawnT=Math.max(0,PVP.respawnT-dt);if(PVP.respawnT===0)pvpRespawnPlayer();}else PVP.protection=Math.max(0,PVP.protection-dt);
+    enemies.forEach(function(e){if(!e.isBot)return;if(!e.alive){e.respawnTimer=Math.max(0,e.respawnTimer-dt);if(e.respawnTimer===0)pvpRespawnBot(e);}else e.protection=Math.max(0,e.protection-dt);});
+    pvpBuildActors();pvpTactics.step(pvpActors,dt);
+    // 玩家的直接目击也进入队伍雷达；没有观测到的敌人不会持续更新坐标。
+    var pa=pvpActors[pvpActors.length-1];if(pa.alive)pvpActors.forEach(function(a){var seen=pvpTactics.visible(pa,a);if(seen)pvpTactics.report(pa,a,seen);});
+  }
+  enemies.forEach(function(e){if(!e.isBot||!e.alive)return;
+    e.aiState=e.brain.state;e.mesh.position.y=e.baseY+Math.sin(time*2.2+e.phase)*.065;e.mesh.rotation.y=e.brain.yaw;
+    e.hurt=Math.max(0,e.hurt-dt);e.mesh.material.color.setScalar(e.hurt>0?1.6:1);e.teamRing.position.y=.055-e.mesh.position.y;
+    e.teamRing.visible=true;updateEnemyShadow(e,CFG.fishSize);if(e.teamTag)e.teamTag.visible=player.pos.distanceTo(e.mesh.position)<32;
+    if(e.brain.weapon!==e.pvpWeapon){e.mesh.remove(e.gunMesh);FishArt.disposeTree(e.gunMesh);e.pvpWeapon=e.brain.weapon;e.gunMesh=FishPvpArt.weapon(e.pvpWeapon);e.gunMesh.position.set(.61,-.18,.23);e.gunMesh.scale.setScalar(1.25);e.mesh.add(e.gunMesh);}
+    var visualDistance=camera.position.distanceTo(e.mesh.position);e.gunMesh.visible=visualDistance<34;
+    if(e.equipment)e.equipment.forEach(function(part){part.visible=visualDistance<38;});
+    var aim=e.brain.aim;FishCombat.aimWeapon(e.gunMesh,new THREE.Vector3(aim.x,aim.y,aim.z),0);
+    if(e.brain.reload>0)e.gunMesh.rotateX(.55);
+    e.shotFlash=Math.max(0,(e.shotFlash||0)-dt);if(e.gunMesh.flash)e.gunMesh.flash.visible=e.shotFlash>0;
+  });
+  if(PVP.hudT<=0){PVP.hudT=.1;updatePvpScore();var sb=document.getElementById('scoreboard');if(sb&&!sb.classList.contains('hidden'))refreshScoreboard();}
 }
 
-function pvpBeginLive() {
-  PVP.roundState = 'live';
-  showNotice('开始！');
-}
 
-/** 回合结束：按当前比分决定继续还是终局 */
-function pvpEndRound(win) {
-  if (!PVP.active || PVP.roundState === 'over') return;
-  PVP.roundState = 'over';
-  if (win) PVP.myRounds++; else PVP.botRounds++;
-  updatePvpScore();
-  showDialog(win ? '红队赢下本回合' : '蓝队赢下本回合',
-    '红队 ' + PVP.myRounds + ' : ' + PVP.botRounds + ' 蓝队', 2000);
-  var done = (PVP.myRounds >= PVP.winRounds) || (PVP.botRounds >= PVP.winRounds) ||
-             (PVP.roundNum >= PVP.maxRounds);
-  setTimeout(function () {
-    if (!PVP.active) return;
-    if (done) pvpEnd(PVP.myRounds > PVP.botRounds);
-    else { PVP.roundNum++; pvpStartRound(); }
-  }, 2000);
-}
-
-/** AI 射击：朝目标点打一条带误差的射线 */
-function pvpBotShoot(e, targetPos, wdef) {
-  var origin = e.mesh.position.clone();
-  origin.y += 0.55;
-  var dir = targetPos.clone().sub(origin).normalize();
-  var err = (wdef.spread || 0.01) * 3.2 + 0.035;
-  dir.x += rand(-err, err);
-  dir.y += rand(-err, err);
-  dir.z += rand(-err, err);
-  dir.normalize();
-  _raycaster.set(origin, dir);
-  _raycaster.far = PVP_VIEW_RANGE + 10;
-  var wh = _raycaster.intersectObjects(wallMeshes, false);
-  var wallDist = wh.length ? wh[0].distance : Infinity;
-  var muzzle = e.gunMesh && e.gunMesh.muzzleTip ? e.gunMesh.muzzleTip.getWorldPosition(new THREE.Vector3()) : origin;
-  // 命中判定：玩家 / 敌对 AI
-  var hitDist = Infinity, hitPlayer = false, hitBot = null;
-  if (e.team === 'blue' && PVP.roundState === 'live') {
-    var tp = player.pos.clone(); tp.y += CFG.eyeHeight;
-    var t = raySphere(origin, dir, tp, CFG.fishHitRadius * 0.8);
-    if (t > 0 && t < hitDist) { hitDist = t; hitPlayer = true; }
-  }
-  for (var i = 0; i < enemies.length; i++) {
-    var o = enemies[i];
-    if (!o || !o.isBot || !o.alive) continue;
-    if (e.team === 'blue' ? o.team !== 'red' : o.team !== 'blue') continue;
-    var ot = raySphere(origin, dir, o.mesh.position, CFG.fishHitRadius);
-    if (ot > 0 && ot < hitDist) { hitDist = ot; hitPlayer = false; hitBot = o; }
-  }
-  if (combatFx && save.settings.particles) {
-    var end = origin.clone().addScaledVector(dir, Math.min(hitDist, wallDist, PVP_VIEW_RANGE));
-    combatFx.tracer(muzzle, end, e.team === 'red' ? 0x9fe4ff : 0xffc0c0, 0.012);
-  }
-  if (hitDist > wallDist) return;            // 被墙挡住
-  // 与玩家同口径的距离衰减（AI 不判爆头，玩家没有可命中的头部区域）
-  var ft = clamp((hitDist - PVP_FALLOFF_NEAR) / (PVP_FALLOFF_FAR - PVP_FALLOFF_NEAR), 0, 1);
-  var dmgNow = wdef.damage * (1 - (1 - PVP_FALLOFF_MIN) * ft);
-  if (hitPlayer) {
-    damagePlayer(dmgNow, { name: 'AI 玩家', atk: wdef.name });
-  } else if (hitBot) {
-    var wasAlive = hitBot.alive;
-    pvpDamageBot(hitBot, dmgNow);
-    if (wasAlive && !hitBot.alive) pvpCreditKill(e, hitBot);   // AI 互杀记账
-  }
-}
-
-/** 每帧更新 AI 行为树与回合状态机 */
-function updatePvpBots(dt) {
-  if (!PVP.active) return;
-
-  if (PVP.roundState === 'prepare') {
-    PVP.prepareT -= dt;
-    for (var i0 = 0; i0 < enemies.length; i0++) {
-      var e0 = enemies[i0];
-      if (!e0 || !e0.isBot || !e0.alive) continue;
-      updateEnemyShadow(e0, CFG.fishSize);
-    }
-    if (PVP.prepareT <= 0) pvpBeginLive();
-    return;
-  }
-  if (PVP.roundState !== 'live') return;
-
-  for (var i = 0; i < enemies.length; i++) {
-    var e = enemies[i];
-    if (!e || !e.isBot || !e.alive) continue;
-    var wdef = WEAPONS[e.pvpPrimary] && PVP_WEAPON_DEFS[e.pvpPrimary] ? PVP_WEAPON_DEFS[e.pvpPrimary] : PVP_WEAPON_DEFS.rifle;
-
-    // ---- 感知：每 0.15 秒扫一次视野，避免每帧做射线 ----
-    e.aiTimer -= dt;
-    if (e.aiTimer <= 0) {
-      e.aiTimer = 0.15;
-      var seen = pvpFindTarget(e);
-      if (seen) {
-        if (!e.target && e.aiState !== 'alert') { e.aiState = 'alert'; e.alertT = PVP_REACT; }
-        e.target = seen; e.lastSeenT = 0;
-      } else {
-        e.lastSeenT = (e.lastSeenT || 0) + 0.15;
-        if (e.aiState === 'engage' && e.lastSeenT > PVP_LOSE_SIGHT) {
-          e.aiState = 'search';
-          e.searchT = 3.0;
-          e.target = null;
-        }
-      }
-    }
-
-    // ---- 行为树分支 ----
-    if (e.aiState === 'alert') {
-      e.alertT -= dt;
-      if (e.target) {
-        var ax = e.target.isPlayer ? player.pos.x : e.target.mesh.position.x;
-        var az = e.target.isPlayer ? player.pos.z : e.target.mesh.position.z;
-        e.mesh.rotation.y = Math.atan2(ax - e.mesh.position.x, az - e.mesh.position.z);
-      }
-      if (e.alertT <= 0) e.aiState = 'engage';
-    } else if (e.aiState === 'engage' && e.target) {
-      var tx = e.target.isPlayer ? player.pos.x : e.target.mesh.position.x;
-      var tz = e.target.isPlayer ? player.pos.z : e.target.mesh.position.z;
-      var tdx = tx - e.mesh.position.x, tdz = tz - e.mesh.position.z;
-      var tdist = Math.sqrt(tdx * tdx + tdz * tdz) || 1;
-      e.mesh.rotation.y = Math.atan2(tdx, tdz);
-      // 保持 8~22 米交战距离 + 侧向拉扯
-      var fwd = tdist > 22 ? 1 : (tdist < 8 ? -1 : 0);
-      e.strafeT -= dt;
-      if (e.strafeT <= 0) { e.strafeT = rand(0.7, 1.8); e.strafeDir = Math.random() < 0.5 ? 1 : -1; }
-      var ux = tdx / tdist, uz = tdz / tdist;
-      var nx = -uz * e.strafeDir, nz = ux * e.strafeDir;
-      var spd = 3.6;
-      var px = e.mesh.position.x + (ux * fwd + nx * 0.7) * spd * dt;
-      var pz = e.mesh.position.z + (uz * fwd + nz * 0.7) * spd * dt;
-      if (!pointInObstacle(px, pz, 0.9) && Math.abs(px) < CFG.arena - 2 && Math.abs(pz) < CFG.arena - 2) {
-        e.mesh.position.x = px; e.mesh.position.z = pz;
-      }
-      // 开火：点射节奏
-      e.burstGap -= dt;
-      if (e.burstGap <= 0 && tdist < PVP_VIEW_RANGE) {
-        var tpos = new THREE.Vector3(tx, (e.target.isPlayer ? player.pos.y + CFG.eyeHeight : e.target.mesh.position.y + 0.3), tz);
-        pvpBotShoot(e, tpos, wdef);
-        e.burstGap = wdef.shootInterval * rand(1.6, 3.4);
-      }
-    } else if (e.aiState === 'search') {
-      e.searchT -= dt;
-      // 走向最后已知位置
-      if (!e.waypoint) e.waypoint = e.mesh.position.clone();
-      var sdx = e.waypoint.x - e.mesh.position.x, sdz = e.waypoint.z - e.mesh.position.z;
-      var sdist = Math.sqrt(sdx * sdx + sdz * sdz);
-      if (sdist > 1.2) {
-        e.mesh.rotation.y = Math.atan2(sdx, sdz);
-        var sx = e.mesh.position.x + (sdx / sdist) * 3.2 * dt;
-        var sz = e.mesh.position.z + (sdz / sdist) * 3.2 * dt;
-        if (!pointInObstacle(sx, sz, 0.9)) { e.mesh.position.x = sx; e.mesh.position.z = sz; }
-      }
-      if (e.searchT <= 0) { e.aiState = 'patrol'; e.target = null; }
-    } else {
-      // patrol：随机游走
-      if (!e.waypoint || e.mesh.position.distanceTo(e.waypoint) < 1.5) {
-        e.waypoint = new THREE.Vector3(rand(-CFG.arena + 6, CFG.arena - 6), 0, rand(-CFG.arena + 6, CFG.arena - 6));
-      }
-      var pdx = e.waypoint.x - e.mesh.position.x, pdz = e.waypoint.z - e.mesh.position.z;
-      var pdist = Math.sqrt(pdx * pdx + pdz * pdz) || 1;
-      e.mesh.rotation.y = Math.atan2(pdx, pdz);
-      var qx = e.mesh.position.x + (pdx / pdist) * 2.6 * dt;
-      var qz = e.mesh.position.z + (pdz / pdist) * 2.6 * dt;
-      if (!pointInObstacle(qx, qz, 0.9)) { e.mesh.position.x = qx; e.mesh.position.z = qz; }
-    }
-
-    // 视觉：呼吸 + 受击闪白 + 影子
-    e.mesh.position.y = e.baseY + Math.sin(time * 2.2 + e.phase) * 0.12;
-    if (e.hurt > 0) e.hurt = Math.max(0, e.hurt - dt);
-    e.mesh.material.color.setScalar(e.hurt > 0 ? 1.6 : 1);
-    updateEnemyShadow(e, CFG.fishSize);
-    // 队友名牌：远处淡出，避免遮挡视野
-    if (e.teamTag) {
-      var pd = player.pos.distanceTo(e.mesh.position);
-      e.teamTag.visible = pd < 42;
-      if (e.teamTag.material) e.teamTag.material.opacity = pd > 30 ? Math.max(0.15, (42 - pd) / 12) : 1;
-    }
-  }
-
-  // ---- 回合判定：任一方全灭即结束 ----
-  if (pvpAliveBots('blue') === 0) { pvpEndRound(true); return; }
-  if (player.hp <= 0) { pvpEndRound(false); return; }
-  if (pvpAliveBots('red') === 0 && player.hp <= 0) pvpEndRound(false);
-}
 
 // 爆头倍率：技能文档建议 1.5~2×；CS 用 4×，但我们 100 血 + 36 伤害的 TTK 已经 3 枪，
 // 取 2× 让「两枪爆头」成为可练的技巧，而不是一枪秒。
@@ -5323,12 +5117,12 @@ function refreshScoreboard() {
     if (!host) return;
     var html = '';
     if (includePlayer) {
-      html += '<div class="sb-row"><span>你</span><span>' + (PVP.myKills || 0) + ' / ' + (PVP.myDeaths || 0) + '</span></div>';
+      html += '<div class="sb-row' + (player.hp>0?'':' dead') + '"><span>你' + (player.hp>0?'':' · 复活 '+Math.ceil(PVP.respawnT)+'s') + '</span><span>' + (PVP.myKills || 0) + ' / ' + (PVP.myDeaths || 0) + '</span></div>';
     }
     for (var i = 0; i < enemies.length; i++) {
       var e = enemies[i];
       if (!e || !e.isBot || e.team !== team) continue;
-      html += '<div class="sb-row' + (e.alive ? '' : ' dead') + '"><span>' + (e.pvpName || 'AI') +
+      html += '<div class="sb-row' + (e.alive ? '' : ' dead') + '"><span>' + (e.pvpName || 'AI') + (e.alive?'':' · 复活 '+Math.ceil(e.respawnTimer)+'s') +
         '</span><span>' + (e.kills || 0) + ' / ' + (e.deaths || 0) + '</span></div>';
     }
     host.innerHTML = html;
@@ -5339,28 +5133,24 @@ function refreshScoreboard() {
 
 /** 显示/隐藏计分板 */
 function setScoreboardVisible(v) {
+  if(document.body)document.body.classList.toggle('pvp-scoreboard',!!v&&gameMode==='pvp');
   var sb = document.getElementById('scoreboard');
   if (!sb) return;
   if (v) { refreshScoreboard(); sb.classList.remove('hidden'); }
   else sb.classList.add('hidden');
 }
 
-/** 玩家击杀 AI（由 killFish 分流进入） */
-function pvpOnBotKilled(e) {
-  if (!PVP.active || PVP.roundState !== 'live') return;
-  pvpKillBotEntity(e, true);
-  var left = pvpAliveBots('blue');
-  if (left > 0) showNotice('击杀！蓝队还剩 ' + left + ' 人');
-}
 
-/** 玩家阵亡 → 红队本回合失败 */
-function pvpPlayerDied() {
-  if (!PVP.active || PVP.roundState !== 'live') return;
-  PVP.myDeaths = (PVP.myDeaths || 0) + 1;
-  player.hp = 0;
-  pushKillFeed('蓝队', '你');
-  updateHUD();
-  pvpEndRound(false);
+/** 玩家命中后的击杀分流；与 AI 死亡统一扣除额度。 */
+function pvpOnBotKilled(e){if(PVP.active&&PVP.roundState==='live')pvpKillBotEntity(e,true);}
+function pvpPlayerDied(killer){
+  if(!PVP.active||PVP.roundState!=='live'||PVP.respawnT>0)return;
+  cancelWeaponSwitch();resetKillMedal();
+  PVP.myDeaths++;player.hp=0;PVP.respawnT=PVP_RESPAWN;PVP.protection=0;ammo.reloading=false;fireHeld=false;touchFiring=false;
+  if(dom.reloadWrap)dom.reloadWrap.style.display='none';
+  pvpActors.forEach(function(a){if(a.id==='player')a.alive=false;});
+  if(killer){killer.kills++;pushKillFeed(killer.pvpName,'你');}else pushKillFeed('阵亡','你');
+  document.body.classList.add('pvp-dead');if(gun.group)gun.group.visible=false;pvpSpendTicket('red');updateHUD();refreshScoreboard();
 }
 
 /** 结束整场比赛 */
@@ -5369,7 +5159,7 @@ function pvpEnd(win) {
   PVP.over = true;
   PVP.active = false;
   PVP.roundState = 'idle';
-  pvpClearBots();
+  pvpCleanup();
   state = 'gameover';
   if (document.exitPointerLock) document.exitPointerLock();
   if (dom.finalScoreV) dom.finalScoreV.textContent = PVP.myRounds + ' : ' + PVP.botRounds;
@@ -5381,7 +5171,7 @@ function pvpEnd(win) {
   if (sl) sl.innerHTML = '回合比分 <b>' + PVP.myRounds + ' : ' + PVP.botRounds + '</b><br>本场击杀 <b>' +
     (PVP.myKills || 0) + '</b> 个 AI · 阵亡 <b>' + (PVP.myDeaths || 0) + '</b> 次';
   if (sd) sd.innerHTML = '共进行 <b>' + PVP.roundNum + '</b> 回合（先拿 ' + PVP.winRounds +
-    ' 回合获胜 · 最多 ' + PVP.maxRounds + ' 回合）<br>每回合淘汰对方全员即得 1 分';
+    ' 回合获胜 · 最多 ' + PVP.maxRounds + ' 回合）<br>每回合耗尽对手共享复活额度即得 1 分';
   var recEl = document.querySelector('#final-record');
   if (recEl) { recEl.classList.add('hidden'); recEl.style.display = 'none'; }
   var pscEl = document.getElementById('pvp-score');
@@ -5390,35 +5180,23 @@ function pvpEnd(win) {
   try { showOverlay('gameover'); } catch (e) { /* 极端 DOM 环境下静默 */ }
 }
 
-/** 开始一场歼灭战 */
-function startPvp(opts) {
-  opts = opts || {};
-  PVP.mySkin = opts.skin || 'normal';
-  PVP.myWeapon = opts.weapon || 'rifle';
-  PVP.teamSize = opts.teamSize || 4;
-  PVP.myKills = 0;
-  PVP.myDeaths = 0;
-  PVP.myRounds = 0;
-  PVP.botRounds = 0;
-  PVP.roundNum = 1;
-  PVP.over = false;
-  PVP.active = true;
-  PVP.roundState = 'idle';
-  gameMode = 'pvp';
-  // 清掉无尽模式的残余
-  pvpClearBots();
-  for (var i = enemies.length - 1; i >= 0; i--) { removeEnemyVisual(enemies[i]); }
-  enemies.length = 0;
-  if (boss) { scene.remove(boss.mesh); boss = null; hideBossBar(); }
-  items.length = 0;
-  state = 'playing';
-  hideAllOverlays();
-  setWeaponBarMode('pvp');
-  var sc = document.getElementById('pvp-score');
-  if (sc) sc.classList.add('show');
-  switchWeapon(PVP.myWeapon);
-  pvpStartRound();
-  requestLockWithFallback();
+
+/** 载入场景后部署一场本地队伍对战。 */
+function startPvp(opts){
+  opts=opts||{};pvpCleanup();
+  PVP.mySkin=opts.skin||'normal';PVP.myWeapon=opts.weapon==='fishpistol'?'fishpistol':'pistol';
+  PVP.teamSize=PVP_TEAM_OPTIONS.indexOf(+opts.teamSize)>=0?+opts.teamSize:8;
+  PVP.ticketMultiplier=[2,3,5].indexOf(+opts.ticketMultiplier)>=0?+opts.ticketMultiplier:3;
+  PVP.ticketLimit=PVP.teamSize*PVP.ticketMultiplier;PVP.difficulty=FishTactics.levels[opts.difficulty]?opts.difficulty:'normal';
+  PVP.myKills=0;PVP.myDeaths=0;PVP.myRounds=0;PVP.botRounds=0;PVP.roundNum=1;PVP.over=false;PVP.active=true;PVP.clock=0;PVP.lastGunSound=-1;PVP.hudT=0;PVP.roundState='idle';gameMode='pvp';
+  enemies.forEach(removeEnemyVisual);enemies=[];if(boss){removeEnemyVisual(boss);boss=null;hideBossBar();}clearBossFx();
+  items.forEach(function(i){FishArt.disposeTree(i.mesh);});items=[];
+  // 隔离无尽成长、天气加成和随机掩体，给双方相同的固定竞技场。
+  clearRandomCovers();buildMiniMap();Object.keys(upgrades).forEach(function(k){upgrades[k]=0;});magTier={pistol:0,rifle:0,fishpistol:0};resetCombo();
+  pvpTactics=new FishTactics.Tactics({obstacles:obstacles,limit:44,cell:1,weapons:PVP_WEAPON_DEFS,difficulty:PVP.difficulty,fire:pvpBotShoot});
+  pvpBaseArt=FishPvpArt.bases(scene);document.body.classList.add('pvp-mode');
+  hideAllOverlays();state='playing';setWeaponBarMode('pvp');var sc=document.getElementById('pvp-score');if(sc)sc.classList.add('show');
+  pvpStartRound();if(!sceneLoadPending)requestLockWithFallback();
 }
 
 // ---------------- 对战模式：武器栏与键位 ----------------
@@ -5459,8 +5237,8 @@ function setWeaponBarMode(mode) {
     // 主武器固定步枪，副武器是玩家在选人页挑的那把（USP / P250）
     var sideDef = PVP_WEAPON_DEFS[PVP.myWeapon] || PVP_WEAPON_DEFS.pistol;
     wb.innerHTML =
-      '<div class="wslot" data-wkey="1">1 主武器</div>' +
-      '<div class="wslot" data-wkey="' + sideDef.key + '">2 ' + sideDef.name + '</div>' +
+      '<div class="wslot" data-wkey="1">1 突击步枪</div>' +
+      '<div class="wslot" data-wkey="2">2 ' + sideDef.name + '</div>' +
       '<div class="wslot" data-wkey="3">3 匕首</div>';
   } else if (weaponBarOriginalHTML !== null) {
     wb.innerHTML = weaponBarOriginalHTML;
@@ -5470,7 +5248,7 @@ function setWeaponBarMode(mode) {
 }
 
 // ---------------- 对战模式：选人界面 ----------------
-var pvpSelWeapon = 'pistol', pvpSelSkin = 'normal', pvpSelTeam = 4;
+var pvpSelWeapon = 'pistol', pvpSelSkin = 'normal', pvpSelTeam = 8;
 
 function renderPvpSelect() {
   var wo = document.getElementById('pvp-weapons');
@@ -5481,7 +5259,7 @@ function renderPvpSelect() {
     fixed.className = 'pvp-card selected';
     fixed.style.opacity = '0.75';
     fixed.innerHTML = '<div class="pc-name">突击步枪（主武器 · 固定）</div>' +
-      '<div class="pc-desc">AK-47 · 36 伤害 / 30 发 / 600 RPM</div>';
+      '<div class="pc-desc">36 伤害 / 30 发 / 短点射控制</div>';
     wo.appendChild(fixed);
     // 副武器二选一
     PVP_SIDEARM_LIST.forEach(function (w) {
@@ -5499,7 +5277,7 @@ function renderPvpSelect() {
       var d = document.createElement('div');
       d.className = 'pvp-card' + (s.id === pvpSelSkin ? ' selected' : '');
       var thumb = '';
-      if (s.id === 'normal' && fishTex && fishTex.image) thumb = fishTex.image.src || '';
+      if (s.id === 'normal' && fishTex && fishTex.image) thumb = 'assets/蓝色大肥鱼.png';
       else if (s.id === 'melee' && enemyTex.melee && enemyTex.melee.image) thumb = enemyTex.melee.image.src || '';
       else if (s.id === 'ranged' && enemyTex.ranged && enemyTex.ranged.image) thumb = enemyTex.ranged.image.src || '';
       d.innerHTML = '<div class="pc-name">' + s.name + '</div><div class="pc-desc">' + s.desc + '</div>' +
@@ -5515,11 +5293,264 @@ function renderPvpSelect() {
       var d = document.createElement('div');
       d.className = 'pvp-card' + (n === pvpSelTeam ? ' selected' : '');
       d.innerHTML = '<div class="pc-name">' + n + ' v ' + n + '</div><div class="pc-desc">' +
-        '红队：你 + ' + (n - 1) + ' 个 AI 队友<br>蓝队：' + n + ' 个 AI</div>';
+        '每队默认 ' + n * 3 + ' 复活额度<br>' + (n === 8 ? '推荐规模' : n === 16 ? '大规模交战' : '本地 AI 对抗') + '</div>';
       d.addEventListener('click', function () { pvpSelTeam = n; renderPvpSelect(); });
       bo.appendChild(d);
     });
   }
+}
+
+// ================================================================ 游戏大厅 · 房间系统
+// 本地模拟（没有真实服务器）：房间数据存在内存里，联机模式下 AI 占位可被"真人"顶替。
+var LOBBY = { rooms: [], current: null, myName: '你' };
+var ROOM_SEQ = 1;
+var SIM_PLAYERS = ['海豹', '鳗鱼', '章鱼', '水獭', '企鹅', '河豚'];
+
+function makeRoom(opts) {
+  opts = opts || {};
+  return {
+    id: 'room-' + (ROOM_SEQ++),
+    name: opts.name || '我的房间',
+    mode: opts.mode || 'online',
+    teamSize: opts.teamSize || 8,
+    difficulty: opts.difficulty || 'normal',
+    fillAI: opts.fillAI !== false,
+    host: !!opts.host,
+    humans: opts.humans || [],
+    simIndex: 0,
+  };
+}
+
+/** 房间槽位快照：红队第一个永远是玩家自己 */
+function roomSlots(room) {
+  var size = room.teamSize, red = [], blue = [];
+  red.push({ kind: 'me', name: LOBBY.myName });
+  var humans = room.humans.filter(function (h) { return h !== LOBBY.myName; });
+  var hi = 0;
+  for (var i = 1; i < size; i++) {
+    if (hi < humans.length) red.push({ kind: 'human', name: humans[hi++] });
+    else if (room.fillAI) red.push({ kind: 'bot', name: 'AI-' + i });
+    else red.push({ kind: 'empty' });
+  }
+  for (var j = 0; j < size; j++) {
+    if (hi < humans.length) blue.push({ kind: 'human', name: humans[hi++] });
+    else if (room.fillAI) blue.push({ kind: 'bot', name: 'AI-' + (size + j + 1) });
+    else blue.push({ kind: 'empty' });
+  }
+  return { red: red, blue: blue };
+}
+
+function roomHumanCount(room) {
+  return 1 + room.humans.filter(function (h) { return h !== LOBBY.myName; }).length;
+}
+function roomCapacity(room) { return room.teamSize * 2; }
+function roomIsFull(room) { return roomHumanCount(room) >= roomCapacity(room); }
+
+/** 渲染房间列表 */
+function renderRoomList() {
+  var host = document.getElementById('room-list');
+  if (!host) return;
+  if (!LOBBY.rooms.length) {
+    host.innerHTML = '<div class="rl-empty">暂无房间，点击上方「创建房间」开一局</div>';
+    return;
+  }
+  host.innerHTML = '';
+  LOBBY.rooms.forEach(function (room) {
+    var row = document.createElement('div');
+    row.className = 'rl-row';
+    var modeTag = room.mode === 'online'
+      ? '<span class="rl-mode-tag online">联机</span>'
+      : '<span class="rl-mode-tag bot">人机</span>';
+    var full = roomIsFull(room);
+    row.innerHTML =
+      '<span class="rl-c-room">' + room.name + '</span>' +
+      '<span class="rl-c-mode">' + modeTag + '</span>' +
+      '<span class="rl-c-size">' + roomHumanCount(room) + ' / ' + roomCapacity(room) + '</span>' +
+      '<span class="rl-c-act"><button class="rl-join"' + (full ? ' disabled' : '') + '>' +
+        (full ? '已满' : '加入') + '</button></span>';
+    var btn = row.querySelector('.rl-join');
+    if (btn && !full) btn.addEventListener('click', function () { joinRoom(room.id); });
+    host.appendChild(row);
+  });
+}
+
+/** 打开房间列表（首次进入时铺几个示例房间） */
+function showRoomList() {
+  if (!LOBBY.rooms.length) {
+    LOBBY.rooms.push(makeRoom({ name: '沙漠城·新手房', mode: 'online', teamSize: 6, difficulty: 'easy' }));
+    LOBBY.rooms.push(makeRoom({ name: '沙漠城·标准对抗', mode: 'online', teamSize: 8, difficulty: 'normal' }));
+    LOBBY.rooms.push(makeRoom({ name: '沙漠城·人机练习', mode: 'bot', teamSize: 8, difficulty: 'normal' }));
+  }
+  renderRoomList();
+  showOverlay('roomlist');
+}
+
+function joinRoom(id) {
+  var room = null;
+  for (var i = 0; i < LOBBY.rooms.length; i++) {
+    if (LOBBY.rooms[i].id === id) { room = LOBBY.rooms[i]; break; }
+  }
+  if (!room) return;
+  LOBBY.current = room;
+  room.host = false;
+  renderRoom();
+  showOverlay('room');
+}
+
+function showCreateRoom() {
+  var nameEl = document.getElementById('cr-name');
+  if (nameEl) nameEl.value = '我的房间';
+  var fill = document.getElementById('cr-fillai');
+  if (fill) fill.checked = true;
+  var mode = document.getElementById('cr-mode');
+  if (mode) mode.value = 'online';
+  updateCreateRoomFillRow();
+  showOverlay('createroom');
+}
+
+/** 人机模式本来就全是 AI，隐藏「AI 补位」勾选项 */
+function updateCreateRoomFillRow() {
+  var mode = document.getElementById('cr-mode');
+  var row = document.getElementById('cr-fill-row');
+  if (!mode || !row) return;
+  row.classList.toggle('disabled', mode.value === 'bot');
+}
+
+function doCreateRoom() {
+  var nameEl = document.getElementById('cr-name');
+  var modeEl = document.getElementById('cr-mode');
+  var sizeEl = document.getElementById('cr-teamsize');
+  var diffEl = document.getElementById('cr-difficulty');
+  var fillEl = document.getElementById('cr-fillai');
+  var mode = modeEl ? modeEl.value : 'online';
+  var room = makeRoom({
+    name: ((nameEl && nameEl.value) || '我的房间').slice(0, 16),
+    mode: mode,
+    teamSize: parseInt(sizeEl ? sizeEl.value : 8, 10) || 8,
+    difficulty: diffEl ? diffEl.value : 'normal',
+    fillAI: mode === 'bot' ? true : !!(fillEl && fillEl.checked),
+    host: true,
+  });
+  LOBBY.rooms.unshift(room);
+  LOBBY.current = room;
+  renderRoom();
+  showOverlay('room');
+}
+
+/** 渲染房间等待界面 */
+function renderRoom() {
+  var room = LOBBY.current;
+  if (!room) return;
+  var slots = roomSlots(room);
+  var title = document.getElementById('room-title');
+  var sub = document.getElementById('room-sub');
+  var note = document.getElementById('room-note');
+  if (title) title.textContent = room.name;
+  if (sub) {
+    sub.textContent = (room.mode === 'online' ? '联机模式' : '人机模式') +
+      ' · ' + room.teamSize + ' v ' + room.teamSize +
+      ' · AI ' + (room.difficulty === 'easy' ? '轻松' : room.difficulty === 'hard' ? '困难' : '普通') +
+      (room.host ? ' · 你是房主' : '');
+  }
+  if (note) {
+    note.textContent = room.mode === 'online'
+      ? (room.fillAI ? '人数不足时由高级 AI 补位；真人加入后会顶替一个 AI' : '本房关闭了 AI 补位，请等待真人加入')
+      : '人机模式：对手全部为 AI';
+  }
+  function fill(hostId, list, countId) {
+    var host = document.getElementById(hostId);
+    var cnt = document.getElementById(countId);
+    if (!host) return;
+    host.innerHTML = '';
+    var used = 0;
+    list.forEach(function (s) {
+      var d = document.createElement('div');
+      d.className = 'rt-slot' + (s.kind === 'me' ? ' me' : s.kind === 'bot' ? ' bot' : s.kind === 'empty' ? ' empty' : '');
+      if (s.kind === 'empty') d.innerHTML = '<span>空闲位置</span><span class="rt-tag">等待中</span>';
+      else {
+        var tag = s.kind === 'me' ? '你' : s.kind === 'bot' ? 'AI' : '真人';
+        d.innerHTML = '<span>' + s.name + '</span><span class="rt-tag">' + tag + '</span>';
+        used++;
+      }
+      host.appendChild(d);
+    });
+    if (cnt) cnt.textContent = used + ' / ' + list.length;
+  }
+  fill('room-red-slots', slots.red, 'room-red-count');
+  fill('room-blue-slots', slots.blue, 'room-blue-count');
+}
+
+function leaveRoom() {
+  var room = LOBBY.current;
+  if (room && room.host && room.humans.length === 0) {
+    LOBBY.rooms = LOBBY.rooms.filter(function (r) { return r.id !== room.id; });
+  }
+  LOBBY.current = null;
+  showRoomList();
+}
+
+/**
+ * 模拟一个真人玩家加入：
+ * 联机模式下 AI 名额让位给真人，总人数不变。
+ */
+function simulateHumanJoin() {
+  var room = LOBBY.current;
+  if (!room || room.mode !== 'online' || roomIsFull(room)) return false;
+  var name = SIM_PLAYERS[room.simIndex % SIM_PLAYERS.length] +
+    (room.simIndex >= SIM_PLAYERS.length ? String(room.simIndex) : '');
+  room.simIndex++;
+  if (room.humans.indexOf(name) >= 0) return false;
+  room.humans.push(name);
+  renderRoom();
+  if (typeof showNotice === 'function') showNotice(name + ' 加入了房间，顶替了一个 AI');
+  return true;
+}
+
+/** 从房间开始对战 */
+function startFromRoom() {
+  var room = LOBBY.current;
+  if (!room) return;
+  var slots = roomSlots(room);
+  var redBots = slots.red.filter(function (s) { return s.kind === 'bot'; }).length;
+  enterGameWorld();
+  hideAllOverlays();
+  startPvp({
+    skin: pvpSelSkin,
+    weapon: pvpSelWeapon,
+    teamSize: room.teamSize,
+    difficulty: room.difficulty,
+    fillAI: room.fillAI,
+    roomMode: room.mode,
+    redBots: redBots,
+    roomName: room.name,
+  });
+}
+
+/** 无尽模式 · 地图选择 */
+function showMapSelect() {
+  state = 'levelSelect';
+  hideAllOverlays();
+  showOverlay('map');
+}
+
+/** 进入无尽模式（沙漠城） */
+function startEndlessDesert() {
+  gameMode = 'endless';
+  PVP.active = false;
+  var psc = document.getElementById('pvp-score');
+  if (psc) psc.classList.remove('show');
+  setWeaponBarMode('endless');
+  if (gameoverStatHTML) {
+    var gsl = document.querySelector('#gameover-overlay .stat-line');
+    var gsd = document.querySelector('#gameover-overlay .stat-detail');
+    if (gsl && gameoverStatHTML.line !== null) gsl.innerHTML = gameoverStatHTML.line;
+    if (gsd && gameoverStatHTML.detail !== null) gsd.innerHTML = gameoverStatHTML.detail;
+    var grec = document.querySelector('#final-record');
+    if (grec) grec.style.display = '';
+  }
+  hideAllOverlays();
+  restartGame(false);
+  state = 'playing';
 }
 
 function showPvpSelect() {
@@ -5532,6 +5563,12 @@ function showPvpSelect() {
 
 /** 开始一局对战 */
 function damagePlayer(d, src) {
+  if(gameMode==='pvp'){
+    if(state!=='playing'||!pvpCanAct()||PVP.protection>0)return;
+    player.hp=Math.max(0,player.hp-Math.max(0,d));camFx.shake=Math.min(.65,camFx.shake+.2);Sfx.hurt();
+    if(dom.damageFlash)dom.damageFlash.style.opacity='.65';updateHUD();
+    if(player.hp<=0)pvpPlayerDied(src&&src.bot);return;
+  }
   var hurtKind = hurtKindOf(src);
   if (state !== 'playing' || hurtCdByKind[hurtKind] > 0) return;
   var raw = d;
@@ -5572,6 +5609,7 @@ function armGameoverBgm() {
 
 // reason: 缺省=被肥鱼吃掉；'suicide' = 开发者模式 KILL 秘技自杀
 function gameOver(reason) {
+  cancelWeaponSwitch();resetKillMedal();
   state = 'gameover';
   if (bgmEl && !bgmEl.paused) bgmEl.pause();   // 战败：默认 BGM 立刻停止
   if (overEl) { overEl.currentTime = 0; }       // 战败曲从头播（autoplay 限制下由首次点击触发）
@@ -5591,13 +5629,15 @@ function gameOver(reason) {
 
 // toMenu = true：通关/结算后回到主菜单（完整重置世界，不直接进入游戏）
 function restartGame(toMenu) {
+  cancelWeaponSwitch();resetKillMedal();releaseGameplayInput();
   // 离开对局时清掉歼灭战状态，避免 gameMode 残留影响无尽模式的死亡判定
   if (gameMode === 'pvp' || PVP.active) {
     gameMode = 'endless';
     PVP.active = false;
     PVP.over = false;
     PVP.roundState = 'idle';
-    pvpClearBots();
+    pvpCleanup();
+    setScoreboardVisible(false);
     var pscEl = document.getElementById('pvp-score');
     if (pscEl) pscEl.classList.remove('show');
     setWeaponBarMode('endless');
@@ -5726,8 +5766,8 @@ function updateHUD() {
   var key = [player.hp, CFG.maxHp, score, kills, ammo.mag, ammo.reserve, currentWeapon, nadeCount].join('/');
   if (key === hudKey) return;
   hudKey = key;
-  dom.healthFill.style.width = (player.hp / CFG.maxHp * 100) + '%';   // 按生命上限计算（开发者模式 99999 上限时不失真）
-  dom.healthText.textContent = String(player.hp);
+  dom.healthFill.style.width = (player.hp / (gameMode==='pvp'?100:CFG.maxHp) * 100) + '%';
+  dom.healthText.textContent = String(Math.ceil(player.hp));
   dom.healthFill.classList.toggle('low', player.hp <= 30);
   dom.scoreValue.textContent = String(score);
   dom.killsValue.textContent = String(kills);
@@ -5762,6 +5802,8 @@ function flashCrosshair() {
 }
 
 function showOverlay(which) {
+  releaseGameplayInput();
+  if(document.body)document.body.classList.add('combat-suspended');
   if (which === 'menu') refreshBestRecords();   // 每次回到主菜单都刷新「历史最佳」
   dom.menuOverlay.classList.toggle('hidden', which !== 'menu');
   dom.pauseOverlay.classList.toggle('hidden', which !== 'pause');
@@ -5775,10 +5817,21 @@ function showOverlay(which) {
   if (dom.quitOverlay) dom.quitOverlay.classList.toggle('hidden', which !== 'quit');
   var pvpOv = document.getElementById('pvp-overlay');
   if (pvpOv) pvpOv.classList.toggle('hidden', which !== 'pvp');
+  // 大厅新增界面：地图选择 / 房间列表 / 创建房间 / 房间等待
+  [['map', 'map-overlay'], ['roomlist', 'roomlist-overlay'],
+   ['createroom', 'createroom-overlay'], ['room', 'room-overlay']].forEach(function (pair) {
+    var el = document.getElementById(pair[1]);
+    if (el) el.classList.toggle('hidden', which !== pair[0]);
+  });
 }
 function hideAllOverlays() {
+  if(document.body)document.body.classList.remove('combat-suspended');
   var pvpOv = document.getElementById('pvp-overlay');
   if (pvpOv) pvpOv.classList.add('hidden');
+  ['map-overlay', 'roomlist-overlay', 'createroom-overlay', 'room-overlay'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
   dom.menuOverlay.classList.add('hidden');
   dom.pauseOverlay.classList.add('hidden');
   dom.gameoverOverlay.classList.add('hidden');
@@ -5968,20 +6021,95 @@ function isPointerLocked() {
   return document.pointerLockElement === dom.canvas;
 }
 
+// Fullscreen 必须在点击进入/继续的用户手势内发起，不能等异步地图载入结束再请求。
+// 只捕获游戏用键，不额外锁定 Esc / Alt / Meta / 功能键；系统保留组合键由平台决定。
+var fullscreenPending = null, hadFullscreen = false, pauseAfterLoad = false;
+var keyboardLockState = 'idle', keyboardLockEpoch = 0, pointerRequestPending = false;
+var GAME_KEYS = ['KeyW','KeyA','KeyS','KeyD','KeyR','KeyG','KeyI','KeyF','Digit1','Digit2','Digit3',
+  'Numpad1','Numpad2','Numpad3','Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
+
+function updateFullscreenButton() {
+  var b = document.getElementById('btn-fullscreen');
+  if(b)b.classList.toggle('hidden',!!document.fullscreenElement || state !== 'playing');
+}
+
+function requestGameKeyboardLock() {
+  if(!document.fullscreenElement || (state !== 'playing' && state !== 'loading') || keyboardLockState !== 'idle')return;
+  if(!navigator.keyboard || !navigator.keyboard.lock)return;
+  var epoch = ++keyboardLockEpoch;
+  keyboardLockState = 'pending';
+  try {
+    Promise.resolve(navigator.keyboard.lock(GAME_KEYS)).then(function(){
+      if(epoch !== keyboardLockEpoch){
+        if(!document.fullscreenElement || (state !== 'playing' && state !== 'loading')){
+          if(navigator.keyboard.unlock)navigator.keyboard.unlock();
+        }
+        return; // 暂停期间释放的请求不得重启捕获。
+      }
+      keyboardLockState = 'locked';
+    }).catch(function(){if(epoch === keyboardLockEpoch)keyboardLockState = 'denied';});
+  } catch(e) { keyboardLockState = 'denied'; }
+}
+
+function requestGameFullscreen() {
+  if(document.fullscreenElement){requestGameKeyboardLock();updateFullscreenButton();return Promise.resolve(true);}
+  if(fullscreenPending)return fullscreenPending;
+  var root = document.documentElement;
+  if(!root || !root.requestFullscreen){updateFullscreenButton();return Promise.resolve(false);}
+  try {
+    fullscreenPending = Promise.resolve(root.requestFullscreen({navigationUI:'hide'})).then(function(){
+      requestGameKeyboardLock();return true;
+    }).catch(function(){return false;}).then(function(ok){
+      fullscreenPending = null;updateFullscreenButton();return ok;
+    });
+  } catch(e) { fullscreenPending = null;updateFullscreenButton();return Promise.resolve(false); }
+  return fullscreenPending;
+}
+
+function releaseGameplayInput() {
+  keys = Object.create(null);fireHeld = false;touchFiring = false;touchJoy.f = 0;touchJoy.s = 0;fbHasLast = false;
+  pointerRequestPending = false;clearTimeout(pendingLockTimer);
+  keyboardLockEpoch++;keyboardLockState = 'idle';
+  if(navigator.keyboard && navigator.keyboard.unlock){try{navigator.keyboard.unlock();}catch(e){}}
+  setScoreboardVisible(false);
+  updateFullscreenButton();
+}
+
+function pauseGameplay() {
+  if(state !== 'playing')return;
+  state = 'paused';showOverlay('pause');
+  if(isPointerLocked() && document.exitPointerLock)document.exitPointerLock();
+}
+
+function onFullscreenChange() {
+  var active = !!document.fullscreenElement;
+  if(!active && hadFullscreen){
+    if(sceneLoadPending)pauseAfterLoad = true;
+    pauseGameplay();releaseGameplayInput();
+  }
+  hadFullscreen = active;
+  updateFullscreenButton();
+  if(active)requestGameKeyboardLock();
+}
+
 // 锁定兜底检测：Chrome 在退出锁定后有约 1.25 秒冷却期，期间 requestPointerLock 会被拒。
 // 因此分两段等待（1.3s + 0.7s），只有两段都没锁上才降级。
 function scheduleLockCheck() {
   clearTimeout(pendingLockTimer);
   pendingLockTimer = setTimeout(function () {
-    if (isPointerLocked()) return;
+    if (isPointerLocked() || state !== 'playing') return;
     pendingLockTimer = setTimeout(function () {
-      if (!isPointerLocked()) enterFallbackMode();
+      if (!isPointerLocked() && state === 'playing') enterFallbackMode();
     }, 700);
   }, 1300);
 }
 
 // 请求指针锁定；若浏览器不支持、明确拒绝或长时间未成功，才降级为拖动瞄准模式
 function requestLockWithFallback() {
+  if(sceneLoadPending)return;
+  pointerRequestPending = true;
+  requestGameKeyboardLock();
+  updateFullscreenButton();
   Sfx.init();
   // 用户手势内直接尝试播放 BGM（自动播放策略下成功率最高）
   if (bgmEl) {
@@ -6018,6 +6146,7 @@ function enterFallbackMode() {
   fbHasLast = false;
   state = 'playing';
   hideAllOverlays();
+  updateFullscreenButton();
   showFallbackHint();
 }
 
@@ -6040,12 +6169,17 @@ function showFatalError(msg) {
 
 // ---------------------------------------------------------------- 输入
 function onKeyDown(ev) {
+  var target = ev.target;
+  if(target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)))return;
+  // 蹲下时 Ctrl+W / Ctrl+R 等仍作游戏输入，捕获失败的浏览器则尽力阻止默认行为。
+  if(state === 'playing' && GAME_KEYS.indexOf(ev.code) >= 0 && ev.preventDefault)ev.preventDefault();
+  if(state === 'playing' && ev.code === 'KeyF'){if(!ev.repeat)requestGameFullscreen();return;}
   keys[ev.code] = true;
   if (state === 'cheat') { closeCheatCaught(); return; }   // 作弊被抓：任意键回主菜单
   if (handleKillCheat(ev.code)) return;   // 开发者模式 KILL 自毁序列（消费按键）
   handleDebugCheat(ev.code);          // 开发者模式秘技检测（任意状态下）
   // Tab：按住查看计分板（歼灭战）
-  if (ev.code === 'Tab' && gameMode === 'pvp') {
+  if (ev.code === 'Tab' && gameMode === 'pvp' && state === 'playing') {
     ev.preventDefault();
     if (state === 'playing') setScoreboardVisible(true);
     return;
@@ -6066,7 +6200,7 @@ function onKeyDown(ev) {
            : (ev.code === 'Digit3' || ev.code === 'Numpad3') ? 'knife' : null;
     }
     var isNumpad = (ev.code === 'Numpad1' || ev.code === 'Numpad2' || ev.code === 'Numpad3');
-    if (wKey && !(isNumpad && debugMode)) { switchWeapon(wKey); return; }
+    if (wKey && !(isNumpad && debugMode)) { if(!ev.repeat)switchWeapon(wKey); return; }
   }
   // 开发者模式：小键盘 1~4 快速刷出四种特殊敌人（便于测试）
   if (debugMode && state === 'playing') {
@@ -6103,21 +6237,17 @@ function onKeyDown(ev) {
       return;
     }
   }
-  if (ev.code === 'KeyI') {
+  if (ev.code === 'KeyI' && gameMode !== 'pvp') {
     if (state === 'playing') openSkills();        // 打开技能等级面板
     else if (state === 'skills') closeSkills();   // 再按 I 关闭
     return;
   }
   if (ev.code === 'Escape') {
     if (state === 'skills') { closeSkills(); return; }  // Esc 关闭技能面板
-    // 无指针锁定模式下手动暂停；有锁定时由浏览器退出锁定触发暂停
-    if (lockMode === 'fallback' && state === 'playing') {
-      state = 'paused';
-      showOverlay('pause');
-    }
+    pauseGameplay(); // 不 preventDefault：保留浏览器 Esc 退出全屏。
     return;
   }
-  if (ev.code === 'Space' && state === 'playing') {
+  if (ev.code === 'Space' && state === 'playing' && pvpCanAct()) {
     if (player.onGround) {
       player.velY = CFG.jumpSpeed;
       player.onGround = false;
@@ -6283,6 +6413,9 @@ function onMouseMove(ev) {
 function onPointerLockChange() {
   var locked = isPointerLocked();
   if (locked) {
+    // 已取消/离开对局的异步请求不得把暂停或菜单重新推入战斗。
+    if(!pointerRequestPending && state !== 'playing') { if(document.exitPointerLock)document.exitPointerLock();return; }
+    pointerRequestPending = false;
     clearTimeout(pendingLockTimer);
     // ★ 关键修复：之前降级为拖动瞄准后，只要本次锁定成功就恢复锁定模式
     //（旧实现里 fallback 是不可逆的：一旦降级，后续即使锁定成功也永久停留在拖动模式）
@@ -6292,7 +6425,7 @@ function onPointerLockChange() {
       showNotice('已恢复鼠标锁定模式');
       debugLog('指针锁定成功，已从拖动瞄准模式切回锁定模式', 'dbg-hit');
     }
-    if (state === 'menu' || state === 'levelSelect' || state === 'paused' || state === 'gameover') {
+    if (state === 'paused') {
       state = 'playing';
       hideAllOverlays();
     }
@@ -6300,10 +6433,7 @@ function onPointerLockChange() {
   }
   // 失去锁定：拖动瞄准模式本就不依赖锁定，无需暂停
   if (lockMode === 'fallback') return;
-  if (state === 'playing') {
-    state = 'paused';
-    showOverlay('pause');
-  }
+  pauseGameplay();
 }
 function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -6313,6 +6443,7 @@ function onResize() {
 
 // ---------------------------------------------------------------- 玩家更新
 function updatePlayer(dt) {
+  if(gameMode==='pvp'&&!pvpCanAct()){syncCamera();return;}
   if (state !== 'playing') return;
 
   var f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
@@ -6434,6 +6565,7 @@ function movePlayer(dx, dz) {
 
 function updateGun(dt) {
   if(state!=='playing')return;
+  if(updateWeaponSwitch(dt))return;
   if(gun.flashT>0){gun.flashT-=dt;gun.light.intensity=Math.max(0,gun.light.intensity-dt*130);if(gun.flashT<=0){gun.flashMesh.visible=false;gun.light.intensity=0;}}
   gun.recoil = Math.max(0, gun.recoil - dt * 1.1);
   if (knifeCd > 0) knifeCd = Math.max(0, knifeCd - dt);
@@ -6505,6 +6637,7 @@ function update(dt) {
   }
   updatePlayer(dt);
   updateGun(dt);
+  if(gun.group)gun.group.visible=gameMode!=='pvp'||player.hp>0;
   if (state === 'playing') {
     // 手枪为点射（只有按下瞬间发射，见 onMouseDown），步枪为按住连发
     if ((fireHeld || touchFiring) && weaponDef().auto) shootOnce();
@@ -6516,7 +6649,8 @@ function update(dt) {
     updateGrenades(dt);
     updateFishBullets(dt);
     updateCombo(dt);   // 连杀窗口倒计时（暂停时冻结）
-    if (debugMode) {
+    updateKillMedal(dt);
+    if (debugMode && gameMode !== 'pvp') {
       debugHealTimer -= dt;                       // 开发者模式：每 5 秒恢复 100 生命
       if (debugHealTimer <= 0) {
         debugHealTimer = 5;
@@ -6546,7 +6680,7 @@ function update(dt) {
     }
   }
   updateFishVisuals(dt);
-  for(var ai=0;ai<enemies.length;ai++){var ae=enemies[ai];if(ae.alive && ae.ranged && ae.gunMesh)FishCombat.aimWeapon(ae.gunMesh,_aimTarget.set(player.pos.x,player.pos.y+1,player.pos.z),0); }
+  for(var ai=0;ai<enemies.length;ai++){var ae=enemies[ai];if(ae.alive && !ae.isBot && ae.ranged && ae.gunMesh)FishCombat.aimWeapon(ae.gunMesh,_aimTarget.set(player.pos.x,player.pos.y+1,player.pos.z),0); }
   if (boss) updateEnemyShadow(boss, CFG.fishSize * CFG.bossSizeMul);
   FishArt.update(worldArt, time);
   updateSwordWaves(dt);   // 剑气特效（弧形能量波飞行与淡出）
@@ -6562,6 +6696,29 @@ function update(dt) {
   if (debugMode) updateDebugLog(dt);   // Debug 消息上移/淡出/清理
   updateCheatMusic(dt);                // 作弊被抓搞怪音乐循环
   updateWaves(dt);    // 波次系统：刷怪节奏与 Boss 刷新（每 bossEveryWaves 波一只）
+}
+
+
+var sceneLoadPending=false;
+function loadGameWorld(ready){
+  if(sceneLoadPending)return;sceneLoadPending=true;state='loading';hideAllOverlays();
+  pauseAfterLoad=false;requestGameFullscreen();
+  var overlay=document.getElementById('loading-overlay'),fill=document.getElementById('loading-fill'),label=document.getElementById('loading-label'),pct=document.getElementById('loading-percent'),track=document.getElementById('loading-track');
+  overlay.classList.remove('hidden');document.getElementById('loading-back').classList.add('hidden');
+  function progress(n,text){fill.style.width=n+'%';pct.textContent=n+'%';label.textContent=text;track.setAttribute('aria-valuenow',n);}
+  function paint(){return new Promise(function(resolve){requestAnimationFrame(function(){requestAnimationFrame(resolve);});});}
+  (async function(){
+    try{
+      progress(4,'准备载入沙海哨站');await paint();
+      var steps=buildEnvironmentSteps(),step;while(!(step=steps.next()).done){progress(step.value.progress,step.value.label);await paint();}
+      buildMiniMap();progress(84,'初始化地图与战斗');await paint();
+      // ready 创建模式需要的实体；加载状态锁住模拟直到资源准备完成。
+      ready();state='loading';progress(92,'预热材质与着色器');await paint();
+      renderer.compile(scene,camera);progress(100,'准备完成');await paint();
+      sceneLoadPending=false;overlay.classList.add('hidden');state='playing';
+      if(pauseAfterLoad)pauseGameplay();else requestLockWithFallback();
+    }catch(err){sceneLoadPending=false;state='loading';label.textContent='载入失败：'+err.message;document.getElementById('loading-back').classList.remove('hidden');console.error(err);}
+  })();
 }
 
 /** 进入游戏世界：按需构建场景（只构建一次，之后复用到卸载为止） */
@@ -6585,7 +6742,7 @@ function enterGameWorld() {
 
 /** 纯 UI 界面：主菜单 / 选关 / 成就 / 退出画面 —— 不显示 3D 场景，也不推进游戏逻辑 */
 function isUiOnlyState() {
-  return state === 'menu' || state === 'levelSelect' || state === 'achievements' || state === 'quit';
+  return state === 'loading' || state === 'menu' || state === 'levelSelect' || state === 'achievements' || state === 'quit';
 }
 
 function animate() {
@@ -6664,6 +6821,9 @@ function init() {
 
   var preview = document.getElementById('fish-preview');
   if (preview && window.FISH_TEXTURE_DATA) preview.src = window.FISH_TEXTURE_DATA;
+  // 游戏大厅也展示同一个蓝发女仆形象
+  var lobbyHero = document.getElementById('lobby-hero-img');
+  if (lobbyHero && window.FISH_TEXTURE_DATA) lobbyHero.src = window.FISH_TEXTURE_DATA;
 
   // 注意：环境与小地图改为「首次进入游戏时」构建（见 btn-level-desert 处理），
   // 主菜单不再是已经加载了游戏场景的状态。
@@ -6745,6 +6905,9 @@ function init() {
   document.addEventListener('mouseup', onMouseUp);
   document.addEventListener('mousemove', onMouseMove);
   document.addEventListener('pointerlockchange', onPointerLockChange);
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  window.addEventListener('blur',function(){pauseGameplay();releaseGameplayInput();});
+  document.addEventListener('visibilitychange',function(){if(document.hidden){if(sceneLoadPending)pauseAfterLoad=true;pauseGameplay();releaseGameplayInput();}});
   document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   window.addEventListener('resize', onResize);
 
@@ -6754,9 +6917,31 @@ function init() {
   var btnRestart = document.getElementById('btn-restart');
   if (btnStart) btnStart.addEventListener('click', function () { showLevelSelect(); });
   if (btnResume) btnResume.addEventListener('click', function () {
-    if (lockMode === 'fallback') { state = 'playing'; hideAllOverlays(); return; }
+    state = 'playing';hideAllOverlays();requestGameFullscreen();
+    if (lockMode === 'fallback') { updateFullscreenButton();return; }
     requestLockWithFallback();
   });
+  var btnFullscreen=document.getElementById('btn-fullscreen');
+  if(btnFullscreen)btnFullscreen.addEventListener('click',function(){requestGameFullscreen();});
+  // ---- 游戏大厅：模式 / 地图 / 房间 ----
+  function bind(id, fn) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('click', fn);
+  }
+  bind('btn-mode-endless', function () { showMapSelect(); });
+  bind('btn-mode-pvp', function () { showRoomList(); });
+  bind('btn-map-desert', function () { startEndlessDesert(); });
+  bind('btn-map-back', function () { showLevelSelect(); });
+  bind('btn-room-create', function () { showCreateRoom(); });
+  bind('btn-room-refresh', function () { renderRoomList(); });
+  bind('btn-roomlist-back', function () { showLevelSelect(); });
+  bind('btn-cr-create', function () { doCreateRoom(); });
+  bind('btn-cr-back', function () { showRoomList(); });
+  bind('btn-room-start', function () { startFromRoom(); });
+  bind('btn-room-leave', function () { leaveRoom(); });
+  var crModeEl = document.getElementById('cr-mode');
+  if (crModeEl) crModeEl.addEventListener('change', updateCreateRoomFillRow);
+
   if (btnRestart) btnRestart.addEventListener('click', function () {
     // 歼灭战结束后「再来一局」应回到歼灭战选人页，而不是掉回无尽模式
     var wasPvp = (gameMode === 'pvp') || PVP.over;
@@ -6837,9 +7022,7 @@ function init() {
       var grec = document.querySelector('#final-record');
       if (grec) grec.style.display = '';
     }
-    enterGameWorld();     // 首次进入时构建场景（主菜单不加载世界）
-    hideAllOverlays();
-    requestLockWithFallback();
+    loadGameWorld(function(){enterGameWorld();hideAllOverlays();});
   });
   if (btnLevelBack) btnLevelBack.addEventListener('click', function () {
     state = 'menu';
@@ -6853,14 +7036,13 @@ function init() {
   });
   var btnPvpStart = document.getElementById('btn-pvp-start');
   if (btnPvpStart) btnPvpStart.addEventListener('click', function () {
-    enterGameWorld();      // 首次进入时构建场景
-    hideAllOverlays();
-    startPvp({ skin: pvpSelSkin, weapon: pvpSelWeapon, teamSize: pvpSelTeam });
+    loadGameWorld(function(){startPvp({skin:pvpSelSkin,weapon:pvpSelWeapon,teamSize:pvpSelTeam,difficulty:document.getElementById('pvp-difficulty').value,ticketMultiplier:+document.getElementById('pvp-tickets').value});});
   });
   var btnPvpBack = document.getElementById('btn-pvp-back');
   if (btnPvpBack) btnPvpBack.addEventListener('click', function () {
     showLevelSelect();
   });
+  document.getElementById('loading-back').addEventListener('click',function(){document.getElementById('loading-overlay').classList.add('hidden');restartGame(true);});
   mark('buttons-bound');
   animate();
   mark('animate-called');
@@ -6917,6 +7099,18 @@ window.FishGame = {
     },
     getBloom: function () { return { bloom: +spreadBloom.toFixed(3), spread: +spreadNow().toFixed(5), recoilSeq: recoilSeq }; },
     testShoot: function (n) { for (var i = 0; i < (n || 1); i++) shootOnce(); return spreadBloom; },
+    getLobby: function () {
+      return {
+        rooms: LOBBY.rooms.length,
+        current: LOBBY.current ? LOBBY.current.name : null,
+        mode: LOBBY.current ? LOBBY.current.mode : null,
+        fillAI: LOBBY.current ? LOBBY.current.fillAI : null,
+        humans: LOBBY.current ? roomHumanCount(LOBBY.current) : 0,
+        capacity: LOBBY.current ? roomCapacity(LOBBY.current) : 0,
+        slots: LOBBY.current ? roomSlots(LOBBY.current) : null,
+      };
+    },
+    simJoin: function () { return simulateHumanJoin(); },
     getCrouch: function () { return { t: +crouchT.toFixed(3), eye: +eyeHeightNow().toFixed(3), base: CFG.eyeHeight }; },
     setCrouch: function (v) { crouchT = Math.max(0, Math.min(1, v)); syncCamera(); },
     pvpHitTest: function (dist, atHead) {
@@ -6927,6 +7121,11 @@ window.FishGame = {
       var r = pvpHitDamage(bot, dist, hp);
       return { damage: +r.damage.toFixed(2), isHead: r.isHead };
     },
+    startPvp: startPvp,
+    getPvpTactics: function(){return pvpTactics;},
+    pvpSnapshot: function(){return {tickets:Object.assign({},PVP.tickets),limit:PVP.ticketLimit,teamSize:PVP.teamSize,respawn:PVP.respawnT,protection:PVP.protection,roundTime:PVP.roundTime,clock:PVP.clock,actors:enemies.filter(function(e){return e.isBot;}).map(function(e){return {id:e.pvpId,team:e.team,x:e.mesh.position.x,z:e.mesh.position.z,alive:e.alive,hp:e.hp,state:e.aiState,respawn:e.respawnTimer,kills:e.kills,deaths:e.deaths,shots:e.brain.shots,mag:e.brain.magazines.rifle,memory:e.brain.memory};})};},
+    pvpSetTickets: function(red,blue){PVP.tickets={red:Math.max(1,red|0),blue:Math.max(1,blue|0)};updatePvpScore();},
+    pvpDamageBot: function(index,damage){var e=enemies.filter(function(e){return e.isBot;})[index];if(e){e.protection=0;pvpDamageBot(e,damage,true);}},
     getPvp: function () {
       return {
         mode: gameMode, active: PVP.active, over: PVP.over,
@@ -6954,7 +7153,7 @@ window.FishGame = {
       return true;
     },
     pvpHurtPlayer: function (d) {
-      player.hp = 1; hurtCd = 0; hurtCdByKind = { melee: 0, ranged: 0, blast: 0 };
+      PVP.protection=0;player.hp = 1; hurtCd = 0; hurtCdByKind = { melee: 0, ranged: 0, blast: 0 };
       damagePlayer(d || 50, { name: '测试', atk: '射击' });
       return player.hp;
     },
@@ -6970,6 +7169,9 @@ window.FishGame = {
     knifeAttack: knifeAttack,                            // 测试用：匕首攻击（true = 重击）
     getKnifeCd: function () { return knifeCd; },
     getWeapon: function () { return currentWeapon; },
+    getWeaponSwitch: function () { return weaponSwitch ? { from: weaponSwitch.from, to: weaponSwitch.to, t: weaponSwitch.t, duration: weaponSwitch.duration, swapped: weaponSwitch.swapped } : null; },
+    getKillMedal: function () { return Object.assign({},killMedal); },
+    getImmersiveState: function () { return { fullscreen: !!document.fullscreenElement, keyboard: keyboardLockState, pointerPending: pointerRequestPending }; },
     getMoveSpeedNow: function () {                       // 测试用：当前有效移速
       var wpen = weaponSpeedPenalty();
       return CFG.walkSpeed * wpen.base * (1 + upgrades.speed * CFG.upgradeSpeedPerLevel + comboBonus().speed) * wpen.final;
@@ -7084,6 +7286,8 @@ window.FishGame = {
     getObstacles: function () { return obstacles; },
     isFishReady: function () { return fishTexReady; },
     shootOnce: shootOnce,
+    nadeThrow: throwGrenade,
+    switchWeapon: switchWeapon,
     damagePlayer: damagePlayer,
     update: update,
     restart: restartGame,

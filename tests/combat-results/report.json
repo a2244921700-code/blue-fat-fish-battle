@@ -35,9 +35,9 @@
         "wallMeshes": 0,
         "enemies": 0,
         "trackedEnemies": 0,
-        "renderCalls": 330,
-        "triangles": 154800,
-        "geometries": 110,
+        "renderCalls": 322,
+        "triangles": 154192,
+        "geometries": 124,
         "textures": 22
       },
       "fx": {
@@ -56,30 +56,9 @@
         "wallMeshes": 0,
         "enemies": 0,
         "trackedEnemies": 0,
-        "renderCalls": 330,
-        "triangles": 154800,
-        "geometries": 110,
-        "textures": 22
-      },
-      "fx": {
-        "active": 0,
-        "allocated": 112,
-        "capacity": 112
-      }
-    },
-    {
-      "scene": {
-        "children": 2,
-        "meshes": 92,
-        "envBuilt": false,
-        "envObjects": 0,
-        "obstacles": 0,
-        "wallMeshes": 0,
-        "enemies": 0,
-        "trackedEnemies": 0,
-        "renderCalls": 326,
-        "triangles": 154496,
-        "geometries": 110,
+        "renderCalls": 318,
+        "triangles": 153888,
+        "geometries": 124,
         "textures": 22
       },
       "fx": {
@@ -100,7 +79,28 @@
         "trackedEnemies": 0,
         "renderCalls": 326,
         "triangles": 154496,
-        "geometries": 110,
+        "geometries": 124,
+        "textures": 22
+      },
+      "fx": {
+        "active": 0,
+        "allocated": 112,
+        "capacity": 112
+      }
+    },
+    {
+      "scene": {
+        "children": 2,
+        "meshes": 92,
+        "envBuilt": false,
+        "envObjects": 0,
+        "obstacles": 0,
+        "wallMeshes": 0,
+        "enemies": 0,
+        "trackedEnemies": 0,
+        "renderCalls": 318,
+        "triangles": 153888,
+        "geometries": 124,
         "textures": 22
       },
       "fx": {

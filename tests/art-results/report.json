@@ -1,17 +1,17 @@
 {
   "initial": {
-    "children": 68,
-    "meshes": 194,
+    "children": 69,
+    "meshes": 379,
     "envBuilt": true,
-    "envObjects": 66,
-    "obstacles": 61,
-    "wallMeshes": 70,
+    "envObjects": 67,
+    "obstacles": 288,
+    "wallMeshes": 117,
     "enemies": 0,
     "trackedEnemies": 0,
-    "renderCalls": 108,
-    "triangles": 11404,
-    "geometries": 124,
-    "textures": 17
+    "renderCalls": 249,
+    "triangles": 150076,
+    "geometries": 279,
+    "textures": 22
   },
   "shot": {
     "dead": true,
@@ -70,10 +70,10 @@
       "wallMeshes": 0,
       "enemies": 0,
       "trackedEnemies": 0,
-      "renderCalls": 175,
-      "triangles": 17848,
-      "geometries": 77,
-      "textures": 31
+      "renderCalls": 290,
+      "triangles": 153976,
+      "geometries": 81,
+      "textures": 36
     },
     {
       "children": 2,
@@ -84,10 +84,10 @@
       "wallMeshes": 0,
       "enemies": 0,
       "trackedEnemies": 0,
-      "renderCalls": 190,
-      "triangles": 19204,
-      "geometries": 77,
-      "textures": 31
+      "renderCalls": 316,
+      "triangles": 156520,
+      "geometries": 81,
+      "textures": 36
     },
     {
       "children": 2,
@@ -98,10 +98,10 @@
       "wallMeshes": 0,
       "enemies": 0,
       "trackedEnemies": 0,
-      "renderCalls": 189,
-      "triangles": 19162,
-      "geometries": 77,
-      "textures": 31
+      "renderCalls": 310,
+      "triangles": 156182,
+      "geometries": 81,
+      "textures": 36
     },
     {
       "children": 2,
@@ -112,10 +112,10 @@
       "wallMeshes": 0,
       "enemies": 0,
       "trackedEnemies": 0,
-      "renderCalls": 134,
-      "triangles": 13948,
-      "geometries": 77,
-      "textures": 31
+      "renderCalls": 318,
+      "triangles": 156604,
+      "geometries": 81,
+      "textures": 36
     }
   ],
   "errors": [],

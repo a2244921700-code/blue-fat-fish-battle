@@ -12,6 +12,7 @@ const OUT=process.env.FISH_COMBAT_OUTPUT||path.join(__dirname,'combat-results');
     await page.goto(process.env.FISH_TEST_URL||'http://127.0.0.1:8123/');
     await page.waitForFunction(()=>window.FishGame&&FishGame.__debug.isFishReady());
     await page.click('#btn-start');await page.click('#btn-level-desert');
+    await page.waitForFunction(()=>FishGame.__debug.getSceneStats().envBuilt&&document.getElementById('loading-overlay').classList.contains('hidden'));
     await page.evaluate(()=>{const d=FishGame.__debug;d.enterFallback();d.clearCovers();d.setState('paused');});
     await page.addStyleTag({content:'#fallback-hint,#notice-pop {visibility:hidden!important;}'});
     async function render(){await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));}
@@ -38,6 +39,7 @@ const OUT=process.env.FISH_COMBAT_OUTPUT||path.join(__dirname,'combat-results');
     async function selectWeapon(key,id){
       await page.evaluate(()=>FishGame.__debug.setState('playing'));
       await page.keyboard.press(key);
+      await page.waitForFunction(()=>!FishGame.__debug.getWeaponSwitch());
       assert.equal(await page.evaluate(()=>{const d=FishGame.__debug;d.setState('paused');return d.getWeapon();}),id,'截图前确认实际切换武器');
     }
     for(const [key,id,name] of [['Digit1','pistol','01-pistol'],['Digit2','rifle','02-rifle'],['Digit3','knife','03-knife']]){

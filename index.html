@@ -562,6 +562,103 @@ window.addEventListener('load', function () {
   .stat-line b { color: #ffd76e; font-size: 26px; margin: 0 6px; }
   .note { margin-top: 16px; font-size: 12px; color: #6f86a0; }
 
+  /* ---------- 游戏大厅：女仆形象 ---------- */
+  #level-overlay .panel { max-height: 92vh; overflow-y: auto; }
+  #level-overlay .panel::-webkit-scrollbar { width: 8px; }
+  #level-overlay .panel::-webkit-scrollbar-thumb { background: rgba(120, 200, 255, .28); border-radius: 4px; }
+  .lobby-hero { display: flex; justify-content: center; margin: -4px 0 10px; }
+  .lobby-hero-img {
+    width: 150px; height: 150px; object-fit: contain;
+    filter: drop-shadow(0 6px 18px rgba(80, 170, 255, .35));
+    animation: lobbyFloat 4s ease-in-out infinite;
+  }
+  @keyframes lobbyFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+
+  /* ---------- 游戏大厅：地图选择 ---------- */
+  .map-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 14px 0 18px; }
+  .map-card {
+    background: rgba(14, 32, 54, .72); border: 2px solid rgba(120, 200, 255, .22);
+    border-radius: 12px; padding: 16px 12px; text-align: center; cursor: pointer;
+    transition: border-color .15s, transform .15s, background .15s;
+  }
+  .map-card:hover { border-color: rgba(120, 200, 255, .7); transform: translateY(-2px); background: rgba(20, 44, 72, .85); }
+  .map-card.locked { opacity: .42; cursor: not-allowed; }
+  .map-card.locked:hover { transform: none; border-color: rgba(120, 200, 255, .22); }
+  .map-thumb { font-size: 40px; line-height: 1.2; margin-bottom: 8px; }
+  .map-name { font-size: 16px; font-weight: 800; color: #dff2ff; margin-bottom: 4px; }
+  .map-desc { font-size: 12px; color: #7fa8c4; }
+
+  /* ---------- 房间列表 ---------- */
+  .rl-toolbar { display: flex; gap: 10px; justify-content: center; margin: 12px 0; }
+  .rl-toolbar .big-btn { margin: 0; min-width: 140px; }
+  .rl-head, .rl-row {
+    display: grid; grid-template-columns: 1fr 92px 92px 92px; align-items: center;
+    gap: 8px; padding: 8px 12px; font-size: 13px;
+  }
+  .rl-head { color: #7fa8c4; font-weight: 700; border-bottom: 1px solid rgba(120, 200, 255, .18); }
+  .rl-list { max-height: 300px; overflow-y: auto; margin-bottom: 14px; }
+  .rl-row {
+    background: rgba(14, 32, 54, .55); border: 1px solid rgba(120, 200, 255, .12);
+    border-radius: 8px; margin-bottom: 6px; color: #cfe8f8;
+  }
+  .rl-row:hover { border-color: rgba(120, 200, 255, .45); }
+  .rl-empty { text-align: center; color: #6f93ad; font-size: 13px; padding: 26px 0; }
+  .rl-mode-tag { font-size: 11px; padding: 2px 7px; border-radius: 5px; font-weight: 700; }
+  .rl-mode-tag.online { background: rgba(60, 150, 220, .28); color: #9fd6ff; }
+  .rl-mode-tag.bot { background: rgba(200, 150, 60, .28); color: #ffd98a; }
+  .rl-join {
+    padding: 5px 0; border-radius: 6px; border: 1px solid rgba(120, 200, 255, .5);
+    background: rgba(40, 110, 170, .35); color: #dff2ff; font-size: 12px;
+    font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .rl-join:hover { background: rgba(60, 150, 220, .55); }
+  .rl-join:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ---------- 创建房间表单 ---------- */
+  .cr-form { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 18px; }
+  .cr-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; color: #dff2ff; }
+  .cr-row > span { flex: 0 0 88px; text-align: right; color: #9fc4df; font-weight: 700; }
+  .cr-row input, .cr-row select {
+    flex: 1; padding: 8px 10px; border-radius: 8px; font-family: inherit; font-size: 14px;
+    background: rgba(10, 26, 44, .9); color: #e8f6ff;
+    border: 1px solid rgba(120, 200, 255, .3);
+  }
+  .cr-check {
+    display: flex; align-items: flex-start; gap: 9px; padding: 10px 12px;
+    background: rgba(14, 32, 54, .55); border: 1px solid rgba(120, 200, 255, .16);
+    border-radius: 9px; font-size: 13px; color: #cfe8f8; cursor: pointer;
+  }
+  .cr-check input { margin-top: 2px; width: 16px; height: 16px; accent-color: #3fa9f5; }
+  .cr-check em { display: block; font-style: normal; font-size: 11px; color: #6f93ad; margin-top: 3px; }
+  .cr-check.disabled { opacity: .4; pointer-events: none; }
+
+  /* ---------- 房间等待 ---------- */
+  .room-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 14px 0; }
+  .room-team { background: rgba(14, 32, 54, .6); border-radius: 11px; padding: 10px 12px; }
+  .room-team.red { border: 1px solid rgba(80, 170, 235, .38); }
+  .room-team.blue { border: 1px solid rgba(220, 90, 100, .38); }
+  .rt-head {
+    display: flex; justify-content: space-between; font-size: 14px; font-weight: 800;
+    margin-bottom: 8px; color: #dff2ff;
+  }
+  .room-team.red .rt-head { color: #9fd6ff; }
+  .room-team.blue .rt-head { color: #ffb3b3; }
+  .rt-slots { display: flex; flex-direction: column; gap: 5px; }
+  .rt-slot {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 10px; border-radius: 7px; font-size: 13px;
+    background: rgba(8, 20, 34, .7); color: #cfe8f8;
+  }
+  .rt-slot.me { border: 1px solid rgba(120, 220, 160, .6); color: #b8ffd8; }
+  .rt-slot.bot { color: #8fb4cc; }
+  .rt-slot.empty { color: #4d6a80; font-style: italic; }
+  .rt-slot .rt-tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: rgba(120, 200, 255, .18); }
+  .rt-slot.bot .rt-tag { background: rgba(255, 200, 120, .16); color: #ffd98a; }
+  .room-note { text-align: center; font-size: 12px; color: #7fa8c4; margin-bottom: 12px; }
+
   /* ---------- 关卡选择 ---------- */
   .panel-wide { max-width: 780px; }
   .level-cols { display: flex; gap: 22px; justify-content: center; margin: 14px 0 24px; }
@@ -699,6 +796,8 @@ window.addEventListener('load', function () {
   #error-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 99; display: none;
     background: #b00020; color: #fff; font-size: 14px; padding: 10px 18px; }
 </style>
+<link rel="stylesheet" href="css/fps.css">
+<link rel="stylesheet" href="css/combat-feedback.css">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -733,6 +832,24 @@ window.addEventListener('load', function () {
     <div id="reload-bar"><div id="reload-fill"></div></div>
   </div>
   <div id="hitmarker"></div>
+  <div id="weapon-switch" class="hidden" role="status"><span id="weapon-switch-name">换装</span><div class="switch-track"><i id="weapon-switch-fill"></i></div></div>
+  <button id="btn-fullscreen" class="hidden" title="按 F 或点击进入全屏，Esc 可退出">⛶ F 全屏对局</button>
+  <div id="kill-medal" role="status" aria-live="polite" aria-atomic="true" data-tier="single">
+    <div class="medal-emblem" aria-hidden="true">
+      <svg viewBox="0 0 160 100" focusable="false">
+        <path class="medal-wings" d="M49 35 9 23 18 41 43 48 23 46 33 61 48 64M111 35 151 23 142 41 117 48 137 46 127 61 112 64"/>
+        <path class="medal-shell" d="M80 5 116 25 116 65 80 91 44 65 44 25Z"/>
+        <path class="medal-line" d="M80 13 109 29 109 61 80 82 51 61 51 29Z"/>
+        <path class="medal-skull" d="M63 43C63 22 97 22 97 43L94 56 88 59 88 68 72 68 72 59 66 56Z"/>
+        <path class="medal-eyes" d="M67 43 77 46 75 51 68 50ZM93 43 83 46 85 51 92 50ZM80 52 76 58 84 58ZM77 61H79V68H77ZM82 61H84V68H82Z"/>
+        <path class="medal-crown" d="M64 24 60 9 73 16 80 5 87 16 100 9 96 24Z"/>
+      </svg>
+      <b id="kill-medal-count">✓</b>
+    </div>
+    <strong id="kill-medal-title">击杀确认</strong>
+    <small id="kill-medal-detail">本次生存 · 1 击杀</small>
+    <div class="medal-window" aria-hidden="true"><i id="kill-medal-window"></i></div>
+  </div>
   <div id="killfeed"></div>
   <div id="scoreboard" class="hidden">
     <div class="sb-title">歼灭战 · 第 <span id="sb-round">1</span> 回合</div>
@@ -746,15 +863,15 @@ window.addEventListener('load', function () {
         <div class="sb-rows" id="sb-blue-rows"></div>
       </div>
     </div>
-    <div class="sb-tip">按住 Tab 查看</div>
+    <div class="sb-tip">姓名 / 状态　　击杀 / 阵亡 · 统计跨回合累计 · 按住 Tab 查看</div>
   </div>
   <div id="pvp-score">
-    <span class="ps-round">第 1 回合</span>
-    <span class="ps-mine">红队 0</span>
-    <span class="ps-goal">先拿 4 回合</span>
-    <span class="ps-bots">蓝队 0</span>
-    <span class="ps-live">存活 4 vs 4</span>
+    <div class="ps-team red"><span class="ps-red-alive">红队 · 我方</span><b class="ps-mine">24</b><span class="ps-caption">剩余额度</span><div class="ps-meter"><i class="ps-red-fill"></i></div></div>
+    <div class="ps-center"><span class="ps-round">ROUND 01 / 7</span><span class="ps-goal">0 : 0</span><span class="ps-live">部署</span></div>
+    <div class="ps-team blue"><span class="ps-blue-alive">蓝队 · 敌方</span><span class="ps-caption">剩余额度</span><b class="ps-bots">24</b><div class="ps-meter"><i class="ps-blue-fill"></i></div></div>
   </div>
+  <div id="pvp-status"></div>
+  <div id="pvp-radar-key">红 · 队友　 蓝 · 目击情报（3s）</div>
   <div id="dialog-box">
     <div class="dialog-speaker"></div>
     <div class="dialog-text"></div>
@@ -780,6 +897,15 @@ window.addEventListener('load', function () {
   <div id="boss-name">超级蓝色大肥鱼<span id="boss-hp-text"><b id="boss-hp-cur">15</b> / <span id="boss-hp-max">15</span></span></div>
   <div id="boss-bar"><div id="boss-fill"></div></div>
 </div>
+<div id="pvp-respawn" class="hidden"><span>重新部署</span><b>4</b><span>秒</span><small>返回己方基地</small></div>
+<div id="loading-overlay" class="hidden" aria-label="场景载入">
+  <div class="loading-content"><div class="loading-eyebrow">蓝色肥鱼大作战 / LOADING</div><h2>正在进入沙海哨站</h2>
+    <div class="loading-meta"><span id="loading-label" role="status">准备载入</span><span id="loading-percent">0%</span></div>
+    <div id="loading-track" role="progressbar" aria-label="场景载入进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="loading-fill"></div></div>
+    <div class="loading-note">载入地图、纹理与模型，完成战斗准备。<br>进度按场景构建阶段显示。</div>
+    <button id="loading-back" class="big-btn ghost hidden">返回主菜单</button>
+  </div>
+</div>
 <div id="fallback-hint">浏览器未允许指针锁定，已启用拖动瞄准模式：移动鼠标转向，点击画面射击，Esc 暂停</div>
 <div id="combo-pop" class=""></div>
 <div id="notice-pop"></div>
@@ -798,8 +924,6 @@ window.addEventListener('load', function () {
     <div class="cheat-hint">按任意键回到主菜单…</div>
   </div>
 </div>
-<div id="killfeed"></div>
-
 <!-- 主菜单 -->
 <div id="menu-overlay" class="overlay">
   <div class="panel">
@@ -820,7 +944,7 @@ window.addEventListener('load', function () {
       <span><span class="k">I</span> 技能等级面板（打开时游戏暂停）</span>
       <span><span class="k">Esc</span> 暂停</span>
     </div>
-    <button id="btn-start" class="big-btn btn-start-glow">开始游戏</button>
+    <button id="btn-start" class="big-btn btn-start-glow">载入游戏</button>
     <button id="btn-settings-menu" class="big-btn ghost">设置</button>
     <button id="btn-quit" class="big-btn ghost danger">退出游戏</button>
     <div id="best-records" class="best-records hidden">
@@ -834,8 +958,11 @@ window.addEventListener('load', function () {
 <!-- 关卡选择 -->
 <div id="level-overlay" class="overlay hidden">
   <div class="panel panel-wide">
-    <h1>选择关卡</h1>
-    <div class="sub-title">先选好模式再出发</div>
+    <h1>游戏大厅</h1>
+    <div class="sub-title">选择模式 · 开始你的战斗</div>
+    <div class="lobby-hero">
+      <img id="lobby-hero-img" class="lobby-hero-img" alt="蓝发女仆">
+    </div>
     <div class="level-cols">
       <div class="level-col mode-locked">
         <div class="mode-title">🎯 闯关模式</div>
@@ -843,20 +970,20 @@ window.addEventListener('load', function () {
       </div>
       <div class="level-col">
         <div class="mode-title">🌊 无尽模式</div>
-        <div class="level-card" id="btn-level-desert">
-          <div class="card-title">无尽模式 —— 沙漠城</div>
-          <div class="card-tags"><b>三武器切换</b>：1 手枪（点射）· 2 步枪（全自动）· 3 匕首（近战）<br><b>弹药紧缺</b>：捡弹药箱、抢扩容弹夹（弹鼓 120 发但降低移速）<br>每 5 波一场 Boss 战 · <b>五类 Boss</b>打法各不相同<br><b>每 10 波环境剧变</b>：黄昏 / 沙尘暴 / 血月 / 深夜<br>连杀评级带来移速与伤害增益，SSS 更可吸血</div>
+        <div class="level-card" id="btn-mode-endless">
+          <div class="card-title">🌊 无尽模式</div>
+          <div class="card-tags"><b>波次生存</b>：敌人一波比一波强，活到最后一刻<br><b>三武器</b>：手枪 / 步枪 / 匕首随时切换<br><b>成长</b>：击杀升级、击破 Boss 三选一强化<br><b>下一</b>：进入后选择地图120 发但降低移速）<br>每 5 波一场 Boss 战 · <b>五类 Boss</b>打法各不相同<br><b>每 10 波环境剧变</b>：黄昏 / 沙尘暴 / 血月 / 深夜<br>连杀评级带来移速与伤害增益，SSS 更可吸血</div>
           <div class="card-go">点击进入 ▶</div>
         </div>
       </div>
       <div class="level-col">
         <div class="mode-title">🔫 射击对战</div>
-        <div class="level-card" id="btn-pvp-mode">
-          <div class="card-title">射击对战 —— 单机 AI 对战</div>
+        <div class="level-card" id="btn-mode-pvp">
+          <div class="card-title">🔫 射击对战</div>
           <div class="card-tags">
-            <b>规则</b>：歼灭战 —— 回合制，红蓝两队淘汰对方全员得 1 分，先拿 <b>4 回合</b>获胜（最多 7 回合）<br>
-            <b>队伍</b>：红队 = 你 + AI 队友，蓝队 = 全 AI（3v3 / 4v4 / 5v5）<br>
-            <b>武器</b>：主武器固定突击步枪，副武器选手枪或鱼人手枪（数值照搬 CS2）<br>
+            <b>规则</b>：每队共享复活额度，阵亡扣 1、4 秒后复活；耗尽对手额度得 1 分，先拿 <b>4 回合</b>获胜<br>
+            <b>队伍</b>：红队 = 你 + AI 队友，蓝队 = 全 AI（6v6 / 8v8 / 12v12 / 16v16）<br>
+            <b>武器</b>：主武器固定突击步枪，副武器选手枪或鱼人手枪<br>
             <b>形象</b>：可选非 Boss 鱼的形象，对局中只在别人身上看到
           </div>
           <div class="card-go">点击进入 ▶</div>
@@ -864,6 +991,7 @@ window.addEventListener('load', function () {
       </div>
     </div>
     <button id="btn-level-back" class="big-btn ghost">← 返回主菜单</button>
+    <div class="note" style="margin-top:10px">提示：无尽模式需要先选择地图；射击对战需要进入房间</div>
   </div>
 </div>
 
@@ -871,7 +999,7 @@ window.addEventListener('load', function () {
 <div id="pvp-overlay" class="overlay hidden">
   <div class="panel panel-wide">
     <h1>歼灭战 · 准备</h1>
-    <div class="sub-title">回合制淘汰对抗 · 选择武器与形象（对局里看不到自己，但对手看得到）</div>
+    <div class="sub-title">本地红蓝队伍对抗 · 每回合共享复活额度 · 先赢 4 回合获胜</div>
 
     <div class="pvp-section">
       <div class="pvp-label">武器（主武器固定 · 副武器可选）</div>
@@ -879,7 +1007,7 @@ window.addEventListener('load', function () {
     </div>
 
     <div class="pvp-section">
-      <div class="pvp-label">你的形象</div>
+      <div class="pvp-label">角色形象预览（第一人称暂无自身角色模型）</div>
       <div class="pvp-row" id="pvp-skins"></div>
     </div>
 
@@ -888,8 +1016,118 @@ window.addEventListener('load', function () {
       <div class="pvp-row" id="pvp-bots"></div>
     </div>
 
+    <div class="pvp-settings">
+      <label>AI 难度<select id="pvp-difficulty"><option value="easy">轻松</option><option value="normal" selected>标准</option><option value="hard">困难</option></select></label>
+      <label>每队复活额度<select id="pvp-tickets"><option value="2">人数 × 2</option><option value="3" selected>人数 × 3</option><option value="5">人数 × 5</option></select></label>
+    </div>
+    <div class="pvp-rule">南端红队 / 北端蓝队 · 阵亡扣 1 额度，4 秒后回基地复活 · 开火会解除出生保护<br>一方额度归零结束本回合；先赢 4 回合获胜，回合间重新部署并补满双方额度。</div>
     <button id="btn-pvp-start" class="big-btn btn-start-glow">开始对战</button>
     <button id="btn-pvp-back" class="big-btn ghost">← 返回模式选择</button>
+  </div>
+</div>
+
+<!-- 无尽模式 · 地图选择 -->
+<div id="map-overlay" class="overlay hidden">
+  <div class="panel panel-wide">
+    <h1>选择地图</h1>
+    <div class="sub-title">无尽模式 · 波次生存</div>
+    <div class="map-grid">
+      <div class="map-card" id="btn-map-desert">
+        <div class="map-thumb desert">🏜️</div>
+        <div class="map-name">沙漠城</div>
+        <div class="map-desc">开阔广场 · 拱门竞技场 · 随机掩体</div>
+      </div>
+      <div class="map-card locked">
+        <div class="map-thumb">🔒</div>
+        <div class="map-name">冰封港湾</div>
+        <div class="map-desc">敬请期待</div>
+      </div>
+      <div class="map-card locked">
+        <div class="map-thumb">🔒</div>
+        <div class="map-name">深海遗迹</div>
+        <div class="map-desc">敬请期待</div>
+      </div>
+    </div>
+    <button id="btn-map-back" class="big-btn ghost">← 返回大厅</button>
+  </div>
+</div>
+
+<!-- 射击对战 · 房间列表 -->
+<div id="roomlist-overlay" class="overlay hidden">
+  <div class="panel panel-wide">
+    <h1>射击对战</h1>
+    <div class="sub-title">加入现有房间，或创建自己的房间</div>
+    <div class="rl-toolbar">
+      <button id="btn-room-create" class="big-btn btn-start-glow">+ 创建房间</button>
+      <button id="btn-room-refresh" class="big-btn ghost">刷新列表</button>
+    </div>
+    <div class="rl-head">
+      <span class="rl-c-room">房间</span>
+      <span class="rl-c-mode">模式</span>
+      <span class="rl-c-size">人数</span>
+      <span class="rl-c-act">操作</span>
+    </div>
+    <div class="rl-list" id="room-list"></div>
+    <button id="btn-roomlist-back" class="big-btn ghost">← 返回大厅</button>
+  </div>
+</div>
+
+<!-- 创建房间 -->
+<div id="createroom-overlay" class="overlay hidden">
+  <div class="panel">
+    <h1>创建房间</h1>
+    <div class="sub-title">配置好后进入房间等待</div>
+    <div class="cr-form">
+      <label class="cr-row"><span>房间名</span><input id="cr-name" maxlength="16" value="我的房间"></label>
+      <label class="cr-row"><span>模式</span>
+        <select id="cr-mode">
+          <option value="online">联机模式</option>
+          <option value="bot">人机模式</option>
+        </select>
+      </label>
+      <label class="cr-row"><span>队伍规模</span>
+        <select id="cr-teamsize">
+          <option value="6">6 v 6</option>
+          <option value="8" selected>8 v 8</option>
+          <option value="12">12 v 12</option>
+          <option value="16">16 v 16</option>
+        </select>
+      </label>
+      <label class="cr-row"><span>AI 难度</span>
+        <select id="cr-difficulty">
+          <option value="easy">轻松</option>
+          <option value="normal" selected>普通</option>
+          <option value="hard">困难</option>
+        </select>
+      </label>
+      <label class="cr-check" id="cr-fill-row">
+        <input type="checkbox" id="cr-fillai" checked>
+        <span>人数不足时用高级 AI 补位<em>（默认为开；真人加入后会自动顶替 AI）</em></span>
+      </label>
+    </div>
+    <button id="btn-cr-create" class="big-btn btn-start-glow">创建并进入</button>
+    <button id="btn-cr-back" class="big-btn ghost">← 返回房间列表</button>
+  </div>
+</div>
+
+<!-- 房间等待 -->
+<div id="room-overlay" class="overlay hidden">
+  <div class="panel panel-wide">
+    <h1 id="room-title">房间</h1>
+    <div class="sub-title" id="room-sub">等待玩家加入…</div>
+    <div class="room-teams">
+      <div class="room-team red">
+        <div class="rt-head"><span>红队</span><span id="room-red-count">0 / 0</span></div>
+        <div class="rt-slots" id="room-red-slots"></div>
+      </div>
+      <div class="room-team blue">
+        <div class="rt-head"><span>蓝队</span><span id="room-blue-count">0 / 0</span></div>
+        <div class="rt-slots" id="room-blue-slots"></div>
+      </div>
+    </div>
+    <div class="room-note" id="room-note"></div>
+    <button id="btn-room-start" class="big-btn btn-start-glow">开始对战</button>
+    <button id="btn-room-leave" class="big-btn ghost">← 离开房间</button>
   </div>
 </div>
 
@@ -901,7 +1139,7 @@ window.addEventListener('load', function () {
     <button id="btn-resume" class="big-btn">继续游戏</button>
     <button id="btn-settings-pause" class="big-btn ghost">设置</button>
     <button id="btn-pause-menu" class="big-btn ghost">回到主菜单</button>
-    <div class="note">点击继续后将重新锁定鼠标</div>
+    <div class="note">进入或继续对局时自动请求全屏并锁定鼠标。<br>Esc 退出全屏并暂停；切回窗口时战斗也会暂停。</div>
   </div>
 </div>
 
@@ -1001,11 +1239,13 @@ window.addEventListener('load', function () {
 
 <!-- 依赖（全部本地化，离线可玩） -->
 <script src="lib/three.min.js"></script>
-<script src="assets/fish-texture.js"></script>
-<script src="assets/enemy-textures.js"></script>
-<script src="js/art.js"></script>
-<script src="js/scene-detail.js"></script>
-<script src="js/combat-art.js"></script>
-<script src="js/game.js"></script>
+<script src="assets/fish-texture.js?v=20261024"></script>
+<script src="assets/enemy-textures.js?v=20261024"></script>
+<script src="js/art.js?v=20261024"></script>
+<script src="js/scene-detail.js?v=20261024"></script>
+<script src="js/combat-art.js?v=20261024"></script>
+<script src="js/fps-ai.js?v=20261024"></script>
+<script src="js/fps-art.js?v=20261024"></script>
+<script src="js/game.js?v=20261024"></script>
 </body>
 </html>

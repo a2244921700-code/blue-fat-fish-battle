@@ -15,6 +15,7 @@ const OUT=path.join(__dirname,'wall-top-results');fs.mkdirSync(OUT,{recursive:tr
     await page.goto(process.env.FISH_TEST_URL||'http://127.0.0.1:8123/');
     await page.waitForFunction(()=>window.FishGame&&FishGame.__debug.isFishReady());
     await page.click('#btn-start');await page.click('#btn-level-desert');
+    await page.waitForFunction(()=>FishGame.__debug.getSceneStats().envBuilt&&document.getElementById('loading-overlay').classList.contains('hidden'));
     await page.evaluate(()=>{const d=FishGame.__debug;d.enterFallback();d.clearCovers();d.setState('paused');});
     await page.addStyleTag({content:'#fallback-hint,#notice-pop {visibility:hidden!important;}'});
     const inspect=()=>page.evaluate(()=>{

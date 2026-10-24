@@ -116,6 +116,8 @@ globalThis.THREE = THREE;
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'art.js'), 'utf8'));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'scene-detail.js'), 'utf8'));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'combat-art.js'), 'utf8'));
+(0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'fps-ai.js'), 'utf8'));
+(0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'fps-art.js'), 'utf8'));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'game.js'), 'utf8'));
 const dbg = window.FishGame.__debug;
 
@@ -153,7 +155,9 @@ dbg.startWave(1);
 check('第 1 波生成 6 条肥鱼(>=3)', dbg.getEnemies().length === 6, String(dbg.getEnemies().length));
 check('场景障碍物已建立', dbg.getObstacles().length >= 10, String(dbg.getObstacles().length));
 
-// 模拟 pointer lock 开始游戏
+// 模拟用户进入场景后请求 pointer lock；迟到的事件不能从菜单启动战斗。
+dbg.setState('playing');
+dbg.requestLock();
 fakeDocument.pointerLockElement = canvasEl;
 fakeDocument.fire('pointerlockchange');
 check('锁定鼠标后进入游戏', dbg.getState() === 'playing', dbg.getState());
@@ -1073,6 +1077,7 @@ homing.mesh.children[0].geometry.addEventListener('dispose',()=>testShellDispose
 dbg.clearProjectiles();check('清场释放测试炮弹的独有几何',testShellDisposed);
 
 fakeDocument.fire('keydown',{code:'Digit2'});
+advance(.75); // 收枪、换装、举枪完成后检查步枪姿势。
 const weaponGun=dbg.getGun();
 check('步枪模型与枪口闪光共用同一锚点',weaponGun.rifleGroup.visible&&!weaponGun.pistolGroup.visible&&weaponGun.flashMesh.position.distanceTo(weaponGun.muzzleTip.position)<1e-6);
 dbg.setAmmo(1,100);dbg.reload();dbg.update(.8);dbg.update(0);
@@ -1081,6 +1086,7 @@ check('步枪换弹时收枪并移动弹匣',frozenReloadPose<-.2&&weaponGun.rif
 dbg.setState('paused');dbg.update(.7);
 check('暂停冻结换弹模型姿势',weaponGun.group.rotation.z===frozenReloadPose);
 dbg.setState('playing');fakeDocument.fire('keydown',{code:'Digit1'});
+advance(.6);
 check('切枪取消旧换弹姿势和隐藏枪焰',!dbg.getAmmo().reloading&&weaponGun.rifleGroup.magazine.position.y===-.06&&weaponGun.group.rotation.z===0&&!weaponGun.flashMesh.visible);
 
 dbg.previewExplosion(0,2,34,4);
