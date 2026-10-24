@@ -951,6 +951,14 @@ function loadEnemyTextures() {
     img.onload = function () {
       var tex = new THREE.CanvasTexture(img);
       tex.colorSpace = THREE.SRGBColorSpace;
+      // 敌人贴身时贴图会被放大，开启各向异性过滤让斜视角度也不糊
+      if (renderer && renderer.capabilities) {
+        tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      }
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.generateMipmaps = true;
+      tex.needsUpdate = true;
       enemyTex[k] = tex;
       if (--pending === 0) {
         enemyTexReady = true;

@@ -1706,13 +1706,14 @@ window.addEventListener('load', function () {
 
 <!-- 依赖（全部本地化，离线可玩） -->
 <script src="lib/three.min.js"></script>
-<script src="assets/fish-texture.js?v=20261024"></script>
-<script src="assets/enemy-textures.js?v=20261024"></script>
-<script src="js/art.js?v=20261024"></script>
-<script src="js/scene-detail.js?v=20261024"></script>
-<script src="js/combat-art.js?v=20261024"></script>
-<script src="js/fps-ai.js?v=20261024"></script>
-<script src="js/fps-art.js?v=20261024"></script>
-<script src="js/game.js?v=20261024"></script>
+<!-- 文件名带版本后缀：file:// 下浏览器会缓存本地脚本，改名才能确保读到新内容 -->
+<script src="assets/fish-texture-v2.js"></script>
+<script src="assets/enemy-textures-v2.js"></script>
+<script src="js/art.js"></script>
+<script src="js/scene-detail.js"></script>
+<script src="js/combat-art.js"></script>
+<script src="js/fps-ai.js"></script>
+<script src="js/fps-art.js"></script>
+<script src="js/game.js"></script>
 </body>
 </html>
