@@ -2382,7 +2382,8 @@ function moveFishAvoiding(e, tx, tz, speed, dt, yLow, yHigh, pad) {
 // ---------------------------------------------------------------- 敌人软分离
 // 敌人之间没有物理碰撞，寻路可能让多个敌人走到同一点重叠在一起。
 // 这里每帧做一次轻量排斥，让它们自然散开（PVP 的 AI 玩家同样适用）。
-var _sepMinDist = 1.15;
+// 敌人贴图本身就有 CFG.fishSize(2 米) 宽，阈值必须大于贴图宽度才不会视觉重叠
+var _sepMinDist = 2.25;
 function separateEnemies(dt) {
   var n = enemies.length;
   if (n < 2) return;

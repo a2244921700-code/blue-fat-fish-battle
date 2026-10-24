@@ -378,8 +378,13 @@ function fishGeometry(size) {
   g.computeVertexNormals();g.computeBoundingSphere();return(cache[key]=shared(g));
 }
 function fishDetails(mesh,size,tex) {
+  // 原「原画浅浮雕背层」已移除：它用同一张贴图压暗 + 放大 1.2% 做描边，
+  // 在抠图边缘复杂的角色上会表现为背后一层深蓝重影（新贴图后尤其明显）。
+  // 如需描边效果，应改用真正的外扩描边 shader 而不是叠一张同图。
+  if (false) {
   var back=new THREE.Mesh(fishGeometry(size),new THREE.MeshBasicMaterial({map:tex,color:0x485675,alphaTest:.15,side:THREE.DoubleSide}));
   back.position.z=-size*.018;back.scale.set(1.012,1.012,1);back.name='原画浅浮雕背层';mesh.add(back);
+  }
   mesh.customDepthMaterial=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,map:tex,alphaTest:.15,side:THREE.DoubleSide});
 }
 function shadow(size) {
