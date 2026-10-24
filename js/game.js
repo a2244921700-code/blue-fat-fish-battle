@@ -5582,6 +5582,7 @@ function showMapSelect() {
 
 /** 进入无尽模式（沙漠城） */
 function startEndlessDesert() {
+  if (state === 'playing') return;
   gameMode = 'endless';
   PVP.active = false;
   var psc = document.getElementById('pvp-score');
@@ -5592,12 +5593,10 @@ function startEndlessDesert() {
     var gsd = document.querySelector('#gameover-overlay .stat-detail');
     if (gsl && gameoverStatHTML.line !== null) gsl.innerHTML = gameoverStatHTML.line;
     if (gsd && gameoverStatHTML.detail !== null) gsd.innerHTML = gameoverStatHTML.detail;
-    var grec = document.querySelector('#final-record');
+    var grec = document.getElementById('final-record');
     if (grec) grec.style.display = '';
   }
-  hideAllOverlays();
-  restartGame(false);
-  state = 'playing';
+  loadGameWorld(function () { enterGameWorld(); hideAllOverlays(); });
 }
 
 function showPvpSelect() {
@@ -7002,8 +7001,8 @@ function init() {
     var el = document.getElementById(id);
     if (el) el.addEventListener('click', fn);
   }
-  bind('btn-lobby-ach', function () { showAchievements(); });
-  bind('btn-lobby-settings', function () { showSettings(); });
+  bind('btn-lobby-ach', function () { openAchievements(); });
+  bind('btn-lobby-settings', function () { openSettings(); });
   bind('btn-lobby-quit', function () { showOverlay('menu'); });
   bind('btn-mode-endless', function () { showMapSelect(); });
   bind('btn-mode-pvp', function () { showRoomList(); });
