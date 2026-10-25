@@ -7663,6 +7663,31 @@ window.FishGame = {
     },
     getItems: function () { return items; },
     getBoss: function () { return boss; },
+    /** 截图摆拍：把目标摆到玩家正前方，其余敌人移出视野。
+     *  kind 为 'boss' 时摆 Boss，否则按 kind 匹配普通敌人。 */
+    poseForShot: function (kind, dist) {
+      dist = dist || 11;
+      player.pos.set(0, 0, 18); player.yaw = 0; player.pitch = 0.05;
+      var target = null, i;
+      if (kind === 'boss') {
+        target = boss;
+      } else {
+        for (i = 0; i < enemies.length; i++) {
+          if (enemies[i] && enemies[i].alive && enemies[i].kind === kind) { target = enemies[i]; break; }
+        }
+      }
+      if (!target || !target.mesh) return false;
+      target.mesh.position.set(0, target.baseY || CFG.fishBaseY, 18 - dist);
+      target.mesh.rotation.y = Math.PI;
+      if (target.hp !== undefined && target.maxHp) target.hp = target.maxHp;
+      for (i = 0; i < enemies.length; i++) {
+        var o = enemies[i];
+        if (o && o !== target && o.mesh) {
+          o.mesh.position.set(o.mesh.position.x + 90, o.baseY, o.mesh.position.z + 90);
+        }
+      }
+      return true;
+    },
     getBossShots: function () { return bossShots; },
     setBossTimer: function (v) { bossTimer = v; },
     getBossMisses: function () { return bossMisses; },
