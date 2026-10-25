@@ -4446,6 +4446,7 @@ function updateBoss(dt) {
   if (gameMode === 'pvp') return;    // 对战模式没有 Boss
   // Boss 刷新已改由波次系统驱动（每清理 bossEveryWaves 波出现一次）
   if (!boss) return;
+  if (boss.frozen) return;           // 调试冻结（截图摆拍用）：位置与 AI 都不推进
   var m = boss.mesh;
   if (state === 'playing') {
     var dx = player.pos.x - m.position.x;
@@ -7663,6 +7664,8 @@ window.FishGame = {
     },
     getItems: function () { return items; },
     getBoss: function () { return boss; },
+    /** 冻结/解冻 Boss（截图摆拍用，防止 updateBoss 每帧覆盖位置） */
+    freezeBoss: function (v) { if (boss) boss.frozen = !!v; return !!boss; },
     /** 截图摆拍：把目标摆到玩家正前方，其余敌人移出视野。
      *  kind 为 'boss' 时摆 Boss，否则按 kind 匹配普通敌人。 */
     poseForShot: function (kind, dist) {
