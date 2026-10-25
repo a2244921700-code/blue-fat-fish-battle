@@ -116,8 +116,10 @@ globalThis.THREE = THREE;
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'art.js'), 'utf8'));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'scene-detail.js'), 'utf8'));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'combat-art.js'), 'utf8'));
+['radiation.js','bomber-fx.js'].forEach(file=>(0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', file), 'utf8')));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'fps-ai.js'), 'utf8'));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'fps-art.js'), 'utf8'));
+['player-physics.js','grenade-physics.js','map-surfaces.js','fps-map-detail.js','fps-map.js'].forEach(file=>(0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', file), 'utf8')));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'game.js'), 'utf8'));
 const dbg = window.FishGame.__debug;
 
@@ -293,10 +295,11 @@ if (dbg.getState() !== 'playing') dbg.setState('playing');
 dbg.setAmmo(30, 150);
 const nadeBefore = dbg.getNadeCount();
 fakeDocument.fire('keydown', { code: 'KeyG' });
+fakeDocument.fire('keyup', { code: 'KeyG' });
 check('G 键扔出手雷(数量-1)', dbg.getGrenades().length === 1 && dbg.getNadeCount() === nadeBefore - 1,
   'nade=' + dbg.getNadeCount());
 check('手雷 HUD 更新', els['nade-count'].textContent === String(nadeBefore - 1));
-// 瞬移手雷到鱼群上方落地 → 2 秒后爆炸击杀（期间每帧钉住鱼与手雷位置，防止巡逻走散）
+// 瞬移手雷到鱼群上方，3 秒引信到期后爆炸（保持鱼群在爆炸范围）。
 const killsBeforeNade = dbg.getKills();
 const grObj = dbg.getGrenades()[0];
 grObj.pos.set(0, 1.5, 34);
@@ -325,6 +328,7 @@ dbg.clearProjectiles();   // 清除在途弹幕
 advance(0.05);
 dbg.setHp(100);
 fakeDocument.fire('keydown', { code: 'KeyG' });
+fakeDocument.fire('keyup', { code: 'KeyG' });
 const grSelf = dbg.getGrenades()[0];
 grSelf.pos.set(dbg.getPlayer().pos.x, 0.5, dbg.getPlayer().pos.z);
 grSelf.vel.set(0, 0, 0);

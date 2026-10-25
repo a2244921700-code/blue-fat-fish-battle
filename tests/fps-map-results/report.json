@@ -1,0 +1,89 @@
+{
+  "checks": [
+    "一次点击直接开始 FPS，无准备页并继承仓库装备",
+    "FPS 专属地图加载，且没有无尽随机掩体",
+    "新地图通道顶棚挡住原地跳跃并原位落地",
+    "顶头时向前走每帧不超过正常速度，镜头不会穿顶",
+    "松开蹲键不会穿进低顶棚，离开后恢复站姿",
+    "退出后新地图环境与碰撞体全部卸载",
+    "切回无尽恢复 90 米原场景",
+    "无尽原 B 洞顶棚也不再横向闪现",
+    "无尽固定碰撞布局与修改前逐项一致",
+    "地图、物理与菜单没有脚本异常"
+  ],
+  "errors": [],
+  "initial": {
+    "pvp": {
+      "mode": "pvp",
+      "active": true,
+      "over": false,
+      "roundState": "live",
+      "prepareT": 0,
+      "roundNum": 1,
+      "myRounds": 0,
+      "botRounds": 0,
+      "winRounds": 4,
+      "maxRounds": 7,
+      "bots": 15,
+      "botTotal": 15,
+      "weapon": "rifle",
+      "mySkin": "melee",
+      "myWeapon": "fishpistol"
+    },
+    "map": {
+      "children": 36,
+      "meshes": 770,
+      "envBuilt": true,
+      "envObjects": 3,
+      "worldMode": "pvp",
+      "mapName": "沙海双城",
+      "arena": 76,
+      "modelParts": 24939,
+      "obstacles": 276,
+      "wallMeshes": 382,
+      "enemies": 15,
+      "trackedEnemies": 15,
+      "renderCalls": 431,
+      "triangles": 639426,
+      "geometries": 433,
+      "textures": 26
+    },
+    "covers": []
+  },
+  "fpsCollision": {
+    "jump": {
+      "max": 1.54,
+      "delta": 0,
+      "maxHead": 3.24,
+      "y": 0,
+      "x": 50,
+      "z": 30,
+      "ground": true,
+      "roof": 3.4
+    },
+    "move": {
+      "max": 1.54,
+      "delta": 0.10000000000000142,
+      "maxHead": 3.24,
+      "y": 0,
+      "x": 50,
+      "z": 24.999999999999858,
+      "ground": true,
+      "roof": 3.4
+    }
+  },
+  "endlessCollision": {
+    "max": 1.54,
+    "delta": 0.10000000000000142,
+    "maxHead": 3.24,
+    "y": 0,
+    "x": 17,
+    "z": -21.000000000000053,
+    "ground": true,
+    "roof": 3.4
+  },
+  "oldWorld": {
+    "beforeColliders": 288,
+    "afterColliders": 288
+  }
+}

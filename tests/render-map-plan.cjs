@@ -1,0 +1,13 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),{createLayout}=require('../js/fps-map.js'),{Navigation}=require('../js/fps-ai.js');
+const map=createLayout(),nav=new Navigation(map.solids,map.limit,1,.46),colors=['#e3b36b','#6ac7c1','#86aef1','#e79787'];
+const X=x=>480+x*4.8,Z=z=>530+z*4.8;
+let parts=[`<svg xmlns="http://www.w3.org/2000/svg" width="960" height="1030" viewBox="0 0 960 1030"><defs><pattern id="roof" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V6" stroke="#6e969b" stroke-width="2"/></pattern></defs><rect width="960" height="1030" fill="#14232e"/><g font-family="Microsoft YaHei, sans-serif"><text x="65" y="65" font-size="30" font-weight="bold" fill="#f0dfbe">沙海双城 · FPS 战术图</text><text x="65" y="99" font-size="15" fill="#a6bdc6">152 × 152 米 / 长街 · 中门 · 商旅通道 / 两侧部署与双向转点</text><rect x="110" y="160" width="740" height="740" fill="#514a3d" stroke="#c2b08a" stroke-width="2"/>`];
+for(const o of map.solids){const roof=o.min.y>2,fill=roof?'url(#roof)':o.kind==='crate'?'#bd9164':'#9b8e76';parts.push(`<rect x="${X(o.min.x)}" y="${Z(o.min.z)}" width="${o.w*4.8}" height="${o.d*4.8}" fill="${fill}" opacity="${roof?.8:1}"/>`);}
+map.routes.forEach((route,i)=>{let p={x:0,z:69},points=[p];for(const q of route.concat([[0,-69]])){const next=nav.route(p,{x:q[0],z:q[1]});points.push(...next);p=points[points.length-1];}parts.push(`<polyline points="${points.map(p=>X(p.x)+','+Z(p.z)).join(' ')}" fill="none" stroke="${colors[i]}" stroke-width="2.7" stroke-linejoin="round" opacity=".85"/>`);});
+for(const f of [-1,1]){const z=67*f,c=f>0?'#ed9e8c':'#9bbffa';parts.push(`<rect x="${X(-14)}" y="${Z(z-3)}" width="134.4" height="28.8" rx="4" fill="${c}"/><text x="480" y="${Z(z)+5}" font-size="14" text-anchor="middle" fill="#132531">${f>0?'红队部署':'蓝队部署'}</text>`);}
+for(const zone of map.zones)parts.push(`<circle cx="${X(zone.x)}" cy="${Z(zone.z)}" r="22" fill="#172c36" stroke="#f6d492" stroke-width="2"/><text x="${X(zone.x)}" y="${Z(zone.z)+6}" font-size="${zone.short==='MID'?14:21}" fill="#f6d492" text-anchor="middle">${zone.short}</text>`);
+parts.push('<text x="864" y="175" font-size="15" fill="#c4d5d9">北 ↑</text>');
+['A 长街','中央门廊','B 商旅通道','短巷支援'].forEach((name,i)=>parts.push(`<path d="M${65+i*218} 945h24" stroke="${colors[i]}" stroke-width="4"/><text x="${100+i*218}" y="950" font-size="16" fill="#dbe3e2">${name}</text>`));
+parts.push('<text x="65" y="994" font-size="13" fill="#91a7b2">浅灰为实体建筑，斜线为可从下方通行的顶棚。路线取自实际 A* 导航；A/B 为交战区域，无爆破规则。</text></g></svg>');
+const out=path.join(__dirname,'fps-map-results/tactical-layout.svg');fs.mkdirSync(path.dirname(out),{recursive:true});fs.writeFileSync(out,parts.join('\n'));console.log(out);

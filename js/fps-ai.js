@@ -21,12 +21,22 @@ function Navigation(obstacles,limit,cell,radius){
   this.obstacles=obstacles;this.limit=limit||44;this.cell=cell||1;this.radius=radius||.46;
   this.n=Math.floor(this.limit*2/this.cell)+1;this.blocked=new Uint8Array(this.n*this.n);
   this.ground=obstacles.filter(function(o){return o.max.y>.12&&o.min.y<2.15;});
+  // Static spatial buckets avoid scanning every building for every A* edge.
+  this.bucketSize=8;this.buckets=Object.create(null);
+  var self=this;
+  this.ground.forEach(function(o){
+    for(var bz=Math.floor((o.min.z-self.radius)/8);bz<=Math.floor((o.max.z+self.radius)/8);bz++)
+      for(var bx=Math.floor((o.min.x-self.radius)/8);bx<=Math.floor((o.max.x+self.radius)/8);bx++)
+        (self.buckets[bx+','+bz]||(self.buckets[bx+','+bz]=[])).push(o);
+  });
+  this.costs=new Float32Array(this.n*this.n);this.parents=new Int32Array(this.n*this.n);this.closed=new Uint8Array(this.n*this.n);
   this.stats={requests:0,failed:0,expanded:0};
   for(var z=0;z<this.n;z++)for(var x=0;x<this.n;x++){var p=this.point(z*this.n+x);this.blocked[z*this.n+x]=this.clear(p.x,p.z)?0:1;}
 }
 Navigation.prototype.clear=function(x,z){
   if(Math.abs(x)>this.limit||Math.abs(z)>this.limit)return false;
-  for(var i=0;i<this.ground.length;i++){var o=this.ground[i],r=this.radius;if(x>o.min.x-r&&x<o.max.x+r&&z>o.min.z-r&&z<o.max.z+r)return false;}return true;
+  var local=this.buckets[Math.floor(x/8)+','+Math.floor(z/8)]||[];
+  for(var i=0;i<local.length;i++){var o=local[i],r=this.radius;if(x>o.min.x-r&&x<o.max.x+r&&z>o.min.z-r&&z<o.max.z+r)return false;}return true;
 };
 Navigation.prototype.point=function(i){return {x:(i%this.n)*this.cell-this.limit,y:0,z:Math.floor(i/this.n)*this.cell-this.limit};};
 Navigation.prototype.index=function(p){var x=Math.round((p.x+this.limit)/this.cell),z=Math.round((p.z+this.limit)/this.cell);return x<0||z<0||x>=this.n||z>=this.n?-1:z*this.n+x;};
@@ -50,7 +60,7 @@ Navigation.prototype.route=function(from,to){
   if(this.clear(to.x,to.z)&&this.line(from,to))return [copy(to)];
   var start=this.nearest(from),end=this.nearest(to),n=this.n;
   if(start<0||end<0){this.stats.failed++;return [];}
-  var size=n*n,g=new Float32Array(size),parent=new Int32Array(size),closed=new Uint8Array(size),open=new Heap();g.fill(Infinity);parent.fill(-1);g[start]=0;
+  var size=n*n,g=this.costs,parent=this.parents,closed=this.closed,open=new Heap();g.fill(Infinity);parent.fill(-1);closed.fill(0);g[start]=0;
   var self=this;function h(i){return dist(self.point(i),self.point(end));}open.push({i:start,f:h(start)});var found=false,expanded=0;
   while(open.items.length&&expanded<size){
     var cur=open.pop().i;if(closed[cur])continue;if(cur===end){found=true;break;}closed[cur]=1;expanded++;
@@ -75,6 +85,7 @@ Navigation.prototype.route=function(from,to){
 var LEVELS={easy:{react:.55,error:.055,speed:2.9},normal:{react:.34,error:.033,speed:3.35},hard:{react:.24,error:.022,speed:3.7}};
 var ROUTES=[[[0,24],[0,13],[0,3],[0,-13],[0,-26]], [[-28,24],[-28,10],[-28,-10],[-25,-25],[0,-30]], [[28,24],[28,10],[28,-10],[25,-25],[0,-30]]];
 function Tactics(opts){
+  this.routes=opts.routes||ROUTES;
   this.nav=new Navigation(opts.obstacles,opts.limit||44,opts.cell||1,.46);this.obstacles=opts.obstacles;this.weapons=Object.assign({knife:{melee:true,damage:35,range:1.7,shootInterval:.65}},opts.weapons);
   this.level=LEVELS[opts.difficulty]||LEVELS.normal;this.random=opts.random||Math.random;this.clock=0;this.noises=[];this.contacts={red:{},blue:{}};
   this.stats={shots:0,blockedShots:0,replans:0,hearings:0};this.fire=opts.fire||function(){return true;};
@@ -198,7 +209,7 @@ Tactics.prototype.step=function(actors,dt){
       if(dist(bot.position,b.memory.position)>1.4)this.move(bot,b.memory.position,this.level.speed*.95,dt,actors,true);
       else {b.searchScan+=dt;b.yaw+=dt*.9;}
     }else{
-      b.state='advance';var route=ROUTES[b.slot%ROUTES.length],index=b.routeStep%route.length,q=route[index],flip=bot.team==='red'?1:-1;
+      b.state='advance';var route=this.routes[b.slot%this.routes.length],index=b.routeStep%route.length,q=route[index],flip=bot.team==='red'?1:-1;
       var goal={x:q[0],y:0,z:q[1]*flip};
       if(this.move(bot,goal,this.level.speed,dt,actors,true)){b.routeStep+=b.routeDirection;if(b.routeStep>=route.length){b.routeStep=route.length-2;b.routeDirection=-1;}if(b.routeStep<0){b.routeStep=1;b.routeDirection=1;}b.path=[];}
       if(b.stuck>.6)b.yaw+=dt*.8;

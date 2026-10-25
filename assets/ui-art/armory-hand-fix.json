@@ -1,0 +1,8 @@
+{
+  "tool": "Built-in image_gen.imagegen",
+  "date": "2026-10-24",
+  "reason": "User identified an incorrect raised hand; corrected to back of right hand facing viewer and fingers naturally curled over basin brim.",
+  "original": "originals/armory-basin-v2.png",
+  "runtime": "armory-basin-v2.webp",
+  "prompt": "LOCAL EDIT ONLY to this exact panorama. Correct the raised RIGHT HAND beside the character's face at 64% across, 48% down. Currently a reversed palm faces the viewer and a thumb sticks out on the wrong side. CHANGE THE HAND ORIENTATION visibly: show THE BACK OF THE RIGHT HAND to the viewer, with NO palm creases visible. The palm faces inward toward her head and the basin. Four short chibi fingers lie together, curled gently over the near edge of the metal brim, knuckles visible. Her thumb is on the far side of this pinch and is completely OCCLUDED behind the rim; DO NOT draw a thumb poking out to the right. Draw a simple clean anatomically plausible right hand with four visible fingertips above the rim and a single smooth back of hand joining the wrist below, all digits proportionate. No extra fingers or melted anatomy. The thin basin rim passes between the fingers and hidden thumb, never through skin. Keep her sleeve and raised arm attachment natural. This MUST look like the BACK of the hand, not an open palm or an OK gesture. Alter only that tiny hand and immediate wrist contact. Preserve every other feature of the supplied image: character face, eyes, hair, expression, outfit, enormous upside-down washbasin helmet, the other hand on the crate, all scenery, lighting, colors, 3:1 composition, crop and resolution. No writing. Image is the edit target."
+}

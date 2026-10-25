@@ -105,7 +105,6 @@ var CFG = {
   nadeRadius: 4.0,         // 爆炸伤害半径（米）
   nadeDamageMin: 5,        // 爆炸伤害随机下限
   nadeDamageMax: 10,       // 爆炸伤害随机上限
-  nadeDrop: -13,           // 手雷重力
   nadeBossBonusMax: 3,     // 击败 Boss 奖励手雷上限（1~N 个）
   // 连杀评级
   comboDecayTime: 2.0,     // 无击杀的衰减时长（秒）：每过 2 秒连杀降一级，D 级再降即消失
@@ -175,6 +174,7 @@ var score = 0, kills = 0;
 var player = {
   pos: new THREE.Vector3(CFG.spawnPoint[0], 0, CFG.spawnPoint[1]),
   velY: 0, onGround: true,
+  motion: new THREE.Vector3(), // collision-resolved movement, used by thrown items
   yaw: 0, pitch: 0,
   hp: CFG.maxHp,
 };
@@ -205,7 +205,8 @@ var bossShots = [];                // Boss 黄色小球 { mesh, vel, life }
 var bossTimer = CFG.bossInterval;
 var bossMisses = 0;                // 连续未刷出计数（保底机制）
 var firstBossPending = true;       // 首个 30 秒判定必定刷出
-var grenades = [];                 // 飞行/待爆手雷 { mesh, pos, vel, landed, fuse }
+var grenades = [];                 // { mesh, pos, vel, fuse, sleeping, bounces }
+var grenadeAction = null;          // cook / recover; shares the weapon action lock
 var fishBullets = [];              // 射手鱼子弹 { mesh, vel, life }
 var combo = { score: 0, rank: -1, timer: 0 };  // 连杀评级：score=连杀点数, rank=评级索引(-1 无), timer=衰减剩余秒
 // ===== 局内强化与成长（无尽模式专属） =====
@@ -589,7 +590,7 @@ function equipWeapon(id) {
 }
 
 function switchWeapon(id) {
-  if (state !== 'playing' || player.hp <= 0 || weaponSwitch || !WEAPONS[id] || id === currentWeapon) return false;
+  if (state !== 'playing' || player.hp <= 0 || weaponSwitch || grenadeAction || !WEAPONS[id] || id === currentWeapon) return false;
   if (gameMode === 'pvp' && (!PVP.active || (PVP.roundState !== 'live' && PVP.roundState !== 'prepare'))) return false;
   weaponSwitch = { from: currentWeapon, to: id, t: 0, duration: id === 'rifle' ? .72 : id === 'knife' ? .48 : .56, swapped: false,
     position: gun.group.position.clone(), rotation: gun.group.rotation.clone() };
@@ -677,7 +678,7 @@ var ACHIEVEMENTS = {
   flawless3:   { ico: '🛡️', name: '完美无瑕',   desc: '开局后 3 分钟内不受伤' },
   pierce3:     { ico: '➶', name: '一石三鸟',   desc: '一次射击穿透击杀 3 条肥鱼' },
   maxCore:     { ico: '🏆', name: '登峰造极',   desc: '把任意一项核心技能升到满级' },
-  ghost:       { ico: '💀', name: '自爆旁观者', desc: '在自爆鱼引爆时保持 5 米以上距离全身而退' },
+  ghost:       { ico: '💀', name: '自爆旁观者', desc: '在自爆鱼引爆时保持 5 米以上距离，避开瞬间冲击伤害' },
   conqueror:   { ico: '🏅', name: '无尽征服者', desc: '通关无尽模式（核心技能全满后再击败一只 Boss）' },
 };
 var achTimer = null;
@@ -987,6 +988,7 @@ var enemies = [];              // 肥鱼列表
 var obstacles = [];            // 碰撞体 {mesh, min, max}（含墙）
 var wallMeshes = [];           // 子弹遮挡检测用 mesh 列表
 var combatFx = null;
+var radiation = FishRadiation.create(), bomberFx = null, radiationScreen = null;
 var particles = null;          // 粒子系统 {parts, posAttr, colAttr, cursor}
 var gun = { group: null, recoil: 0, flashT: 0, light: null, flashMesh: null };
 var crosshairTimer = null;
@@ -1065,6 +1067,7 @@ var Sfx = (function () {
     bossHit: function () { tone('sine', 260, 90, 0.16, 0.4); noiseHit(0.08, 'lowpass', 500, 200, 0.3); },
     bossShoot: function () { tone('triangle', 380, 240, 0.12, 0.2); },
     throwNade: function () { noiseHit(0.12, 'highpass', 800, 2400, 0.15); },
+    nadeBounce: function (strength) { noiseHit(.055, 'lowpass', 1700, 340, Math.min(.13,.018+strength*.008)); },
     nadeLand: function () { tone('square', 300, 180, 0.06, 0.12); },
     fishShoot: function () { noiseHit(0.07, 'highpass', 1800, 900, 0.22); tone('square', 520, 220, 0.06, 0.12); },
     shellPing: function () { tone('square', 1250, 700, 0.05, 0.18); noiseHit(0.05, 'highpass', 3000, 2000, 0.15); },
@@ -1411,6 +1414,8 @@ function vWall(x, z0, z1, h, gaps) {
 var envObjects = [];    // 本次构建出的环境对象
 var envBuilt = false;   // 是否已构建（幂等保护）
 var worldArt = null;
+var activeWorldMode = null, fpsMap = null;
+function playerArenaLimit(){return fpsMap ? fpsMap.limit : CFG.arena + .2;}
 var hemiLight = null, sunLight = null;   // 环境灯光（环境主题会调整它们）
 
 // ---------------------------------------------------------------- 环境主题（每 10 波变化）
@@ -1519,6 +1524,8 @@ function applyEnvTheme(idx, announce) {
   sunLight.color.setHex(t.sun);
   sunLight.intensity = t.sunInt;
   FishArt.setTheme(worldArt, envIndex);
+  if(fpsMap)FishFpsMap.applyLighting(scene,hemiLight,sunLight,renderer);
+  else if(renderer)renderer.toneMappingExposure=1.12;
 
   // 玩法修饰：先复位默认值，再叠加本主题的 mod
   for (var mk in ENV_MOD_DEFAULT) envMod[mk] = ENV_MOD_DEFAULT[mk];
@@ -1536,8 +1543,12 @@ function updateEnvByWave() {
   if (want !== envIndex) applyEnvTheme(want, true);
 }
 
-function* buildEnvironmentSteps() {
-  if (envBuilt) return;
+function* buildEnvironmentSteps(mode) {
+  mode = mode === 'pvp' ? 'pvp' : 'endless';
+  if (envBuilt && activeWorldMode === mode) return;
+  if (envBuilt) unloadGameScene();
+  activeWorldMode = mode;
+  fpsMap = mode === 'pvp' ? FishFpsMap.createLayout() : null;
   var beforeChildren = scene.children.slice();
   scene.background = skyTextureFor(0, ENV_THEMES[0]);
   scene.fog = new THREE.Fog(0xd8c9a8, 45, 165);
@@ -1554,6 +1565,19 @@ function* buildEnvironmentSteps() {
   sunLight.shadow.bias = -0.0004;
   sunLight.shadow.normalBias = 0.02;
   scene.add(sunLight);
+
+  if (fpsMap) {
+    // Independent FPS world: no endless props, random covers, water or waves.
+    sunLight.position.set(-65,90,45);
+    sunLight.shadow.camera.left=-100; sunLight.shadow.camera.right=100;
+    sunLight.shadow.camera.top=100; sunLight.shadow.camera.bottom=-100;
+    sunLight.shadow.camera.far=230;
+    yield* FishFpsMap.buildSteps(scene,obstacles,wallMeshes,fpsMap);
+    applyEnvTheme(0,false);
+    envObjects=scene.children.filter(function(o){return beforeChildren.indexOf(o)<0;});
+    envBuilt=true;
+    return;
+  }
 
   // 沙地
   var ground = new THREE.Mesh(
@@ -1700,18 +1724,22 @@ function* buildEnvironmentSteps() {
   envBuilt = true;
   yield {progress:76,label:'整理碰撞与场景资源'};
 }
-function buildEnvironment(){var steps=buildEnvironmentSteps();while(!steps.next().done){}}
+function buildEnvironment(mode){var steps=buildEnvironmentSteps(mode);while(!steps.next().done){}}
 
 /** 卸载游戏场景（回主菜单时调用）：移除地图 / 灯光 / 云等全部环境对象并释放几何 */
 function unloadGameScene() {
+  clearRadiation(true);
+  clearGrenadeAction();player.motion.set(0,0,0);
   clearRandomCovers();
   for (var i = 0; i < envObjects.length; i++) {
     var o = envObjects[i];
     FishArt.disposeTree(o);
   }
   scene.environment = null;   // 解除环境反射
+  if(renderer)renderer.toneMappingExposure=1.12;
   envObjects = [];
   envBuilt = false;
+  activeWorldMode = null;fpsMap = null;
   wallMeshes = [];        // 子弹遮挡列表
   obstacles = [];         // 碰撞体列表
   randomCovers = [];      // 每局随机掩体
@@ -1724,26 +1752,32 @@ function unloadGameScene() {
 var minimap = { off: null, ready: false };
 
 function buildMiniMap() {
-  var pxPerM = 8, HALF = 384;
+  var pxPerM = 8, extent = fpsMap ? fpsMap.half + 3 : 48, HALF = extent * pxPerM;
+  minimap.extent = extent;
   var off = document.createElement('canvas');
   off.width = HALF * 2; off.height = HALF * 2;
   var x = off.getContext('2d');
   if (!x) return;
   x.fillStyle = '#8a744f'; x.fillRect(0, 0, HALF * 2, HALF * 2);
   // 绿洲水池
-  x.fillStyle = '#3f9ad6';
-  x.beginPath(); x.arc((-28 + 48) * pxPerM, (28 + 48) * pxPerM, 4 * pxPerM, 0, 6.283); x.fill();
+  if (!fpsMap) {x.fillStyle = '#3f9ad6';
+  x.beginPath(); x.arc((-28 + extent) * pxPerM, (28 + extent) * pxPerM, 4 * pxPerM, 0, 6.283); x.fill();}
   // 静态建筑/障碍
   for (var i = 0; i < obstacles.length; i++) {
     var o = obstacles[i];
-    var x0 = (o.min.x + 48) * pxPerM, z0 = (o.min.z + 48) * pxPerM;
+    var x0 = (o.min.x + extent) * pxPerM, z0 = (o.min.z + extent) * pxPerM;
     var w = (o.max.x - o.min.x) * pxPerM, h = (o.max.z - o.min.z) * pxPerM;
     var col = '#b89a68';
-    if (o.min.y > 2) col = 'rgba(96,104,122,0.95)';
+    if (o.min.y > 2) col = fpsMap ? 'rgba(190,167,128,0.25)' : 'rgba(96,104,122,0.95)';
     else if (o.mesh && o.mesh.geometry && o.mesh.geometry.type === 'DodecahedronGeometry') col = '#9a8a70';
     else if (o.mesh && o.mesh.geometry && o.mesh.geometry.type === 'CylinderGeometry') col = '#7a6a48';
     x.fillStyle = col;
     x.fillRect(x0, z0, w, h);
+  }
+  if (fpsMap) {
+    x.font='bold 28px sans-serif';x.textAlign='center';x.fillStyle='#fff0c6';
+    fpsMap.zones.forEach(function(p){x.fillText(p.short,(p.x+extent)*pxPerM,(p.z+extent)*pxPerM);});
+    ['red','blue'].forEach(function(team){var z=fpsMap.baseZ*(team==='red'?1:-1);x.fillStyle=team==='red'?'#ff9282':'#80c8ff';x.fillRect((extent-14)*pxPerM,(extent+z-3)*pxPerM,28*pxPerM,6*pxPerM);});
   }
   minimap.off = off;
   minimap.ready = true;
@@ -1755,7 +1789,7 @@ function drawMiniMap() {
   var x = cv && cv.getContext && cv.getContext('2d');
   if (!x) return;
   var W = 210, C = 105, R = 101;
-  var scale = R / 48;
+  var scale = R / (fpsMap ? 62 : 48);
   var yaw = player.yaw, cosY = Math.cos(yaw), sinY = Math.sin(yaw);
   var px = player.pos.x, pz = player.pos.z;
   x.clearRect(0, 0, W, W);
@@ -1768,7 +1802,7 @@ function drawMiniMap() {
   x.translate(C, C);
   x.rotate(yaw);
   x.scale(scale / 8, scale / 8);
-  x.translate(-(px + 48) * 8, -(pz + 48) * 8);
+  x.translate(-(px + minimap.extent) * 8, -(pz + minimap.extent) * 8);
   x.drawImage(minimap.off, 0, 0);
   x.restore();
   function toScreen(wx, wz) {
@@ -1939,6 +1973,8 @@ function syncCamera() {
     roll += Math.sin(camFx.landT * 24) * camFx.land * 0.03;
   }
 
+  // Keep camera feedback inside the physical head clearance.
+  offY=Math.min(offY,.08);
   camera.position.set(player.pos.x + offX, player.pos.y + eyeHeightNow() + offY, player.pos.z);
   camera.rotation.set(player.pitch + pitchOff, player.yaw, roll);
 }
@@ -2971,12 +3007,34 @@ function makeSyringeMesh() {
   return g;
 }
 
-// 自爆特效：快速火光 + 冲击环 + 分层烟柱/云冠（复用战斗特效池）。
-
-
+// 自爆演出与辐射规则分离；关闭装饰粒子仍显示污染边界并继续造成伤害。
 function spawnMushroomCloud(pos) {
   spawnBurst(pos,0xffc66d,30,8.5);
-  if(combatFx && save.settings.particles)combatFx.explosion(pos,CFG.bomberBlastRange,0xffb766,true);
+  if(combatFx && save.settings.particles)combatFx.explosion(pos,CFG.bomberBlastRange,0xffb766);
+  if(!bomberFx)bomberFx=FishBomberFX.world(scene);
+  if(save.settings.particles)bomberFx.burst(pos);
+  radiation.add(pos);
+}
+function clearRadiation(dispose) {
+  radiation.clear();
+  if(bomberFx){if(dispose){bomberFx.dispose();bomberFx=null;}else bomberFx.clear();}
+  if(radiationScreen){if(dispose){radiationScreen.dispose();radiationScreen=null;}else radiationScreen.clear();}
+}
+function updateRadiation(dt) {
+  if(state!=='playing'||gameMode!=='endless'||player.hp<=0)return;
+  var hit=radiation.step(dt,player.pos);
+  if(hit.damage<=0)return;
+  // 真实伤害：不经过护甲、难度/天气倍率，也不读写普通受击无敌帧。
+  player.hp=Math.max(0,player.hp-hit.damage);runTookDamage=true;
+  if(!radiationScreen)radiationScreen=FishBomberFX.screen(renderer);
+  radiationScreen.pulse();Sfx.hurt();updateHUD();
+  debugLog('辐射残留造成 '+hit.damage+' 点真实伤害', 'dbg-dmg');
+  if(player.hp<=0)gameOver();
+}
+function updateBomberEffects(dt) {
+  var playing=state==='playing'&&gameMode==='endless';
+  if(bomberFx)bomberFx.update(playing?dt:0,radiation.zones,save.settings.particles);
+  if(radiationScreen)radiationScreen.update(playing?dt:0,playing);
 }
 
 function updateBlastFx(dt) {
@@ -3030,19 +3088,20 @@ function startBomberFuse(e) {
   debugLog('自爆鱼点燃引信：' + CFG.bomberFuseTime + ' 秒后爆炸，快撤！', 'dbg-hit');
 }
 
-// 自爆：范围伤害（1m 内 100 / 1~5m 50 / 5m 外免伤）+ 蘑菇云
+// 瞬时自爆伤害维持原规则；随后留下 10 米半径、15 秒的辐射区。
 function explodeBomber(e) {
+  if(gameMode!=='endless'||state!=='playing'||!e||!e.alive)return;
   var pos = e.mesh.position.clone();
   var d = Math.sqrt(Math.pow(player.pos.x - pos.x, 2) + Math.pow(player.pos.z - pos.z, 2));
-
+  e.alive=false;
+  spawnMushroomCloud(pos);
   if (d <= CFG.bomberFatalRange) {
     damagePlayer(CFG.bomberDamageClose, { name: '自爆肥鱼', atk: '核弹自爆' });
   } else if (d <= CFG.bomberBlastRange) {
     damagePlayer(CFG.bomberDamageFar, { name: '自爆肥鱼', atk: '核弹冲击' });
   }
-  spawnMushroomCloud(pos);
   stopEnemyVoice(e);         // 自爆鱼语音立即掐断
-  if (d > CFG.bomberBlastRange) unlockAchievement('ghost');   // 成就：5 米外全身而退
+  if (d > CFG.bomberBlastRange) unlockAchievement('ghost');   // 成就只判断瞬间冲击；5～10 米仍有残留辐射
   playSfx('boom', 0.9);      // 自爆爆炸（比 Boss 炸弹更响）
   Sfx.fishDie();
 
@@ -3215,7 +3274,7 @@ function updateAmmoHUD() {
 // 换弹请求：R 键或弹夹打空时触发；备用为 0 时提示"弹药耗尽"且不换弹
 function requestReload() {
   if(!pvpCanAct())return;
-  if (state !== 'playing' || ammo.reloading || weaponSwitch) return;
+  if (state !== 'playing' || ammo.reloading || weaponSwitch || grenadeAction) return;
   if (weaponDef().melee) return;             // 近战武器不需要换弹
   if (ammo.mag >= magSizeNow()) return;
   if (ammo.reserve <= 0) {
@@ -3808,6 +3867,7 @@ function updateArmorHUD() {
 
 // 无尽模式通关：全部技能满级后再次击杀 Boss
 function victory() {
+  clearRadiation(false);
   state = 'victory';
   unlockAchievement('conqueror');     // 成就：无尽征服者（通关）
   // B4：通关无尽模式 → 解锁闯关模式（选关页那句「完成无尽模式试炼后解锁」不再是空头承诺）
@@ -4569,63 +4629,75 @@ function updateNadeHUD() {
   if (dom.nadeCount) dom.nadeCount.textContent = String(nadeCount);
 }
 
-function throwGrenade() {
-  if(!pvpCanAct())return;
-  if (state !== 'playing' || weaponSwitch) return;
-  if (nadeCount <= 0) { showNotice('手雷不足'); return; }
-  nadeCount -= 1;
-  if(gameMode==='pvp')PVP.protection=0;
-  updateNadeHUD();
-  camera.getWorldDirection(_rayDir);
-  var origin = camera.getWorldPosition(new THREE.Vector3());
-  origin.addScaledVector(_rayDir, 0.7);
-  var gr = {
-    mesh: makeGrenadeMesh(),
-    pos: origin.clone(),
-    vel: _rayDir.clone().multiplyScalar(13),
-  };
-  gr.vel.y += 4.6;
-  gr.mesh.position.copy(gr.pos);
-  scene.add(gr.mesh);
-  grenades.push(gr);
-  Sfx.throwNade();
+function clearGrenadeAction() {
+  if(grenadeAction&&grenadeAction.view)FishArt.disposeTree(grenadeAction.view);
+  grenadeAction=null;
 }
-
+function beginGrenade() {
+  if(!pvpCanAct()||state!=='playing'||player.hp<=0||weaponSwitch||grenadeAction)return false;
+  if(nadeCount<=0){showNotice('手雷不足');return false;}
+  nadeCount--;updateNadeHUD();
+  if(gameMode==='pvp')PVP.protection=0;
+  ammo.reloading=false;ammo.reloadTimer=0;if(dom.reloadWrap)dom.reloadWrap.style.display='none';
+  gun.knifeAnim=null;gun.flashT=0;gun.flashMesh.visible=false;gun.light.intensity=0;
+  var view=new THREE.Group(),model=makeGrenadeMesh();view.name='手雷/第一人称';view.add(model);
+  var glove=new THREE.MeshStandardMaterial({color:0x576563,roughness:.9}),sleeve=new THREE.MeshStandardMaterial({color:0x243e49,roughness:.95});
+  var palm=new THREE.Mesh(new THREE.BoxGeometry(.14,.12,.12),glove);palm.position.set(0,-.09,.055);view.add(palm);
+  var wrist=new THREE.Mesh(new THREE.BoxGeometry(.115,.26,.12),sleeve);wrist.position.set(0,-.25,.09);wrist.rotation.x=-.2;view.add(wrist);
+  view.position.set(.28,-.42,-.57);camera.add(view);
+  grenadeAction={phase:'cook',fuse:FishGrenadePhysics.fuse,t:0,view:view,releasePending:false};
+  Sfx.reloadStart();return true;
+}
+function launchGrenade(fuse,drop) {
+  camera.getWorldDirection(_rayDir);
+  // Sweep from the eye to the hand so a point-blank throw cannot spawn past a wall.
+  var origin=new THREE.Vector3(player.pos.x,player.pos.y+eyeHeightNow()-.1,player.pos.z);
+  var offset=_rayDir.clone().multiplyScalar(drop?.12:.55);
+  var hit=FishGrenadePhysics.sweep(origin,offset,obstacles);
+  origin.addScaledVector(offset,hit?Math.max(0,hit.t-.015):1);
+  var motion={x:player.motion.x,y:player.velY,z:player.motion.z};
+  var velocity=drop?{x:0,y:0,z:0}:FishGrenadePhysics.launchVelocity(_rayDir,motion);
+  var gr={mesh:makeGrenadeMesh(),pos:origin,vel:new THREE.Vector3(velocity.x,velocity.y,velocity.z),fuse:Math.max(0,fuse),age:0,bounces:0,bornAt:time};
+  gr.mesh.position.copy(origin);scene.add(gr.mesh);grenades.push(gr);return gr;
+}
+function releaseGrenade() {
+  if(!grenadeAction||grenadeAction.phase!=='cook')return false;
+  if(state!=='playing'){grenadeAction.releasePending=true;return false;}
+  if(!pvpCanAct())return false;
+  launchGrenade(grenadeAction.fuse,false);
+  grenadeAction.phase='recover';grenadeAction.t=0;
+  Sfx.throwNade();return true;
+}
+// Immediate quick-throw entry point also used by the deterministic test API.
+function throwGrenade() { if(beginGrenade())return releaseGrenade();return false; }
+function dropHeldGrenade() {
+  if(grenadeAction&&grenadeAction.phase==='cook')launchGrenade(grenadeAction.fuse,true);
+  clearGrenadeAction();
+}
+function updateGrenadeAction(dt) {
+  if(!grenadeAction)return;
+  if(!pvpCanAct()||player.hp<=0){dropHeldGrenade();return;}
+  var a=grenadeAction;a.t+=dt;
+  if(a.phase==='cook'){
+    a.fuse=Math.max(0,a.fuse-dt);
+    a.view.position.set(.28,-.24-Math.max(0,1-a.t/.18)*.25,-.57);
+    a.view.rotation.set(-.12,.1,Math.sin(a.t*3)*.025);
+    if(a.fuse<=0){var gr=launchGrenade(0,true);grenades.pop();clearGrenadeAction();explodeGrenade(gr);return;}
+    if(a.releasePending)releaseGrenade();
+  }else{
+    var k=Math.min(1,a.t/.42);a.view.visible=k<.32;
+    a.view.position.set(.28-.18*k,-.24+.25*k,-.57-.7*k);
+    a.view.rotation.x=-1.5*k;
+    if(k>=1){clearGrenadeAction();return;}
+  }
+}
 function updateGrenades(dt) {
-  for (var i = grenades.length - 1; i >= 0; i--) {
-    var gr = grenades[i];
-    var previous=gameMode==='pvp'?gr.pos.clone():null;
-    gr.vel.y += CFG.nadeDrop * dt;
-    gr.pos.addScaledVector(gr.vel, dt);
-    // 落地判定（地面或障碍物顶部），落地瞬间爆炸
-    var landedNow = gr.pos.y <= 0.12;
-    if(!landedNow&&previous){
-      // FPS 手雷连续检查运动线段，接触墙面就爆炸，不把撞墙弹体抬到墙顶。
-      var motion=gr.pos.clone().sub(previous),length=motion.length();
-      if(length>0){motion.divideScalar(length);_raycaster.set(previous,motion);_raycaster.far=length+.10;var contacts=_raycaster.intersectObjects(wallMeshes,false);
-        if(contacts.length){landedNow=true;gr.pos.copy(contacts[0].point).addScaledVector(motion,-.12);}}
-    }
-    if (!landedNow && !previous) {
-      for (var j = 0; j < obstacles.length; j++) {
-        var o = obstacles[j];
-        if (gr.pos.x > o.min.x - 0.1 && gr.pos.x < o.max.x + 0.1 &&
-            gr.pos.y > o.min.y - 0.1 && gr.pos.y < o.max.y + 0.1 &&
-            gr.pos.z > o.min.z - 0.1 && gr.pos.z < o.max.z + 0.1) {
-          landedNow = true;
-          gr.pos.y = Math.max(0.12, o.max.y + 0.12);
-          break;
-        }
-      }
-    }
-    if(landedNow)gr.pos.y=Math.max(.12,gr.pos.y);
+  for(var i=grenades.length-1;i>=0;i--){
+    var gr=grenades[i],result=FishGrenadePhysics.step(gr,gr.bornAt===time?0:dt,obstacles);
     gr.mesh.position.copy(gr.pos);
-    if (landedNow) {
-      explodeGrenade(gr);   // 落地即爆炸
-      grenades.splice(i, 1);
-    } else {
-      gr.mesh.rotation.y += dt * 7;
-      gr.mesh.rotation.x += dt * 4.6;
-    }
+    if(result.expired){grenades.splice(i,1);explodeGrenade(gr);continue;}
+    if(!gr.sleeping){var spin=Math.min(1,gr.vel.length()/6);gr.mesh.rotation.y+=dt*7*spin;gr.mesh.rotation.x+=dt*4.6*spin;}
+    if(result.bounces&&gr.pos.distanceToSquared(player.pos)<35*35)Sfx.nadeBounce(result.impact);
   }
 }
 
@@ -4698,7 +4770,7 @@ function raySphere(o, d, c, r) {
 // 用于弹尽粮绝时「铤而走险」；伤害随「子弹强化」技能与连杀评级一起成长。
 function knifeAttack(heavy) {
   if(!pvpCanAct())return false;
-  if (state !== 'playing' || knifeCd > 0 || weaponSwitch) return false;
+  if (state !== 'playing' || knifeCd > 0 || weaponSwitch || grenadeAction) return false;
   var def = WEAPONS.knife;
   knifeCd = heavy ? def.heavyCd : def.shootInterval;
   shootCd = Math.min(0.001, shootCd);              // 与射击冷却解耦
@@ -4766,7 +4838,7 @@ function knifeAttack(heavy) {
 
 function shootOnce() {
   if(!pvpCanAct())return;
-  if (state !== 'playing' || shootCd > 0 || weaponSwitch) return;
+  if (state !== 'playing' || shootCd > 0 || weaponSwitch || grenadeAction) return;
   if (weaponDef().melee) { knifeAttack(false); return; }   // 近战武器：左键轻击
   if (ammo.reloading) return;               // 换弹期间不能射击
   if (ammo.mag <= 0) { requestReload(); return; }          // 弹夹打空：自动换弹（或提示弹药耗尽）
@@ -4974,7 +5046,7 @@ function pvpSpawnPos(team,slot){
   // 固定两排部署位，候选仅在己方基地。按占用和敌方视线选择，绝不随机刷到地图中央。
   var flip=team==='red'?1:-1,points=[];
   var columns=[0,-1,1,-2,2,-3,3,-4,4];
-  for(var row=0;row<3;row++)for(var col=0;col<9;col++)points.push({x:columns[col]*2.7,y:CFG.fishBaseY,z:(41.5-row*2.1)*flip});
+  for(var row=0;row<3;row++)for(var col=0;col<9;col++)points.push({x:columns[col]*2.7,y:CFG.fishBaseY,z:((fpsMap?fpsMap.spawnZ:41.5)-row*2.1)*flip});
   var best=null,score=-Infinity;
   points.forEach(function(p,i){if(!pvpTactics.nav.clear(p.x,p.z))return;
     var s=20-Math.abs(i-(slot%points.length))*.03;
@@ -4986,6 +5058,7 @@ function pvpSpawnPos(team,slot){
   if(!best)throw new Error('己方部署区没有可用出生点');return new THREE.Vector3(best.x,best.y,best.z);
 }
 function pvpResetLoadout(){
+  clearGrenadeAction();player.motion.set(0,0,0);
   cancelWeaponSwitch();resetKillMedal();
   ammo.reloading=false;ammo.reloadTimer=0;shootCd=0;knifeCd=0;spreadBloom=0;recoilSeq=0;lastCrossGap=-1;
   Object.keys(PVP_WEAPON_DEFS).forEach(function(id){var w=PVP_WEAPON_DEFS[id];if(!w.magSize)return;weaponAmmo[id]={mag:w.magSize,reserve:w.magSize*(id==='rifle'?3:4)};});
@@ -5007,15 +5080,17 @@ function pvpRespawnBot(e){
 }
 function pvpSpawnBot(team,slot){
   var skin=PVP_SKIN_LIST[slot%3],pool=team==='red'?PVP_TEAM_NAMES:PVP_ENEMY_NAMES;
+  var rosterName=PVP.roster&&PVP.roster[team]&&PVP.roster[team][slot];
   var e={kind:'pvpbot',isBot:true,team:team,alive:false,pvpId:team+'-'+slot,pvpSlot:slot,pvpName:pool[slot%pool.length],pvpSkin:skin.id,
     pvpPrimary:'rifle',pvpSidearm:slot%2?'pistol':'fishpistol',pvpWeapon:'rifle',mesh:new THREE.Mesh(FishArt.fishGeometry(CFG.fishSize),makeFishMaterial(pvpSkinTex(skin.id))),
     hp:100,maxHp:100,kills:0,deaths:0,baseY:CFG.fishBaseY,phase:slot*.7,hurt:0,ranged:true,state:'pvp',respawnTimer:0,dyingT:0};
+  if(typeof rosterName==='string')e.pvpName=rosterName.slice(0,24);
   e.mesh.castShadow=true;FishPvpArt.equip(e);e.groundShadow=FishArt.shadow(CFG.fishSize);scene.add(e.groundShadow);scene.add(e.mesh);
   if(team==='red'){e.teamTag=makeTeamTag(e.pvpName);if(e.teamTag)e.mesh.add(e.teamTag);}
   enemies.push(e);pvpRespawnBot(e);return e;
 }
 function pvpClearBots(){for(var i=enemies.length-1;i>=0;i--){if(enemies[i].isBot){removeEnemyVisual(enemies[i]);enemies.splice(i,1);}}pvpActors=[];}
-function pvpCleanup(){cancelWeaponSwitch();resetKillMedal();pvpClearBots();pvpTactics=null;if(pvpBaseArt)FishArt.disposeTree(pvpBaseArt);pvpBaseArt=null;document.body.classList.remove('pvp-mode','pvp-dead');var r=document.getElementById('pvp-respawn');if(r)r.classList.add('hidden');}
+function pvpCleanup(){clearGrenadeAction();cancelWeaponSwitch();resetKillMedal();pvpClearBots();pvpTactics=null;if(pvpBaseArt)FishArt.disposeTree(pvpBaseArt);pvpBaseArt=null;document.body.classList.remove('pvp-mode','pvp-dead');var r=document.getElementById('pvp-respawn');if(r)r.classList.add('hidden');}
 function pvpAliveBots(team){return enemies.filter(function(e){return e.isBot&&e.alive&&(!team||e.team===team);}).length;}
 function pvpSpendTicket(team){if(PVP.roundState!=='live')return;PVP.tickets[team]=Math.max(0,PVP.tickets[team]-1);if(PVP.tickets[team]===0)pvpEndRound(team==='blue');updatePvpScore();}
 function pvpDamageBot(e,dmg,killer){
@@ -5052,6 +5127,7 @@ function pvpStartRound(){
 function pvpBeginLive(){PVP.roundState='live';showNotice('开始！消耗蓝队复活额度');}
 function pvpEndRound(win){
   if(!PVP.active||PVP.roundState==='over')return;PVP.roundState='over';PVP.overT=3;fireHeld=false;touchFiring=false;ammo.reloading=false;
+  clearGrenadeAction();player.motion.set(0,0,0);
   cancelWeaponSwitch();applyWeaponVisual();
   if(win)PVP.myRounds++;else PVP.botRounds++;updatePvpScore();
   showDialog(win?'红队赢下本回合':'蓝队赢下本回合','回合比分 '+PVP.myRounds+' : '+PVP.botRounds+' · 3 秒后重新部署',3000);
@@ -5135,9 +5211,9 @@ function pushKillFeed(killerName, victimName) {
   if (!host || typeof host.appendChild !== 'function') return;
   var row = document.createElement('div');
   row.className = 'kf-row';
-  row.innerHTML = '<span class="kf-k">' + killerName + '</span>' +
+  row.innerHTML = '<span class="kf-k">' + escapeUiText(killerName) + '</span>' +
     '<span class="kf-arrow">→</span>' +
-    '<span class="kf-v">' + victimName + '</span>';
+    '<span class="kf-v">' + escapeUiText(victimName) + '</span>';
   host.appendChild(row);
   setTimeout(function () {
     if (row.parentNode) row.parentNode.removeChild(row);
@@ -5166,7 +5242,7 @@ function refreshScoreboard() {
     for (var i = 0; i < enemies.length; i++) {
       var e = enemies[i];
       if (!e || !e.isBot || e.team !== team) continue;
-      html += '<div class="sb-row' + (e.alive ? '' : ' dead') + '"><span>' + (e.pvpName || 'AI') + (e.alive?'':' · 复活 '+Math.ceil(e.respawnTimer)+'s') +
+      html += '<div class="sb-row' + (e.alive ? '' : ' dead') + '"><span>' + escapeUiText(e.pvpName || 'AI') + (e.alive?'':' · 复活 '+Math.ceil(e.respawnTimer)+'s') +
         '</span><span>' + (e.kills || 0) + ' / ' + (e.deaths || 0) + '</span></div>';
     }
     host.innerHTML = html;
@@ -5189,6 +5265,7 @@ function setScoreboardVisible(v) {
 function pvpOnBotKilled(e){if(PVP.active&&PVP.roundState==='live')pvpKillBotEntity(e,true);}
 function pvpPlayerDied(killer){
   if(!PVP.active||PVP.roundState!=='live'||PVP.respawnT>0)return;
+  dropHeldGrenade();player.motion.set(0,0,0);
   cancelWeaponSwitch();resetKillMedal();
   PVP.myDeaths++;player.hp=0;PVP.respawnT=PVP_RESPAWN;PVP.protection=0;ammo.reloading=false;fireHeld=false;touchFiring=false;
   if(dom.reloadWrap)dom.reloadWrap.style.display='none';
@@ -5227,7 +5304,9 @@ function pvpEnd(win) {
 
 /** 载入场景后部署一场本地队伍对战。 */
 function startPvp(opts){
+  clearRadiation(true);
   opts=opts||{};pvpCleanup();
+  PVP.roster=opts.roster||null;
   PVP.mySkin=opts.skin||'normal';PVP.myWeapon=opts.weapon==='fishpistol'?'fishpistol':'pistol';
   PVP.teamSize=PVP_TEAM_OPTIONS.indexOf(+opts.teamSize)>=0?+opts.teamSize:8;
   PVP.ticketMultiplier=[2,3,5].indexOf(+opts.ticketMultiplier)>=0?+opts.ticketMultiplier:3;
@@ -5235,10 +5314,12 @@ function startPvp(opts){
   PVP.myKills=0;PVP.myDeaths=0;PVP.myRounds=0;PVP.botRounds=0;PVP.roundNum=1;PVP.over=false;PVP.active=true;PVP.clock=0;PVP.lastGunSound=-1;PVP.hudT=0;PVP.roundState='idle';gameMode='pvp';
   enemies.forEach(removeEnemyVisual);enemies=[];if(boss){removeEnemyVisual(boss);boss=null;hideBossBar();}clearBossFx();
   items.forEach(function(i){FishArt.disposeTree(i.mesh);});items=[];
+  // All entry points, including rematches/debug, select the FPS world explicitly.
+  buildEnvironment('pvp');
   // 隔离无尽成长、天气加成和随机掩体，给双方相同的固定竞技场。
   clearRandomCovers();buildMiniMap();Object.keys(upgrades).forEach(function(k){upgrades[k]=0;});magTier={pistol:0,rifle:0,fishpistol:0};resetCombo();
-  pvpTactics=new FishTactics.Tactics({obstacles:obstacles,limit:44,cell:1,weapons:PVP_WEAPON_DEFS,difficulty:PVP.difficulty,fire:pvpBotShoot});
-  pvpBaseArt=FishPvpArt.bases(scene);document.body.classList.add('pvp-mode');
+  pvpTactics=new FishTactics.Tactics({obstacles:obstacles,limit:fpsMap.limit,routes:fpsMap.routes,cell:1,weapons:PVP_WEAPON_DEFS,difficulty:PVP.difficulty,fire:pvpBotShoot});
+  pvpBaseArt=FishPvpArt.bases(scene,fpsMap);document.body.classList.add('pvp-mode');
   hideAllOverlays();state='playing';setWeaponBarMode('pvp');var sc=document.getElementById('pvp-score');if(sc)sc.classList.add('show');
   pvpStartRound();if(!sceneLoadPending)requestLockWithFallback();
 }
@@ -5278,7 +5359,7 @@ function setWeaponBarMode(mode) {
   var wb = document.getElementById('weapon-bar');
   if (!wb) return;
   if (mode === 'pvp') {
-    // 主武器固定步枪，副武器是玩家在选人页挑的那把（USP / P250）
+    // 主武器固定步枪，副武器沿用仓库选中的那把（USP / P250）
     var sideDef = PVP_WEAPON_DEFS[PVP.myWeapon] || PVP_WEAPON_DEFS.pistol;
     wb.innerHTML =
       '<div class="wslot" data-wkey="1">1 突击步枪</div>' +
@@ -5291,76 +5372,26 @@ function setWeaponBarMode(mode) {
   updateAmmoHUD();
 }
 
-// ---------------- 对战模式：选人界面 ----------------
-var pvpSelWeapon = 'pistol', pvpSelSkin = 'normal', pvpSelTeam = 8;
-
-function renderPvpSelect() {
-  var wo = document.getElementById('pvp-weapons');
-  if (wo) {
-    wo.innerHTML = '';
-    // 主武器固定（不可改），先展示一张锁定卡
-    var fixed = document.createElement('div');
-    fixed.className = 'pvp-card selected';
-    fixed.style.opacity = '0.75';
-    fixed.innerHTML = '<div class="pc-name">突击步枪（主武器 · 固定）</div>' +
-      '<div class="pc-desc">36 伤害 / 30 发 / 短点射控制</div>';
-    wo.appendChild(fixed);
-    // 副武器二选一
-    PVP_SIDEARM_LIST.forEach(function (w) {
-      var d = document.createElement('div');
-      d.className = 'pvp-card' + (w.id === pvpSelWeapon ? ' selected' : '');
-      d.innerHTML = '<div class="pc-name">' + w.name + '（副武器）</div><div class="pc-desc">' + w.desc + '</div>';
-      d.addEventListener('click', function () { pvpSelWeapon = w.id; renderPvpSelect(); });
-      wo.appendChild(d);
-    });
-  }
-  var so = document.getElementById('pvp-skins');
-  if (so) {
-    so.innerHTML = '';
-    PVP_SKIN_LIST.forEach(function (s) {
-      var d = document.createElement('div');
-      d.className = 'pvp-card' + (s.id === pvpSelSkin ? ' selected' : '');
-      var thumb = '';
-      if (s.id === 'normal' && fishTex && fishTex.image) thumb = 'assets/蓝色大肥鱼.png';
-      else if (s.id === 'melee' && enemyTex.melee && enemyTex.melee.image) thumb = enemyTex.melee.image.src || '';
-      else if (s.id === 'ranged' && enemyTex.ranged && enemyTex.ranged.image) thumb = enemyTex.ranged.image.src || '';
-      d.innerHTML = '<div class="pc-name">' + s.name + '</div><div class="pc-desc">' + s.desc + '</div>' +
-        (thumb ? '<div class="pc-thumb" style="background-image:url(' + thumb + ')"></div>' : '');
-      d.addEventListener('click', function () { pvpSelSkin = s.id; renderPvpSelect(); });
-      so.appendChild(d);
-    });
-  }
-  var bo = document.getElementById('pvp-bots');
-  if (bo) {
-    bo.innerHTML = '';
-    PVP_TEAM_OPTIONS.forEach(function (n) {
-      var d = document.createElement('div');
-      d.className = 'pvp-card' + (n === pvpSelTeam ? ' selected' : '');
-      d.innerHTML = '<div class="pc-name">' + n + ' v ' + n + '</div><div class="pc-desc">' +
-        '每队默认 ' + n * 3 + ' 复活额度<br>' + (n === 8 ? '推荐规模' : n === 16 ? '大规模交战' : '本地 AI 对抗') + '</div>';
-      d.addEventListener('click', function () { pvpSelTeam = n; renderPvpSelect(); });
-      bo.appendChild(d);
-    });
-  }
-}
-
 // ================================================================ 游戏大厅 · 房间系统
-// 本地模拟（没有真实服务器）：房间数据存在内存里，联机模式下 AI 占位可被"真人"顶替。
+// 本地模拟，online 仅保留为旧数据兼容键，界面必须明确标成“编队演示”。
 var LOBBY = { rooms: [], current: null, myName: '你' };
 var ROOM_SEQ = 1;
 var SIM_PLAYERS = ['海豹', '鳗鱼', '章鱼', '水獭', '企鹅', '河豚'];
+
+function escapeUiText(value){return String(value==null?'':value).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 
 function makeRoom(opts) {
   opts = opts || {};
   return {
     id: 'room-' + (ROOM_SEQ++),
-    name: opts.name || '我的房间',
-    mode: opts.mode || 'online',
-    teamSize: opts.teamSize || 8,
-    difficulty: opts.difficulty || 'normal',
-    fillAI: opts.fillAI !== false,
+    name: String(opts.name || '我的房间').trim().slice(0,16) || '我的房间',
+    mode: opts.mode === 'online' ? 'online' : 'bot',
+    teamSize: PVP_TEAM_OPTIONS.indexOf(+opts.teamSize)>=0?+opts.teamSize:8,
+    difficulty: ['easy','normal','hard'].indexOf(opts.difficulty)>=0?opts.difficulty:'normal',
+    ticketMultiplier: [2,3,5].indexOf(+opts.ticketMultiplier)>=0?+opts.ticketMultiplier:3,
+    fillAI: opts.mode !== 'online' || opts.fillAI !== false,
     host: !!opts.host,
-    humans: opts.humans || [],
+    humans: Array.isArray(opts.humans)?opts.humans.filter(function(n){return typeof n==='string';}).slice(0,31):[],
     simIndex: 0,
   };
 }
@@ -5393,7 +5424,7 @@ function roomIsFull(room) { return roomHumanCount(room) >= roomCapacity(room); }
 /** 渲染房间列表 */
 /** 房间列表筛选状态 */
 var roomFilter = { mode: 'all', size: 'all', keyword: '' };
-var ROOM_PING = {};
+var roomFiltersBound = false;
 
 /** 渲染房间列表（含筛选与搜索） */
 function renderRoomList() {
@@ -5407,30 +5438,31 @@ function renderRoomList() {
       if (roomFilter.size === 'mid' && t !== 8) return false;
       if (roomFilter.size === 'big' && t < 12) return false;
     }
-    if (roomFilter.keyword && room.name.indexOf(roomFilter.keyword) < 0) return false;
+    if (roomFilter.keyword && room.name.toLocaleLowerCase().indexOf(roomFilter.keyword.toLocaleLowerCase()) < 0) return false;
     return true;
   });
+  var count=document.getElementById('room-result-count');if(count)count.textContent=list.length+' 个房间';
   if (!list.length) {
-    host.innerHTML = '<div class="rl-empty">没有符合条件的房间，试试调整筛选或创建一个</div>';
+    host.innerHTML = '<div class="rl-empty">没有找到符合条件的房间<br>换个关键词，或清除筛选再试试。<button class="outline-btn" id="btn-room-clear">清除筛选</button></div>';
+    host.querySelector('#btn-room-clear').addEventListener('click',resetRoomFilters);
     return;
   }
   host.innerHTML = '';
   list.forEach(function (room) {
-    if (ROOM_PING[room.id] === undefined) ROOM_PING[room.id] = 12 + Math.floor(Math.random() * 48);
     var row = document.createElement('div');
     row.className = 'rl-row';
     var modeTag = room.mode === 'online'
-      ? '<span class="rl-mode-tag online">联机</span>'
-      : '<span class="rl-mode-tag bot">人机</span>';
+      ? '<span class="rl-mode-tag online">编队演示</span>'
+      : '<span class="rl-mode-tag bot">AI 对战</span>';
     var full = roomIsFull(room);
     row.innerHTML =
-      '<span class="c-name">' + room.name + '</span>' +
-      '<span class="c-map">沙漠城</span>' +
+      '<span class="c-name" title="' + escapeUiText(room.name) + '">' + escapeUiText(room.name) + '</span>' +
+      '<span class="c-map">沙海双城</span>' +
       '<span class="c-mode">' + modeTag + '</span>' +
-      '<span class="c-size">' + roomHumanCount(room) + ' / ' + roomCapacity(room) + '</span>' +
-      '<span class="c-ping">' + ROOM_PING[room.id] + 'ms</span>' +
+      '<span class="c-size">' + room.teamSize + ' v ' + room.teamSize + '</span>' +
+      '<span class="c-ping">本地</span>' +
       '<span class="c-act"><button class="rl-join"' + (full ? ' disabled' : '') + '>' +
-        (full ? '已满' : '加入') + '</button></span>';
+        (full ? '已满' : '进入') + '</button></span>';
     var btn = row.querySelector('.rl-join');
     if (btn && !full) btn.addEventListener('click', function () { joinRoom(room.id); });
     host.appendChild(row);
@@ -5439,6 +5471,8 @@ function renderRoomList() {
 
 /** 绑定筛选芯片 */
 function bindRoomFilters() {
+  if(roomFiltersBound)return;
+  roomFiltersBound=true;
   var chips = document.querySelectorAll('.rf-chip');
   for (var i = 0; i < chips.length; i++) {
     (function (chip) {
@@ -5447,11 +5481,13 @@ function bindRoomFilters() {
         var val = chip.getAttribute('data-value');
         roomFilter[group] = val;
         var siblings = document.querySelectorAll('.rf-chip[data-filter="' + group + '"]');
-        for (var k = 0; k < siblings.length; k++) siblings[k].classList.remove('active');
+        for (var k = 0; k < siblings.length; k++){siblings[k].classList.remove('active');siblings[k].setAttribute('aria-pressed','false');}
         chip.classList.add('active');
+        chip.setAttribute('aria-pressed','true');
         renderRoomList();
       });
     })(chips[i]);
+    chips[i].setAttribute('aria-pressed',chips[i].classList.contains('active')?'true':'false');
   }
   var search = document.getElementById('room-search');
   if (search) {
@@ -5462,12 +5498,20 @@ function bindRoomFilters() {
   }
 }
 
+function resetRoomFilters(){
+  roomFilter={mode:'all',size:'all',keyword:''};
+  var search=document.getElementById('room-search');if(search)search.value='';
+  document.querySelectorAll('.rf-chip').forEach(function(chip){var selected=chip.getAttribute('data-value')==='all';chip.classList.toggle('active',selected);chip.setAttribute('aria-pressed',String(selected));});
+  renderRoomList();if(search)search.focus();
+}
+
 /** 打开房间列表（首次进入时铺几个示例房间） */
 function showRoomList() {
   if (!LOBBY.rooms.length) {
-    LOBBY.rooms.push(makeRoom({ name: '沙漠城·新手房', mode: 'online', teamSize: 6, difficulty: 'easy' }));
-    LOBBY.rooms.push(makeRoom({ name: '沙漠城·标准对抗', mode: 'online', teamSize: 8, difficulty: 'normal' }));
-    LOBBY.rooms.push(makeRoom({ name: '沙漠城·人机练习', mode: 'bot', teamSize: 8, difficulty: 'normal' }));
+    LOBBY.rooms.push(makeRoom({ name: '双城 · 新兵训练', mode: 'bot', teamSize: 6, difficulty: 'easy' }));
+    LOBBY.rooms.push(makeRoom({ name: '双城 · 标准对抗', mode: 'bot', teamSize: 8, difficulty: 'normal' }));
+    LOBBY.rooms.push(makeRoom({ name: '双城 · 大规模交锋', mode: 'bot', teamSize: 16, difficulty: 'normal' }));
+    LOBBY.rooms.push(makeRoom({ name: '编队演示 · AI 接管', mode: 'online', teamSize: 12, difficulty: 'normal' }));
   }
   bindRoomFilters();
   renderRoomList();
@@ -5479,9 +5523,8 @@ function joinRoom(id) {
   for (var i = 0; i < LOBBY.rooms.length; i++) {
     if (LOBBY.rooms[i].id === id) { room = LOBBY.rooms[i]; break; }
   }
-  if (!room) return;
+  if (!room || roomIsFull(room)) return;
   LOBBY.current = room;
-  room.host = false;
   renderRoom();
   showOverlay('room');
 }
@@ -5492,7 +5535,7 @@ function showCreateRoom() {
   var fill = document.getElementById('cr-fillai');
   if (fill) fill.checked = true;
   var mode = document.getElementById('cr-mode');
-  if (mode) mode.value = 'online';
+  if (mode) mode.value = 'bot';
   updateCreateRoomFillRow();
   showOverlay('createroom');
 }
@@ -5503,6 +5546,7 @@ function updateCreateRoomFillRow() {
   var row = document.getElementById('cr-fill-row');
   if (!mode || !row) return;
   row.classList.toggle('disabled', mode.value === 'bot');
+  var fill=document.getElementById('cr-fillai');if(fill){fill.disabled=mode.value==='bot';if(fill.disabled)fill.checked=true;}
 }
 
 function doCreateRoom() {
@@ -5511,12 +5555,14 @@ function doCreateRoom() {
   var sizeEl = document.getElementById('cr-teamsize');
   var diffEl = document.getElementById('cr-difficulty');
   var fillEl = document.getElementById('cr-fillai');
-  var mode = modeEl ? modeEl.value : 'online';
+  var mode = modeEl ? modeEl.value : 'bot';
+  var tickets=document.getElementById('cr-tickets');
   var room = makeRoom({
     name: ((nameEl && nameEl.value) || '我的房间').slice(0, 16),
     mode: mode,
     teamSize: parseInt(sizeEl ? sizeEl.value : 8, 10) || 8,
     difficulty: diffEl ? diffEl.value : 'normal',
+    ticketMultiplier: tickets ? +tickets.value : 3,
     fillAI: mode === 'bot' ? true : !!(fillEl && fillEl.checked),
     host: true,
   });
@@ -5536,17 +5582,20 @@ function renderRoom() {
   var note = document.getElementById('room-note');
   if (title) title.textContent = room.name;
   if (sub) {
-    sub.textContent = (room.mode === 'online' ? '联机模式' : '人机模式') +
+    sub.textContent = (room.mode === 'online' ? '编队演示 · 未联网' : '本地 AI 对战') +
       ' · ' + room.teamSize + ' v ' + room.teamSize +
       ' · AI ' + (room.difficulty === 'easy' ? '轻松' : room.difficulty === 'hard' ? '困难' : '普通') +
       (room.host ? ' · 你是房主' : '');
   }
   var fillText = document.getElementById('room-fill-text');
-  if (fillText) fillText.textContent = room.mode === 'bot' ? '—（人机模式）' : (room.fillAI ? '开' : '关');
+  if (fillText) fillText.textContent = room.fillAI ? '补满双方队伍' : '关闭 · 仅预览';
+  var ticketText=document.getElementById('room-ticket-text');if(ticketText)ticketText.textContent='每队 '+room.teamSize*room.ticketMultiplier+' 额度 · 先赢 4 回合';
+  var start=document.getElementById('btn-room-start');if(start){start.disabled=!room.fillAI;start.textContent=room.fillAI?(room.mode==='online'?'以 AI 接管出战':'开始对战'):'仅供编队预览';}
+  var sim=document.getElementById('btn-room-simjoin');if(sim){sim.classList.toggle('hidden',room.mode!=='online');sim.disabled=roomIsFull(room);}
   if (note) {
     note.textContent = room.mode === 'online'
-      ? (room.fillAI ? '人数不足时由高级 AI 补位；真人加入后会顶替一个 AI' : '本房关闭了 AI 补位，请等待真人加入')
-      : '人机模式：对手全部为 AI';
+      ? (room.fillAI ? '编队为本地演示，未连接其他玩家。开始后，所有模拟队员均由 AI 接管。' : 'AI 补位已关闭：仅可预览编队。当前未开放网络联机，无法启动此配置。')
+      : '你与 AI 队友从红队基地出发，对抗蓝队 AI。阵亡后 4 秒复活，耗尽对手额度赢下回合。';
   }
   function fill(hostId, list, countId) {
     var host = document.getElementById(hostId);
@@ -5559,8 +5608,8 @@ function renderRoom() {
       d.className = 'rt-slot' + (s.kind === 'me' ? ' me' : s.kind === 'bot' ? ' bot' : s.kind === 'empty' ? ' empty' : '');
       if (s.kind === 'empty') d.innerHTML = '<span>空闲位置</span><span class="rt-tag">等待中</span>';
       else {
-        var tag = s.kind === 'me' ? '你' : s.kind === 'bot' ? 'AI' : '真人';
-        d.innerHTML = '<span>' + s.name + '</span><span class="rt-tag">' + tag + '</span>';
+        var tag = s.kind === 'me' ? '你' : s.kind === 'bot' ? 'AI' : '模拟 · AI';
+        d.innerHTML = '<span>' + escapeUiText(s.name) + '</span><span class="rt-tag">' + tag + '</span>';
         used++;
       }
       host.appendChild(d);
@@ -5572,10 +5621,7 @@ function renderRoom() {
 }
 
 function leaveRoom() {
-  var room = LOBBY.current;
-  if (room && room.host && room.humans.length === 0) {
-    LOBBY.rooms = LOBBY.rooms.filter(function (r) { return r.id !== room.id; });
-  }
+  // 保留本次页面会话创建的房间，重新进入时不丢配置或房主身份。
   LOBBY.current = null;
   showRoomList();
 }
@@ -5593,29 +5639,27 @@ function simulateHumanJoin() {
   if (room.humans.indexOf(name) >= 0) return false;
   room.humans.push(name);
   renderRoom();
-  if (typeof showNotice === 'function') showNotice(name + ' 加入了房间，顶替了一个 AI');
+  if (typeof showNotice === 'function') showNotice('已添加模拟队员：'+name+(room.fillAI?'（由 AI 接管）':'（仅预览）'));
   return true;
 }
 
 /** 从房间开始对战 */
 function startFromRoom() {
   var room = LOBBY.current;
-  if (!room) return;
+  if (!room || !room.fillAI || sceneLoadPending) return;
   var slots = roomSlots(room);
-  var redBots = slots.red.filter(function (s) { return s.kind === 'bot'; }).length;
+  function names(list){return list.map(function(s){return s.name+(s.kind==='human'?' · AI':'');});}
   // 必须走 loadGameWorld：它负责「载入场景」的进度条动画与场景构建，
   // 直接调 enterGameWorld 会跳过整个加载流程。
   var pvpSeed = {
-    skin: INVENTORY.loadout.skin || pvpSelSkin,
-    weapon: INVENTORY.loadout.secondary || pvpSelWeapon,
+    skin: INVENTORY.loadout.skin || 'normal',
+    weapon: INVENTORY.loadout.secondary || 'pistol',
     teamSize: room.teamSize,
     difficulty: room.difficulty,
-    fillAI: room.fillAI,
-    roomMode: room.mode,
-    redBots: redBots,
-    roomName: room.name,
+    ticketMultiplier: room.ticketMultiplier,
+    roster: {red:names(slots.red),blue:names(slots.blue)},
   };
-  loadGameWorld(function () { startPvp(pvpSeed); });
+  loadGameWorld(function () { startPvp(pvpSeed); },'pvp');
 }
 
 /** 无尽模式 · 地图选择 */
@@ -5644,12 +5688,11 @@ function startEndlessDesert() {
   loadGameWorld(function () { enterGameWorld(); hideAllOverlays(); });
 }
 
-function showPvpSelect() {
-  state = 'levelSelect';
-  Sfx.click && Sfx.click();
-  hideAllOverlays();
-  renderPvpSelect();
-  showOverlay('pvp');
+/** Quick deploy uses the warehouse loadout; advanced rules live in room creation. */
+function startQuickPvp() {
+  if(sceneLoadPending)return;
+  var opts={skin:INVENTORY.loadout.skin,weapon:INVENTORY.loadout.secondary,teamSize:8,difficulty:'normal',ticketMultiplier:3};
+  loadGameWorld(function(){startPvp(opts);},'pvp');
 }
 
 /** 开始一局对战 */
@@ -5700,6 +5743,8 @@ function armGameoverBgm() {
 
 // reason: 缺省=被肥鱼吃掉；'suicide' = 开发者模式 KILL 秘技自杀
 function gameOver(reason) {
+  clearRadiation(false);
+  clearGrenadeAction();player.motion.set(0,0,0);
   cancelWeaponSwitch();resetKillMedal();
   state = 'gameover';
   if (bgmEl && !bgmEl.paused) bgmEl.pause();   // 战败：默认 BGM 立刻停止
@@ -5720,6 +5765,8 @@ function gameOver(reason) {
 
 // toMenu = true：通关/结算后回到主菜单（完整重置世界，不直接进入游戏）
 function restartGame(toMenu) {
+  clearRadiation(false);
+  clearGrenadeAction();player.motion.set(0,0,0);
   cancelWeaponSwitch();resetKillMedal();releaseGameplayInput();
   // 离开对局时清掉歼灭战状态，避免 gameMode 残留影响无尽模式的死亡判定
   if (gameMode === 'pvp' || PVP.active) {
@@ -5798,6 +5845,7 @@ function restartGame(toMenu) {
   player.hp = CFG.maxHp;
   player.pos.set(CFG.spawnPoint[0], 0, CFG.spawnPoint[1]);
   player.velY = 0; player.onGround = true;
+  crouchT = 0;
   player.yaw = 0; player.pitch = 0;
   hurtCd = 0; shootCd = 0; fireHeld = false;
   // 清空上一局全部怪（不继承成长状态）；波次系统会重新开始第 1 波
@@ -5806,6 +5854,7 @@ function restartGame(toMenu) {
   wave = { number: 0, state: 'prepare', timer: 0, total: 0 };
   stageShown = 1;
   fishSpawned = false;
+  if (!toMenu && activeWorldMode === 'pvp') buildEnvironment('endless');
   applyEnvTheme(0, false);             // 环境复位到晴日沙漠
   if (!toMenu && envBuilt) { spawnRandomCovers(); buildMiniMap(); }
   if (!toMenu) ensureFishSpawned();      // 回主菜单时不生成敌人（世界随后即被卸载）
@@ -5894,6 +5943,8 @@ function flashCrosshair() {
 
 function showOverlay(which) {
   releaseGameplayInput();
+  if(which==='menu')state='menu';
+  if(['level','map','roomlist','createroom','room','inventory'].indexOf(which)>=0)state='levelSelect';
   if(document.body)document.body.classList.add('combat-suspended');
   if (which === 'menu') refreshBestRecords();   // 每次回到主菜单都刷新「历史最佳」
   dom.menuOverlay.classList.toggle('hidden', which !== 'menu');
@@ -5906,8 +5957,6 @@ function showOverlay(which) {
   if (dom.settingsOverlay) dom.settingsOverlay.classList.toggle('hidden', which !== 'settings');
   if (dom.achievementsOverlay) dom.achievementsOverlay.classList.toggle('hidden', which !== 'achievements');
   if (dom.quitOverlay) dom.quitOverlay.classList.toggle('hidden', which !== 'quit');
-  var pvpOv = document.getElementById('pvp-overlay');
-  if (pvpOv) pvpOv.classList.toggle('hidden', which !== 'pvp');
   // 大厅新增界面：地图选择 / 房间列表 / 创建房间 / 房间等待
   [['map', 'map-overlay'], ['roomlist', 'roomlist-overlay'],
    ['createroom', 'createroom-overlay'], ['room', 'room-overlay'],
@@ -5915,11 +5964,11 @@ function showOverlay(which) {
     var el = document.getElementById(pair[1]);
     if (el) el.classList.toggle('hidden', which !== pair[0]);
   });
+  if(window.FishUI)FishUI.show(which);
 }
 function hideAllOverlays() {
+  if(window.FishUI)FishUI.dismiss();
   if(document.body)document.body.classList.remove('combat-suspended');
-  var pvpOv = document.getElementById('pvp-overlay');
-  if (pvpOv) pvpOv.classList.add('hidden');
   ['map-overlay', 'roomlist-overlay', 'createroom-overlay', 'room-overlay', 'inventory-overlay'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.classList.add('hidden');
@@ -5969,7 +6018,7 @@ function openAchievements() {
   renderAchievements();
   state = 'achievements';
   hideAllOverlays();
-  if (dom.achievementsOverlay) dom.achievementsOverlay.classList.remove('hidden');
+  showOverlay('achievements');
   if (document.exitPointerLock) document.exitPointerLock();
 }
 
@@ -6007,7 +6056,7 @@ function resetAchievements() {
 function quitGame() {
   hideAllOverlays();
   state = 'quit';
-  if (dom.quitOverlay) dom.quitOverlay.classList.remove('hidden');
+  showOverlay('quit');
   if (bgmEl) bgmEl.pause();
   if (bossEl) bossEl.pause();
   if (menuEl) menuEl.pause();
@@ -6025,7 +6074,7 @@ function openSettings() {
   state = 'settings';
   renderSettingsUI();
   hideAllOverlays();
-  if (dom.settingsOverlay) dom.settingsOverlay.classList.remove('hidden');
+  showOverlay('settings');
   if (document.exitPointerLock) document.exitPointerLock();
 }
 
@@ -6122,17 +6171,19 @@ var INVENTORY = {
 };
 var INV_STORE_KEY = 'bff_loadout_v1';
 
+
 function invLoad() {
   try {
     if (typeof localStorage === 'undefined') return;   // 测试桩没有 localStorage
     var raw = localStorage.getItem(INV_STORE_KEY);
     if (raw) {
       var o = JSON.parse(raw);
-      if (o && o.secondary && o.skin) INVENTORY.loadout = o;
+      if (o && typeof o==='object') {
+        INVENTORY.loadout={primary:'rifle',melee:'knife',secondary:o.secondary==='fishpistol'?'fishpistol':'pistol',
+          skin:PVP_SKIN_LIST.some(function(s){return s.id===o.skin;})?o.skin:'normal'};
+      }
     }
   } catch (e) { /* 本地存储不可用时静默 */ }
-  pvpSelSkin = INVENTORY.loadout.skin || 'normal';
-  pvpSelWeapon = INVENTORY.loadout.secondary || 'pistol';
 }
 
 function invSave() {
@@ -6141,8 +6192,6 @@ function invSave() {
       localStorage.setItem(INV_STORE_KEY, JSON.stringify(INVENTORY.loadout));
     }
   } catch (e) {}
-  pvpSelSkin = INVENTORY.loadout.skin;
-  pvpSelWeapon = INVENTORY.loadout.secondary;
 }
 
 function showInventory() {
@@ -6160,76 +6209,9 @@ function invSkinImage(id) {
   return window.FISH_TEXTURE_DATA || '';
 }
 
-/** 用 Canvas 画武器剪影（没有现成武器立绘，直接矢量绘制） */
+/** 静态预览由真实 Three.js 武器模型离线渲染，不在每次打开仓库时创建 Canvas/WebGL。 */
 function invWeaponImage(id) {
-  var W = 200, H = 110;
-  var c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  var g = c.getContext('2d');
-  if (!g) return '';
-  g.clearRect(0, 0, W, H);
-  var metal = g.createLinearGradient(0, 40, 0, 80);
-  metal.addColorStop(0, '#8fb6cf');
-  metal.addColorStop(0.5, '#5c7f99');
-  metal.addColorStop(1, '#33505f');
-  var dark = '#243b47';
-  g.save();
-  g.translate(W / 2, H / 2);
-
-  if (id === 'rifle') {
-    // 枪身
-    g.fillStyle = metal;
-    g.fillRect(-78, -8, 118, 16);
-    // 枪管
-    g.fillStyle = dark;
-    g.fillRect(40, -4, 44, 7);
-    // 弹匣
-    g.fillStyle = dark;
-    g.beginPath(); g.moveTo(-8, 8); g.lineTo(14, 8); g.lineTo(8, 34); g.lineTo(-12, 34); g.closePath(); g.fill();
-    // 握把
-    g.beginPath(); g.moveTo(-44, 8); g.lineTo(-26, 8); g.lineTo(-32, 32); g.lineTo(-50, 32); g.closePath(); g.fill();
-    // 枪托
-    g.fillStyle = metal;
-    g.beginPath(); g.moveTo(-78, -8); g.lineTo(-96, -2); g.lineTo(-96, 12); g.lineTo(-78, 8); g.closePath(); g.fill();
-    // 瞄具
-    g.fillStyle = dark;
-    g.fillRect(-20, -14, 26, 6);
-  } else if (id === 'pistol' || id === 'fishpistol') {
-    var w = id === 'fishpistol' ? 1.12 : 1.0;
-    g.scale(w, w);
-    // 套筒
-    g.fillStyle = metal;
-    g.fillRect(-40, -10, 82, 18);
-    // 枪管口
-    g.fillStyle = dark;
-    g.fillRect(38, -6, 10, 10);
-    // 握把
-    g.fillStyle = dark;
-    g.beginPath(); g.moveTo(-34, 8); g.lineTo(-8, 8); g.lineTo(-16, 44); g.lineTo(-42, 44); g.closePath(); g.fill();
-    // 扳机护圈
-    g.strokeStyle = dark; g.lineWidth = 4;
-    g.beginPath(); g.arc(-2, 18, 11, -0.2, Math.PI * 0.95); g.stroke();
-    // 鱼人手枪加个鱼鳍标记
-    if (id === 'fishpistol') {
-      g.fillStyle = 'rgba(90, 200, 255, .85)';
-      g.beginPath(); g.moveTo(-6, -6); g.lineTo(10, -20); g.lineTo(22, -6); g.closePath(); g.fill();
-    }
-  } else if (id === 'knife') {
-    // 刀刃
-    var bl = g.createLinearGradient(-30, -30, 60, 20);
-    bl.addColorStop(0, '#dff2ff');
-    bl.addColorStop(1, '#8fb6cf');
-    g.fillStyle = bl;
-    g.beginPath(); g.moveTo(-18, 10); g.lineTo(46, -34); g.lineTo(64, -24); g.lineTo(2, 20); g.closePath(); g.fill();
-    // 护手
-    g.fillStyle = dark;
-    g.fillRect(-26, 4, 12, 22);
-    // 刀柄
-    g.fillStyle = '#3a2a1e';
-    g.beginPath(); g.moveTo(-26, 12); g.lineTo(-58, 26); g.lineTo(-52, 40); g.lineTo(-22, 26); g.closePath(); g.fill();
-  }
-  g.restore();
-  return c.toDataURL();
+  return ['rifle','pistol','fishpistol','knife'].indexOf(id)>=0 ? 'assets/ui-art/weapons/'+id+'.png' : '';
 }
 
 /** 仓库物品清单 */
@@ -6239,7 +6221,7 @@ function invItems() {
       { id: 'rifle', name: '突击步枪', slot: 'primary', def: PVP_WEAPON_DEFS.rifle },
       { id: 'pistol', name: '手枪', slot: 'secondary', def: PVP_WEAPON_DEFS.pistol },
       { id: 'fishpistol', name: '鱼人手枪', slot: 'secondary', def: PVP_WEAPON_DEFS.fishpistol },
-      { id: 'knife', name: '匕首', slot: 'melee', desc: '近战武器 · 左键轻击 / 右键重击（2 倍伤害）' },
+      { id: 'knife', name: '匕首', slot: 'melee', desc: '近战武器 · 左键轻击 35 / 右键重击 65' },
     ];
   }
   return PVP_SKIN_LIST.map(function (s) {
@@ -6248,6 +6230,7 @@ function invItems() {
 }
 
 function renderInventory() {
+  var focusId=document.activeElement&&document.activeElement.id;
   // 顶部当前配置
   var bar = document.getElementById('inv-loadout');
   if (bar) {
@@ -6264,6 +6247,7 @@ function renderInventory() {
   var tabs = document.querySelectorAll('.inv-tab');
   for (var i = 0; i < tabs.length; i++) {
     tabs[i].classList.toggle('active', tabs[i].getAttribute('data-tab') === INVENTORY.tab);
+    tabs[i].setAttribute('aria-pressed',String(tabs[i].getAttribute('data-tab')===INVENTORY.tab));
   }
   // 网格
   var grid = document.getElementById('inv-grid');
@@ -6277,7 +6261,8 @@ function renderInventory() {
                    (it.slot === 'secondary' && INVENTORY.loadout.secondary === it.id) ||
                    (it.slot === 'melee' && INVENTORY.loadout.melee === it.id) ||
                    (it.slot === 'skin' && INVENTORY.loadout.skin === it.id);
-    var d = document.createElement('div');
+    var d = document.createElement('button');
+    d.id='inv-item-'+it.id;d.setAttribute('aria-pressed',String(INVENTORY.selected===it.id));
     d.className = 'inv-item' + (equipped ? ' equipped' : '') + (INVENTORY.selected === it.id ? ' selected' : '');
     var badge = it.slot === 'primary' ? '主武器' : it.slot === 'secondary' ? '副武器' : it.slot === 'melee' ? '近战' : '形象';
     // 预览图：形象用立绘，武器用 Canvas 剪影
@@ -6294,7 +6279,7 @@ function renderInventory() {
         '<span>射速 <b>' + Math.round(60 / it.def.shootInterval) + '</b></span>' +
         '</div>';
     } else if (it.slot === 'melee') {
-      stats = '<div class="ii-stats"><span>近战 <b>2×</b> 重击</span></div>';
+      stats = '<div class="ii-stats"><span>轻击 <b>35</b></span><span>重击 <b>65</b></span></div>';
     }
     d.innerHTML = preview +
       '<div class="ii-name">' + it.name + '</div>' +
@@ -6308,6 +6293,7 @@ function renderInventory() {
     grid.appendChild(d);
   });
   renderInvDetail();
+  var focused=focusId&&document.getElementById(focusId);if(focused&&focused.focus)focused.focus({preventScroll:true});
 }
 
 function renderInvDetail() {
@@ -6326,6 +6312,9 @@ function renderInvDetail() {
     rows += '<div class="id-row"><span>弹匣</span><b>' + it.def.magSize + ' 发</b></div>';
     rows += '<div class="id-row"><span>换弹</span><b>' + it.def.reloadTime + ' 秒</b></div>';
     rows += '<div class="id-row"><span>散布</span><b>' + it.def.spread.toFixed(4) + '</b></div>';
+  } else if(it.slot==='melee') {
+    rows += '<div class="id-row"><span>类型</span><b>近战武器</b></div>';
+    rows += '<div class="id-row"><span>攻击</span><b>左键轻击 35 / 右键重击 65</b></div>';
   } else {
     rows += '<div class="id-row"><span>类型</span><b>角色形象</b></div>';
     rows += '<div class="id-row"><span>说明</span><b>' + (it.desc || '') + '</b></div>';
@@ -6338,7 +6327,7 @@ function renderInvDetail() {
   host.innerHTML =
     '<div class="id-name">' + it.name + '</div>' +
     '<div class="id-type">' + typeText + '</div>' + rows +
-    '<button class="id-equip"' + (equipped ? ' disabled' : '') + '>' +
+    '<button class="id-equip" id="btn-inv-equip"' + (equipped ? ' disabled' : '') + '>' +
       (equipped ? '当前已装备' : '装备') + '</button>';
   var btn = host.querySelector('.id-equip');
   if (btn && !equipped) {
@@ -6349,6 +6338,8 @@ function renderInvDetail() {
       else INVENTORY.loadout.skin = it.id;
       invSave();
       renderInventory();
+      refreshLobbyInfo();
+      var selected=document.getElementById('inv-item-'+it.id);if(selected)selected.focus({preventScroll:true});
       if (typeof showNotice === 'function') showNotice('已装备：' + it.name);
     });
   }
@@ -6357,13 +6348,16 @@ function renderInvDetail() {
 /** 刷新大厅顶栏与右侧面板数据 */
 function refreshLobbyInfo() {
   var avatar = document.getElementById('lobby-avatar');
-  if (avatar && window.FISH_TEXTURE_DATA) {
-    avatar.style.backgroundImage = 'url("' + window.FISH_TEXTURE_DATA + '")';
+  var portrait=invSkinImage(INVENTORY.loadout.skin);
+  if (avatar && portrait) {
+    avatar.style.backgroundImage = 'url("' + portrait + '")';
   }
+  var hero=document.getElementById('lobby-hero-img');if(hero&&portrait)hero.src=portrait;
+  var skinName=document.getElementById('lobby-skin-name');if(skinName)PVP_SKIN_LIST.forEach(function(s){if(s.id===INVENTORY.loadout.skin)skinName.textContent=s.name;});
+  var sidearm=document.getElementById('lobby-sidearm');if(sidearm)sidearm.textContent=(PVP_WEAPON_DEFS[INVENTORY.loadout.secondary]||PVP_WEAPON_DEFS.pistol).name;
   var nameEl = document.getElementById('lobby-name');
   if (nameEl) nameEl.textContent = '指挥官';
-  var best = (typeof bestRecords === 'object' && bestRecords) ? bestRecords : {};
-  var score = best.score || 0, timeSec = best.time || 0, combo = best.combo || 0;
+  var score = save.bestScore || 0, timeSec = save.bestTime || 0, combo = save.bestCombo;
   function fmt(sec) {
     var m = Math.floor(sec / 60), s = Math.floor(sec % 60);
     return m + ':' + (s < 10 ? '0' : '') + s;
@@ -6377,7 +6371,7 @@ function refreshLobbyInfo() {
   var st = document.getElementById('side-best-time');
   if (st) st.textContent = fmt(timeSec);
   var scEl = document.getElementById('side-best-combo');
-  if (scEl) scEl.textContent = combo > 0 ? String(combo) : '—';
+  if (scEl) scEl.textContent = combo >= 0 ? (CFG.comboRanks[combo]||'—') : '—';
 }
 
 // 游戏大厅（模式选择）
@@ -6385,7 +6379,7 @@ function showLevelSelect() {
   state = 'levelSelect';
   hideAllOverlays();
   refreshLobbyInfo();
-  dom.levelOverlay.classList.remove('hidden');
+  showOverlay('level');
 }
 
 // 真实锁定状态（不能用 state 判定：state 要等 pointerlockchange 事件才更新，
@@ -6440,6 +6434,8 @@ function requestGameFullscreen() {
 }
 
 function releaseGameplayInput() {
+  player.motion.set(0,0,0);
+  if(grenadeAction&&grenadeAction.phase==='cook')grenadeAction.releasePending=true;
   keys = Object.create(null);fireHeld = false;touchFiring = false;touchJoy.f = 0;touchJoy.s = 0;fbHasLast = false;
   pointerRequestPending = false;clearTimeout(pendingLockTimer);
   keyboardLockEpoch++;keyboardLockState = 'idle';
@@ -6558,12 +6554,12 @@ function onKeyDown(ev) {
     return;
   }
   if (ev.code === 'KeyR' && state === 'playing') { requestReload(); }
-  if (ev.code === 'KeyG' && state === 'playing') { throwGrenade(); }
+  if (ev.code === 'KeyG' && state === 'playing' && !ev.repeat) { beginGrenade(); }
   // 武器切换：数字键 1 / 2（小键盘 1/2 在开发者模式下留给刷怪快捷键）
   if (state === 'playing') {
     var wKey;
     if (gameMode === 'pvp') {
-      // 歼灭战：1 主武器（步枪）/ 2 副武器（选人页选择）/ 3 匕首
+      // 歼灭战：1 主武器（步枪）/ 2 副武器（仓库选择）/ 3 匕首
       wKey = (ev.code === 'Digit1' || ev.code === 'Numpad1') ? 'rifle'
            : (ev.code === 'Digit2' || ev.code === 'Numpad2') ? PVP.myWeapon
            : (ev.code === 'Digit3' || ev.code === 'Numpad3') ? 'knife' : null;
@@ -6631,6 +6627,7 @@ function onKeyDown(ev) {
 }
 function onKeyUp(ev) {
   keys[ev.code] = false;
+  if(ev.code==='KeyG')releaseGrenade();
   if (ev.code === 'Tab') setScoreboardVisible(false);   // 松开 Tab 收起计分板
 }
 
@@ -6693,7 +6690,7 @@ function initTouchControls() {
     }
   }, function () {});
   bindFire(dom.btnTchReload, function () { requestReload(); }, function () {});
-  bindFire(dom.btnTchNade, function () { throwGrenade(); }, function () {});
+  bindFire(dom.btnTchNade, beginGrenade, releaseGrenade);
   bindFire(dom.btnTchSkill, function () { if (state === 'playing') openSkills(); }, function () {});
   bindFire(dom.touchPause, function () {
     if (state === 'playing') { state = 'paused'; showOverlay('pause'); }
@@ -6816,7 +6813,7 @@ function onResize() {
 
 // ---------------------------------------------------------------- 玩家更新
 function updatePlayer(dt) {
-  if(gameMode==='pvp'&&!pvpCanAct()){syncCamera();return;}
+  if(gameMode==='pvp'&&!pvpCanAct()){player.motion.set(0,0,0);syncCamera();return;}
   if (state !== 'playing') return;
 
   var f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
@@ -6828,54 +6825,34 @@ function updatePlayer(dt) {
   // 蹲下：按住 Ctrl（或 C）平滑压低头部，移速减半
   var wantCrouch = !!(keys.ControlLeft || keys.ControlRight || keys.KeyC);
   var crouchTarget = wantCrouch ? 1 : 0;
-  crouchT += (crouchTarget - crouchT) * Math.min(1, dt * 12);
-  if (Math.abs(crouchT - crouchTarget) < 0.002) crouchT = crouchTarget;
+  var nextCrouch=crouchT+(crouchTarget-crouchT)*Math.min(1,dt*12);
+  if(Math.abs(nextCrouch-crouchTarget)<.002)nextCrouch=crouchTarget;
+  var headroom=FishPhysics.heightLimit(player.pos,obstacles,CFG.playerRadius,CFG.eyeHeight+.16);
+  var minCrouch=clamp((CFG.eyeHeight+.16-headroom)/(CFG.eyeHeight*CROUCH_EYE_MUL),0,1);
+  crouchT=Math.max(nextCrouch,minCrouch);
 
   var len = Math.sqrt(mx * mx + mz * mz);
-  var moving = len > 0.01;
+  var moving = len > 0.01, moveX=0, moveZ=0;
   if (moving) {
     mx /= len; mz /= len;
     // 移速：基础 ×（技能 + 连杀加成）；步枪大扩容弹夹在基础移速上扣 5%，弹鼓在最终移速上再扣 10%
     var wpen = weaponSpeedPenalty();
     var spdNow = CFG.walkSpeed * wpen.base * (1 + upgrades.speed * CFG.upgradeSpeedPerLevel + comboBonus().speed) * wpen.final;
     spdNow *= (1 - CROUCH_SPEED_MUL * crouchT);   // 蹲下移速减半
-    movePlayer(mx * spdNow * dt, mz * spdNow * dt);
+    if(gameMode==='endless')spdNow*=radiation.speedAt(player.pos);
+    moveX=mx*spdNow*dt;moveZ=mz*spdNow*dt;
     stepTimer += spdNow * dt;
     if (stepTimer > 2.6) { stepTimer = 0; Sfx.step(); }
   } else {
     stepTimer = 0;
   }
 
-  // 重力与跳跃（含障碍物顶面支撑：可站上箱子/矮墙等）
-  var prevY = player.pos.y;
-  player.velY += CFG.gravity * dt;
-  player.pos.y += player.velY * dt;
-  var supportY = 0;
-  if (player.velY <= 0) {
-    for (var oi = 0; oi < obstacles.length; oi++) {
-      var ob = obstacles[oi];
-      if (player.pos.x > ob.min.x - 0.4 && player.pos.x < ob.max.x + 0.4 &&
-          player.pos.z > ob.min.z - 0.4 && player.pos.z < ob.max.z + 0.4) {
-        // 跨越检测：本轮脚底从 prevY 降到 pos.y，期间穿过顶面则吸附（防高速下落穿箱）
-        if (ob.max.y <= prevY + 0.02 && ob.max.y >= player.pos.y - 0.3 && ob.max.y > supportY) {
-          supportY = ob.max.y;
-        }
-      }
-    }
-  }
-  if (player.pos.y <= supportY) {
-    player.pos.y = supportY;
-    // 落地回正：落地速度越大冲击越明显（轻跳轻，高处落地重），随后相机自动归位
-    if (!player.onGround) {
-      var landSpeed = Math.abs(player.velY);
-      camFx.land = Math.min(1, 0.35 + landSpeed / (CFG.jumpSpeed * 1.6));
-      camFx.landT = 0;
-      camFx.sway = 0;            // 落地即结束跳跃摆动，交给回正
-    }
-    player.velY = 0;
-    player.onGround = true;
-  } else {
-    player.onGround = false;
+  var oldX=player.pos.x,oldZ=player.pos.z;
+  var impact=FishPhysics.step(player,moveX,moveZ,dt,{obstacles:obstacles,radius:CFG.playerRadius,height:eyeHeightNow()+.16,gravity:CFG.gravity,limit:playerArenaLimit()});
+  if(dt>0)player.motion.set((player.pos.x-oldX)/dt,player.velY,(player.pos.z-oldZ)/dt);
+  if(impact.landSpeed>0){
+    camFx.land=Math.min(1,.35+impact.landSpeed/(CFG.jumpSpeed*1.6));
+    camFx.landT=0;camFx.sway=0;
   }
 
   // 散布衰减与后坐序列复位
@@ -6889,56 +6866,13 @@ function updatePlayer(dt) {
   syncCamera();
 }
 
-// 3D 碰撞：仅当玩家身体垂直范围与障碍物重叠时才水平阻挡
-// （跳起可越过矮箱；顶棚等高架物下方可通行；角色可站上障碍物顶面）
-function playerBlocked(o, px, pz) {
-  var feet = player.pos.y, head = feet + eyeHeightNow();
-  if (head <= o.min.y || feet >= o.max.y - 0.001) return false;
-  var r = CFG.playerRadius;
-  return px > o.min.x - r && px < o.max.x + r && pz > o.min.z - r && pz < o.max.z + r;
-}
-
-function movePlayer(dx, dz) {
-  var r = CFG.playerRadius;
-  var nx = player.pos.x + dx;
-  var nz = player.pos.z + dz;
-  // X 轴
-  var blockedX = false;
-  for (var i = 0; i < obstacles.length; i++) {
-    if (playerBlocked(obstacles[i], nx, player.pos.z)) { blockedX = true; break; }
-  }
-  if (!blockedX) player.pos.x = nx;
-  else {
-    for (var j = 0; j < obstacles.length; j++) {
-      var ob = obstacles[j];
-      if (playerBlocked(ob, player.pos.x, player.pos.z)) {
-        if (dx > 0) player.pos.x = ob.min.x - r - 0.01;
-        else if (dx < 0) player.pos.x = ob.max.x + r + 0.01;
-      }
-    }
-  }
-  // Z 轴
-  var blockedZ = false;
-  for (var k = 0; k < obstacles.length; k++) {
-    if (playerBlocked(obstacles[k], player.pos.x, nz)) { blockedZ = true; break; }
-  }
-  if (!blockedZ) player.pos.z = nz;
-  else {
-    for (var m = 0; m < obstacles.length; m++) {
-      var obz = obstacles[m];
-      if (playerBlocked(obz, player.pos.x, player.pos.z)) {
-        if (dz > 0) player.pos.z = obz.min.z - r - 0.01;
-        else if (dz < 0) player.pos.z = obz.max.z + r + 0.01;
-      }
-    }
-  }
-  player.pos.x = clamp(player.pos.x, -CFG.arena - 0.2, CFG.arena + 0.2);
-  player.pos.z = clamp(player.pos.z, -CFG.arena - 0.2, CFG.arena + 0.2);
-}
-
 function updateGun(dt) {
   if(state!=='playing')return;
   if(updateWeaponSwitch(dt))return;
+  if(grenadeAction){
+    var recovering=grenadeAction.phase==='recover',raise=recovering?Math.min(1,grenadeAction.t/.42):0;
+    gun.group.position.set(.28,-.95+raise*.68,-.4-raise*.15);gun.group.rotation.set(-.4*(1-raise),0,.15*(1-raise));return;
+  }
   if(gun.flashT>0){gun.flashT-=dt;gun.light.intensity=Math.max(0,gun.light.intensity-dt*130);if(gun.flashT<=0){gun.flashMesh.visible=false;gun.light.intensity=0;}}
   gun.recoil = Math.max(0, gun.recoil - dt * 1.1);
   if (knifeCd > 0) knifeCd = Math.max(0, knifeCd - dt);
@@ -7009,6 +6943,8 @@ function update(dt) {
     dom.damageFlash.style.opacity = op > 0 ? String(op) : '0';
   }
   updatePlayer(dt);
+  updateRadiation(dt);
+  if(state==='playing')updateGrenadeAction(dt);
   updateGun(dt);
   if(gun.group)gun.group.visible=gameMode!=='pvp'||player.hp>0;
   if (state === 'playing') {
@@ -7059,6 +6995,7 @@ function update(dt) {
   FishArt.update(worldArt, time);
   updateSwordWaves(dt);   // 剑气特效（弧形能量波飞行与淡出）
   updateBlastFx(dt);      // 自爆特效（火球/冲击环/蘑菇云烟团）
+  updateBomberEffects(dt);
   updateBossFx(state==='playing'?dt:0); // 出场演出跟随战斗暂停
   updateBomberWarn();     // 自爆鱼索敌警告（红屏脉冲）
   checkAchievements(dt);  // 成就条件检查（每秒一次）
@@ -7074,22 +7011,24 @@ function update(dt) {
 
 
 var sceneLoadPending=false;
-function loadGameWorld(ready){
+function loadGameWorld(ready,mode){
   if(sceneLoadPending)return;sceneLoadPending=true;state='loading';hideAllOverlays();
   pauseAfterLoad=false;requestGameFullscreen();
   var overlay=document.getElementById('loading-overlay'),fill=document.getElementById('loading-fill'),label=document.getElementById('loading-label'),pct=document.getElementById('loading-percent'),track=document.getElementById('loading-track');
   overlay.classList.remove('hidden');document.getElementById('loading-back').classList.add('hidden');
+  if(window.FishUI)FishUI.beginLoading(mode||'endless');
   function progress(n,text){fill.style.width=n+'%';pct.textContent=n+'%';label.textContent=text;track.setAttribute('aria-valuenow',n);}
   function paint(){return new Promise(function(resolve){requestAnimationFrame(function(){requestAnimationFrame(resolve);});});}
   (async function(){
     try{
-      progress(4,'准备载入沙海哨站');await paint();
-      var steps=buildEnvironmentSteps(),step;while(!(step=steps.next()).done){progress(step.value.progress,step.value.label);await paint();}
+      progress(4,mode==='pvp'?'准备载入沙海双城':'准备载入沙海哨站');await paint();
+      var steps=buildEnvironmentSteps(mode),step;while(!(step=steps.next()).done){progress(step.value.progress,step.value.label);await paint();}
       buildMiniMap();progress(84,'初始化地图与战斗');await paint();
       // ready 创建模式需要的实体；加载状态锁住模拟直到资源准备完成。
       ready();state='loading';progress(92,'预热材质与着色器');await paint();
       renderer.compile(scene,camera);progress(100,'准备完成');await paint();
       sceneLoadPending=false;overlay.classList.add('hidden');state='playing';
+      if(window.FishUI)FishUI.endLoading();
       if(pauseAfterLoad)pauseGameplay();else{
         requestLockWithFallback();
         // 进入全屏会强制退出指针锁定，而异步请求已脱离用户手势会被浏览器拒绝；
@@ -7100,14 +7039,14 @@ function loadGameWorld(ready){
           }
         },1000);
       }
-    }catch(err){sceneLoadPending=false;state='loading';label.textContent='载入失败：'+err.message;document.getElementById('loading-back').classList.remove('hidden');console.error(err);}
+    }catch(err){sceneLoadPending=false;state='loading';if(window.FishUI)FishUI.endLoading();label.textContent='载入失败：'+err.message;document.getElementById('loading-back').classList.remove('hidden');console.error(err);}
   })();
 }
 
 /** 进入游戏世界：按需构建场景（只构建一次，之后复用到卸载为止） */
 function enterGameWorld() {
-  if (!envBuilt) {
-    buildEnvironment();
+  if (!envBuilt || activeWorldMode !== 'endless') {
+    buildEnvironment('endless');
     buildMiniMap();
   }
   // ★ N6 修复：首次进入游戏时提示三武器切换（V0.5.0 的核心操作，
@@ -7136,7 +7075,7 @@ function animate() {
     return;               // 不渲染 3D 场景（菜单使用独立的 CSS 背景），也不跑敌人 AI
   }
   update(dt);
-  renderer.render(scene, camera);
+  if(radiationScreen)radiationScreen.render(scene,camera);else renderer.render(scene,camera);
 }
 
 // ---------------------------------------------------------------- 初始化
@@ -7285,7 +7224,7 @@ function init() {
   });
   // 3) 屏蔽长按菜单与拖拽选择（触屏/触控板）
   document.addEventListener('dragstart', function (ev) { ev.preventDefault(); });
-  document.addEventListener('selectstart', function (ev) { ev.preventDefault(); });
+  document.addEventListener('selectstart', function (ev) { if(state==='playing')ev.preventDefault(); });
   document.addEventListener('mouseup', onMouseUp);
   document.addEventListener('mousemove', onMouseMove);
   document.addEventListener('pointerlockchange', onPointerLockChange);
@@ -7343,7 +7282,7 @@ function init() {
   bind('btn-map-desert', function () { startEndlessDesert(); });
   bind('btn-map-back', function () { showLevelSelect(); });
   bind('btn-room-create', function () { showCreateRoom(); });
-  bind('btn-room-refresh', function () { renderRoomList(); });
+  bind('btn-room-refresh', function () { renderRoomList();showNotice('本地房间列表已刷新'); });
   bind('btn-roomlist-back', function () { showLevelSelect(); });
   bind('btn-cr-create', function () { doCreateRoom(); });
   bind('btn-cr-back', function () { showRoomList(); });
@@ -7354,13 +7293,13 @@ function init() {
   if (crModeEl) crModeEl.addEventListener('change', updateCreateRoomFillRow);
 
   if (btnRestart) btnRestart.addEventListener('click', function () {
-    // 歼灭战结束后「再来一局」应回到歼灭战选人页，而不是掉回无尽模式
+    // 歼灭战结束后「再来一局」直接载入新的 FPS 对局
     var wasPvp = (gameMode === 'pvp') || PVP.over;
+    var rematch=wasPvp?{skin:INVENTORY.loadout.skin,weapon:INVENTORY.loadout.secondary,teamSize:PVP.teamSize,difficulty:PVP.difficulty,ticketMultiplier:PVP.ticketMultiplier,roster:PVP.roster}:null;
     restartGame(true);                 // 先完整重置世界，回到主菜单态
     if (wasPvp) {
       PVP.over = false;
-      showLevelSelect();               // 进入模式选择
-      showPvpSelect();                 // 直接落到歼灭战选人页
+      loadGameWorld(function(){startPvp(rematch);},'pvp'); // 保留上一场的人数、难度和额度
     }
   });
   var btnVictoryRestart = document.getElementById('btn-victory-restart');
@@ -7445,15 +7384,7 @@ function init() {
   var btnPvpMode = document.getElementById('btn-pvp-mode');
   if (btnPvpMode) btnPvpMode.addEventListener('click', function () {
     if (state !== 'levelSelect') return;
-    showPvpSelect();
-  });
-  var btnPvpStart = document.getElementById('btn-pvp-start');
-  if (btnPvpStart) btnPvpStart.addEventListener('click', function () {
-    loadGameWorld(function(){startPvp({skin:pvpSelSkin,weapon:pvpSelWeapon,teamSize:pvpSelTeam,difficulty:document.getElementById('pvp-difficulty').value,ticketMultiplier:+document.getElementById('pvp-tickets').value});});
-  });
-  var btnPvpBack = document.getElementById('btn-pvp-back');
-  if (btnPvpBack) btnPvpBack.addEventListener('click', function () {
-    showLevelSelect();
+    startQuickPvp();
   });
   document.getElementById('loading-back').addEventListener('click',function(){document.getElementById('loading-overlay').classList.add('hidden');restartGame(true);});
   mark('buttons-bound');
@@ -7467,6 +7398,11 @@ window.FishGame = {
   __debug: {
     getGun: function(){return gun;},
     getCombatFxStats: function(){return combatFx.stats();},
+    getRadiation: function(){return radiation.snapshot();},
+    getBomberFxStats: function(){return {world:bomberFx?bomberFx.stats():null,screen:radiationScreen?radiationScreen.stats():null};},
+    explodeBomber: explodeBomber,
+    clearRadiation: function(){clearRadiation(false);},
+    renderFrame: function(){if(radiationScreen)radiationScreen.render(scene,camera);else renderer.render(scene,camera);},
     getParticles: function(){return particles;},
     fireBossBall: fireBossBall,
     updateBossWeaponAim: updateBossWeaponAim,
@@ -7548,6 +7484,7 @@ window.FishGame = {
         bots: pvpAliveBots(),
         botTotal: enemies.filter(function (e) { return e.isBot; }).length,
         weapon: currentWeapon,
+        mySkin: PVP.mySkin, myWeapon: PVP.myWeapon,
       };
     },
     pvpSetRound: function (mine, bots, round) {
@@ -7651,6 +7588,7 @@ window.FishGame = {
       return {
         children: scene.children.length, meshes: meshes,
         envBuilt: envBuilt, envObjects: envObjects.length,
+        worldMode: activeWorldMode, mapName: fpsMap ? fpsMap.name : '沙海哨站', arena: fpsMap ? fpsMap.half : CFG.arena, modelParts: fpsMap ? fpsMap.modelParts : null,
         obstacles: obstacles.length, wallMeshes: wallMeshes.length,
         enemies: enemies.filter(function (e) { return e.alive; }).length,
         trackedEnemies: enemies.length,
@@ -7695,11 +7633,17 @@ window.FishGame = {
     getScore: function () { return score; },
     getKills: function () { return kills; },
     getPlayer: function () { return player; },
+    updatePlayer: updatePlayer,
+    getMap: function(){return fpsMap;},
+    getCamera: function(){return camera;},
     getEnemies: function () { return enemies; },
     getObstacles: function () { return obstacles; },
     isFishReady: function () { return fishTexReady; },
     shootOnce: shootOnce,
     nadeThrow: throwGrenade,
+    nadeBegin: beginGrenade,
+    nadeRelease: releaseGrenade,
+    getGrenadeAction: function(){return grenadeAction?{phase:grenadeAction.phase,fuse:grenadeAction.fuse,t:grenadeAction.t,releasePending:grenadeAction.releasePending}:null;},
     switchWeapon: switchWeapon,
     damagePlayer: damagePlayer,
     update: update,
@@ -7782,6 +7726,7 @@ window.FishGame = {
     getGrenades: function () { return grenades; },
     getFishBullets: function () { return fishBullets; },
     clearProjectiles: function () {
+      clearGrenadeAction();
       for (var i = 0; i < fishBullets.length; i++) scene.remove(fishBullets[i].mesh);
       fishBullets = [];
       for (var j = 0; j < bossShots.length; j++) FishArt.disposeTree(bossShots[j].mesh);

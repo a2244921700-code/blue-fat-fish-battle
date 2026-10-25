@@ -1,0 +1,248 @@
+{
+  "checks": [
+    "主菜单使用本地宣传图",
+    "进入大厅不提前进入对局或全屏",
+    "大厅战绩读取真实存档",
+    "无效仓库数据回退到默认装备",
+    "操作指南在原界面上打开",
+    "Esc 只关闭指南，不退出大厅",
+    "设置按 Esc 返回来源大厅",
+    "成就按 Esc 返回大厅",
+    "仓库采用已修正扶盆手的插画",
+    "匕首详情正确显示近战类型",
+    "装备保存且状态立即更新",
+    "武器预览来自真实模型静态图",
+    "大厅装备与形象跟随仓库选择",
+    "快速出战直接载入且继承仓库副武器与形象",
+    "房间列表明确本地连接，不伪造延迟",
+    "多次打开房间列表不会重复绑定筛选",
+    "模式筛选可用",
+    "空结果提供清除筛选操作",
+    "清除筛选恢复房间并聚焦搜索",
+    "创建房间默认本地 AI 且正确锁定补位",
+    "回车创建房间，名称保留为普通文本",
+    "房间展示所选共享额度",
+    "红蓝队伍颜色对应正确",
+    "名称搜索忽略大小写，HTML 不被执行或解析",
+    "离开再进保留房间与房主身份",
+    "房间配置实际生效：6v6、每队 30 额度、11 个 AI",
+    "预览编队名字传入实际比赛",
+    "关闭 AI 的演示房间不会偷偷开满员 AI 对局",
+    "模拟队员标识明确，提示显示在菜单之上",
+    "演示房间说明 AI 接管",
+    "模拟成员在对局里确实由命名 AI 接管",
+    "载入图全部可解码且跨轮换不连续重复",
+    "刷新后装备持久化",
+    "Tab 不会进入遮挡的游戏 HUD",
+    "desktop 大厅 横向无溢出",
+    "desktop 仓库 横向无溢出",
+    "desktop 房间列表 横向无溢出",
+    "desktop 部署 横向无溢出",
+    "desktop 地图选择 横向无溢出",
+    "laptop 大厅 横向无溢出",
+    "laptop 仓库 横向无溢出",
+    "laptop 房间列表 横向无溢出",
+    "laptop 部署 横向无溢出",
+    "laptop 地图选择 横向无溢出",
+    "phone 大厅 横向无溢出",
+    "phone 仓库 横向无溢出",
+    "phone 房间列表 横向无溢出",
+    "phone 部署 横向无溢出",
+    "phone 地图选择 横向无溢出",
+    "landscape 大厅 横向无溢出",
+    "landscape 仓库 横向无溢出",
+    "landscape 房间列表 横向无溢出",
+    "landscape 部署 横向无溢出",
+    "landscape 地图选择 横向无溢出",
+    "页面没有重复的元素 ID",
+    "载入插画失败时仍能进入无尽模式",
+    "直接 file:// 打开时仓库与本地图像也正常",
+    "无脚本异常或新增资源 404"
+  ],
+  "errors": [],
+  "missing": [],
+  "layouts": [
+    {
+      "label": "desktop 大厅",
+      "width": 1440,
+      "scroll": 1440,
+      "client": 1440,
+      "children": []
+    },
+    {
+      "label": "desktop 仓库",
+      "width": 1440,
+      "scroll": 1440,
+      "client": 1440,
+      "children": []
+    },
+    {
+      "label": "desktop 房间列表",
+      "width": 1440,
+      "scroll": 1440,
+      "client": 1440,
+      "children": []
+    },
+    {
+      "label": "desktop 部署",
+      "width": 1440,
+      "scroll": 1440,
+      "client": 1440,
+      "children": []
+    },
+    {
+      "label": "desktop 地图选择",
+      "width": 1440,
+      "scroll": 1440,
+      "client": 1440,
+      "children": []
+    },
+    {
+      "label": "laptop 大厅",
+      "width": 1366,
+      "scroll": 1366,
+      "client": 1366,
+      "children": []
+    },
+    {
+      "label": "laptop 仓库",
+      "width": 1366,
+      "scroll": 1366,
+      "client": 1366,
+      "children": []
+    },
+    {
+      "label": "laptop 房间列表",
+      "width": 1366,
+      "scroll": 1366,
+      "client": 1366,
+      "children": []
+    },
+    {
+      "label": "laptop 部署",
+      "width": 1366,
+      "scroll": 1366,
+      "client": 1366,
+      "children": []
+    },
+    {
+      "label": "laptop 地图选择",
+      "width": 1366,
+      "scroll": 1366,
+      "client": 1366,
+      "children": []
+    },
+    {
+      "label": "phone 大厅",
+      "width": 390,
+      "scroll": 390,
+      "client": 390,
+      "children": []
+    },
+    {
+      "label": "phone 仓库",
+      "width": 390,
+      "scroll": 390,
+      "client": 390,
+      "children": []
+    },
+    {
+      "label": "phone 房间列表",
+      "width": 390,
+      "scroll": 390,
+      "client": 390,
+      "children": []
+    },
+    {
+      "label": "phone 部署",
+      "width": 390,
+      "scroll": 390,
+      "client": 390,
+      "children": []
+    },
+    {
+      "label": "phone 地图选择",
+      "width": 390,
+      "scroll": 390,
+      "client": 390,
+      "children": []
+    },
+    {
+      "label": "landscape 大厅",
+      "width": 844,
+      "scroll": 844,
+      "client": 844,
+      "children": []
+    },
+    {
+      "label": "landscape 仓库",
+      "width": 844,
+      "scroll": 844,
+      "client": 844,
+      "children": []
+    },
+    {
+      "label": "landscape 房间列表",
+      "width": 844,
+      "scroll": 844,
+      "client": 844,
+      "children": []
+    },
+    {
+      "label": "landscape 部署",
+      "width": 844,
+      "scroll": 844,
+      "client": 844,
+      "children": []
+    },
+    {
+      "label": "landscape 地图选择",
+      "width": 844,
+      "scroll": 844,
+      "client": 844,
+      "children": []
+    }
+  ],
+  "artSequence": [
+    {
+      "id": "crossfire",
+      "ready": true
+    },
+    {
+      "id": "courtyard",
+      "ready": true
+    },
+    {
+      "id": "rooftops",
+      "ready": true
+    },
+    {
+      "id": "courtyard",
+      "ready": true
+    },
+    {
+      "id": "crossfire",
+      "ready": true
+    },
+    {
+      "id": "rooftops",
+      "ready": true
+    },
+    {
+      "id": "courtyard",
+      "ready": true
+    },
+    {
+      "id": "crossfire",
+      "ready": true
+    },
+    {
+      "id": "rooftops",
+      "ready": true
+    },
+    {
+      "id": "courtyard",
+      "ready": true
+    }
+  ]
+}

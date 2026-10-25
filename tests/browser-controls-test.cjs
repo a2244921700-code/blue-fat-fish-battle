@@ -10,7 +10,7 @@ const OUT=path.join(__dirname,'controls-results');fs.mkdirSync(OUT,{recursive:tr
  async function openGame(page){
   page.on('pageerror',e=>report.errors.push(e.message));page.on('response',r=>{if(r.status()>=400&&!r.url().endsWith('favicon.ico'))report.missing.push(r.url());});
   await page.goto(process.env.FISH_TEST_URL||'http://127.0.0.1:8123/');await page.waitForFunction(()=>window.FishGame&&FishGame.__debug.isFishReady());
-  await page.click('#btn-start');await page.click('#btn-pvp-mode');await page.click('#btn-pvp-start');
+  await page.click('#btn-start');await page.click('#btn-pvp-mode');
   await page.waitForFunction(()=>FishGame.__debug.getPvp().active&&document.getElementById('loading-overlay').classList.contains('hidden'),null,{timeout:60000});
  }
  try{
@@ -88,7 +88,7 @@ const OUT=path.join(__dirname,'controls-results');fs.mkdirSync(OUT,{recursive:tr
   await page.evaluate(()=>step(3.1));
   check('新回合清空生存连杀并恢复默认武器',await page.evaluate(()=>FishGame.__debug.getKillMedal().streak===0&&FishGame.__debug.getWeapon()==='rifle'));
   await page.evaluate(async()=>{FishGame.__debug.restart(true);if(document.fullscreenElement)await document.exitFullscreen();});
-  await page.click('#btn-start');await page.click('#btn-level-desert');
+  await page.click('#btn-start');await page.click('#btn-mode-endless');await page.click('#btn-map-desert');
   await page.waitForFunction(()=>FishGame.__debug.getSceneStats().envBuilt&&document.getElementById('loading-overlay').classList.contains('hidden'));
   check('无尽模式入口同样自动全屏',await page.evaluate(()=>!!document.fullscreenElement));
   await page.evaluate(()=>{const d=FishGame.__debug;d.enterFallback();d.clearCovers();d.startWave(1);d.inertEnemies();d.killNearest();d.setState('paused');});

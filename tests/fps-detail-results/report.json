@@ -1,0 +1,153 @@
+{
+  "checks": [
+    "新场景保留 FPS 大地图范围并增加近景结构",
+    "新门按铰链打开，两侧叶片不与墙面平行",
+    "阴影纹理与正交范围适配大地图",
+    "模型合批保持可控绘制提交",
+    "连续重建三次不累积几何体、纹理或碰撞体",
+    "修改前后场景预览没有脚本或着色器错误"
+  ],
+  "errors": [],
+  "before": {
+    "stats": {
+      "children": 36,
+      "meshes": 642,
+      "envBuilt": true,
+      "envObjects": 3,
+      "worldMode": "pvp",
+      "mapName": "沙海双城",
+      "arena": 76,
+      "modelParts": 8146,
+      "obstacles": 228,
+      "wallMeshes": 254,
+      "enemies": 15,
+      "trackedEnemies": 15,
+      "renderCalls": 238,
+      "triangles": 110064,
+      "geometries": 306,
+      "textures": 23
+    },
+    "lighting": {
+      "shadow": [
+        2048,
+        2048
+      ],
+      "left": -100,
+      "right": 100,
+      "sun": "ffe4bb",
+      "hemi": "c8e0e0"
+    }
+  },
+  "after": {
+    "stats": {
+      "children": 36,
+      "meshes": 770,
+      "envBuilt": true,
+      "envObjects": 3,
+      "worldMode": "pvp",
+      "mapName": "沙海双城",
+      "arena": 76,
+      "modelParts": 24939,
+      "obstacles": 276,
+      "wallMeshes": 382,
+      "enemies": 15,
+      "trackedEnemies": 15,
+      "renderCalls": 328,
+      "triangles": 535555,
+      "geometries": 436,
+      "textures": 23
+    },
+    "lighting": {
+      "shadow": [
+        4096,
+        4096
+      ],
+      "left": -112,
+      "right": 112,
+      "sun": "ffdfb4",
+      "hemi": "a3c7f0"
+    },
+    "map": [
+      {
+        "name": "中门西扇",
+        "x": -4.43,
+        "z": 0,
+        "side": 1,
+        "width": 4.39,
+        "radius": 4.5,
+        "spring": 2.7,
+        "rise": 0.62,
+        "angle": -1.0821041362364843,
+        "thickness": 0.24
+      },
+      {
+        "name": "中门东扇",
+        "x": 4.43,
+        "z": 0,
+        "side": -1,
+        "width": 4.39,
+        "radius": 4.5,
+        "spring": 2.7,
+        "rise": 0.62,
+        "angle": -1.0821041362364843,
+        "thickness": 0.24
+      }
+    ]
+  },
+  "rebuilds": [
+    {
+      "children": 36,
+      "meshes": 770,
+      "envBuilt": true,
+      "envObjects": 3,
+      "worldMode": "pvp",
+      "mapName": "沙海双城",
+      "arena": 76,
+      "modelParts": 24939,
+      "obstacles": 276,
+      "wallMeshes": 382,
+      "enemies": 15,
+      "trackedEnemies": 15,
+      "renderCalls": 437,
+      "triangles": 639738,
+      "geometries": 446,
+      "textures": 26
+    },
+    {
+      "children": 36,
+      "meshes": 770,
+      "envBuilt": true,
+      "envObjects": 3,
+      "worldMode": "pvp",
+      "mapName": "沙海双城",
+      "arena": 76,
+      "modelParts": 24939,
+      "obstacles": 276,
+      "wallMeshes": 382,
+      "enemies": 15,
+      "trackedEnemies": 15,
+      "renderCalls": 437,
+      "triangles": 639738,
+      "geometries": 446,
+      "textures": 26
+    },
+    {
+      "children": 36,
+      "meshes": 770,
+      "envBuilt": true,
+      "envObjects": 3,
+      "worldMode": "pvp",
+      "mapName": "沙海双城",
+      "arena": 76,
+      "modelParts": 24939,
+      "obstacles": 276,
+      "wallMeshes": 382,
+      "enemies": 15,
+      "trackedEnemies": 15,
+      "renderCalls": 437,
+      "triangles": 639738,
+      "geometries": 446,
+      "textures": 26
+    }
+  ]
+}

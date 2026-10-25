@@ -289,7 +289,7 @@ function effects(scene) {
     muzzle:function(pos,color,size){var f=puff(pos,color||0xffd291,size||.45,.08,0);f.alpha=1;},
     trail:function(pos,color,size){puff(pos,color,size,.24,.16).alpha=.42;},
     impact:function(pos,color){var f=puff(pos,color,.30,.16,.15);f.alpha=.85;},
-    explosion:function(pos,radius,color,mushroom){
+    explosion:function(pos,radius,color){
       shock(pos,color||0xffb352,radius);
       var fire=puff(pos,0xffad45,radius*.65,.3,.8);fire.alpha=.95;fire.fadePower=.65;
       var core=puff(pos,0xffefbf,radius*.30,.16,.7);core.alpha=1;core.fadePower=.8;
@@ -303,10 +303,6 @@ function effects(scene) {
       for(var i=0;i<7;i++){
         var a=i*Math.PI*2/7;p2.set(pos.x+Math.cos(a)*radius*.19,pos.y+.15+(i%3)*radius*.10,pos.z+Math.sin(a)*radius*.19);
         var f=puff(p2,i%2?0xbba78b:0x736d65,radius*.42,.75+(i%3)*.16,.8+i*.1);f.alpha=.55;f.grow=radius*.45;
-      }
-      if(mushroom){
-        for(var j=0;j<4;j++){p2.set(pos.x,pos.y+j*.7,pos.z);var stem=puff(p2,0xb8a58d,1.0+j*.15,1.35,j*.14+.7);stem.alpha=.58;}
-        for(var c=0;c<6;c++){var ca=c*Math.PI/3;p2.set(pos.x+Math.cos(ca)*1.1,pos.y+2.8,pos.z+Math.sin(ca)*1.1);var cap=puff(p2,0xc8b89e,2,1.55,.95);cap.alpha=.56;cap.grow=1.2;}
       }
     },
     slash:function(pos,dir,heavy){var f=take('slash',heavy?0xffd286:0xc6f9ff,.19);f.mesh.position.copy(pos);f.mesh.quaternion.setFromUnitVectors(_axis,dir);f.mesh.rotateZ(heavy?-.65:.45);f.size=heavy?.8:.5;f.grow=.4;f.spin=-2.2;f.mesh.scale.setScalar(f.size);f.alpha=.6;},

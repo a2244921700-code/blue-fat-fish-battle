@@ -1,0 +1,59 @@
+/* OpenAI Codex · 清晰的阵营信息层 / 纯色场景载入页 */
+#loading-overlay{position:fixed;inset:0;z-index:300;display:grid;place-items:center;background:#121d29;color:#dce8ef;font-family:"Microsoft YaHei",sans-serif}
+#loading-overlay.hidden{display:none}
+.loading-content{width:min(540px,80vw)}
+.loading-eyebrow{font-size:12px;letter-spacing:4px;color:#84a2b6;margin-bottom:16px}
+.loading-content h2{font-size:30px;letter-spacing:2px;margin:0 0 38px;font-weight:600}
+.loading-meta{display:flex;justify-content:space-between;font-size:13px;color:#a4b9c8;margin-bottom:14px;gap:24px}
+#loading-track{height:4px;background:#2b3b48;overflow:hidden}
+#loading-fill{height:100%;background:#8bd7d0;width:0;transition:width .15s linear}
+.loading-note{font-size:12px;color:#668093;margin-top:20px;line-height:1.8}
+#loading-back{margin-top:28px}
+#loading-back.hidden,#pvp-respawn.hidden{display:none!important}
+#pvp-score{position:fixed;top:20px;left:50%;transform:translateX(-50%);width:min(640px,55vw);padding:0;border:0;background:none;box-shadow:none;gap:7px;align-items:stretch;border-radius:0}
+.ps-team{flex:1;min-width:0;padding:10px 16px;background:rgba(19,28,39,.92);border-top:2px solid #d77a70;border-radius:3px;text-align:left}
+.ps-team.blue{border-color:#6eaadd;text-align:right}
+#pvp-score .ps-mine,#pvp-score .ps-bots{font-family:Consolas,monospace;font-weight:700;font-size:36px;line-height:1.15;color:#ffb4a6}
+#pvp-score .ps-bots{color:#a6d7ff}
+.ps-caption{font-size:10px;letter-spacing:2px;color:#98a8b6;margin-left:9px}
+.ps-red-alive,.ps-blue-alive{display:block;font-size:11px;font-weight:500;color:#d3b7b3;white-space:nowrap;margin-bottom:5px}
+.ps-blue-alive{color:#b2c9de}
+.ps-meter{height:3px;background:#34414e;margin-top:9px;overflow:hidden}
+.ps-meter i{display:block;height:100%;background:#f18c7a;transition:width .2s}
+.ps-team.blue .ps-meter i{background:#78bafb;margin-left:auto}
+.ps-center{width:116px;background:rgba(15,25,36,.94);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px}
+#pvp-score .ps-round{font-size:10px;letter-spacing:1px;color:#93a7b6;font-weight:500}
+#pvp-score .ps-goal{font:600 24px Consolas,monospace;color:#eff3f5;letter-spacing:4px}
+#pvp-score .ps-live{font-size:11px;color:#e7cb96}
+#pvp-status{display:none;position:fixed;top:134px;left:50%;transform:translateX(-50%);font-size:11px;letter-spacing:.5px;color:#d9d9d0;background:rgba(20,29,39,.72);padding:6px 12px;border-radius:3px;white-space:nowrap}
+.pvp-mode #pvp-status{display:block}
+.pvp-mode #fallback-hint{top:auto;bottom:50px;font-size:11px}
+#pvp-radar-key{display:none;position:fixed;bottom:7px;left:26px;width:210px;text-align:center;font-size:10px;color:#e8edf0;text-shadow:0 1px 3px #172635}
+.pvp-mode #pvp-radar-key{display:block}
+.pvp-mode #score-wrap,.pvp-mode #armor-wrap,.pvp-mode #wave-wrap,.pvp-mode #combo-wrap,.pvp-mode #env-title,.pvp-mode #btn-tch-skill{display:none!important}
+.pvp-mode #tip-bar{font-size:0}
+.pvp-mode #tip-bar:after{content:'WASD 移动 · Ctrl 蹲下 · 1/2/3 武器 · R 换弹 · G 松开投雷 / 按住预热 · Tab 计分板 · Esc 暂停';font-size:11px}
+#grenade-action{position:absolute;left:50%;top:62%;transform:translateX(-50%);width:230px;padding:12px 15px;background:rgba(15,28,35,.9);border:1px solid #d0ac69;border-radius:8px;color:#f6dfac;pointer-events:none;font-size:13px;font-variant-numeric:tabular-nums}
+#grenade-action>div:first-child{display:flex;justify-content:space-between;align-items:center}
+#grenade-action b{font-size:20px}#grenade-action small{display:block;color:#d0d6d8;font-size:11px;margin-top:8px}
+#grenade-action .fuse-track{height:4px;background:#394349;border-radius:4px;margin-top:8px;overflow:hidden}
+#grenade-fuse-fill{display:block;height:100%;width:100%;background:#efc16f}
+#grenade-action.urgent{border-color:#f38766;color:#ffac8e}#grenade-action.urgent #grenade-fuse-fill{background:#ff785f}
+.pvp-dead #grenade-action{display:none!important}
+.pvp-mode #weapon-bar .wslot{border-radius:4px;font-size:12px;padding:8px 13px;background:rgba(18,31,43,.9);border-color:#44566a}
+.pvp-mode #weapon-bar .wslot.active{color:#ffcfb8;border-color:#cf9282;box-shadow:inset 0 -2px #e2a28e}
+.pvp-mode #killfeed{top:165px;right:22px;left:auto;bottom:auto;transform:none;text-align:right;width:auto;max-width:300px;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.pvp-mode #killfeed .kf-row{padding:7px 12px;border-radius:3px;background:rgba(17,29,41,.92);border-right:2px solid #9bb3c7;font-size:12px}
+.pvp-mode #killfeed .kf-k,.pvp-mode #killfeed .kf-v{color:#e3eaf0}
+#pvp-respawn{position:fixed;left:50%;bottom:17%;transform:translateX(-50%);z-index:15;min-width:330px;padding:22px 40px;text-align:center;background:rgba(13,23,33,.94);border:1px solid #7b544d;border-top:3px solid #e49280;border-radius:5px;color:#e8ebed;pointer-events:none}
+#pvp-respawn b{font:600 44px Consolas,monospace;color:#ffb09c;padding:0 14px}
+#pvp-respawn small{display:block;color:#aab7c1;margin-top:10px;font-size:12px}
+.pvp-dead #crosshair,.pvp-dead #hitmarker,.pvp-dead #ammo-wrap,.pvp-dead #weapon-bar,.pvp-dead #nade-wrap{display:none!important}
+.pvp-scoreboard #crosshair,.pvp-scoreboard #hitmarker{visibility:hidden}
+#scoreboard{max-height:70vh;overflow:auto;background:rgba(13,24,35,.96);border:1px solid #43576a;border-radius:6px;min-width:600px}
+#scoreboard .sb-team.red .sb-head{color:#ffac9d;border-color:#b26960;background:#452e31}
+#scoreboard .sb-team.blue .sb-head{color:#9dd0ff;border-color:#5886b1;background:#233f54}
+#scoreboard .sb-row{font-size:12px;line-height:1.45;padding:6px 10px;border-bottom:1px solid #25394a}
+#scoreboard .sb-row.dead{opacity:.55}
+#scoreboard .sb-tip{color:#97aeba;font-size:11px}
+@media(max-width:800px){#pvp-score{width:70vw;top:8px}.ps-team{padding:7px}.ps-center{width:88px}.ps-red-alive,.ps-blue-alive{font-size:9px}#pvp-score .ps-mine,#pvp-score .ps-bots{font-size:27px}.ps-caption{display:none}#pvp-status{top:110px;font-size:9px}#scoreboard{min-width:0;width:88vw}.pvp-mode #killfeed{top:143px}}

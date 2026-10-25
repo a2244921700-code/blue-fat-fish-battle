@@ -13,9 +13,9 @@ const OUT=process.env.FISH_TEST_OUTPUT||path.join(__dirname,'fps-results');fs.mk
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/shader|WebGL|THREE/i.test(m.text()))errors.push(m.text());});page.on('response',r=>{if(r.status()>=400)missing.push(r.url());});
   await page.goto(process.env.FISH_TEST_URL||'http://127.0.0.1:8123/');await page.waitForFunction(()=>window.FishGame&&FishGame.__debug.isFishReady());
   await page.evaluate(()=>{window.loadStages=[];new MutationObserver(()=>loadStages.push(+document.getElementById('loading-track').getAttribute('aria-valuenow'))).observe(document.getElementById('loading-track'),{attributes:true,attributeFilter:['aria-valuenow']});});
-  await page.click('#btn-start');await page.click('#btn-pvp-mode');await page.screenshot({path:path.join(OUT,'01-setup.png')});
-  check('队伍档位提供 6 / 8 / 12 / 16 人',await page.locator('#pvp-bots .pc-name').allTextContents().then(a=>a.join(',')==='6 v 6,8 v 8,12 v 12,16 v 16'));
-  await page.click('#btn-pvp-start');await page.screenshot({path:path.join(OUT,'02-loading.png')});
+  await page.click('#btn-start');await page.screenshot({path:path.join(OUT,'01-lobby.png')});
+  check('快速出战准备页已删除，规则通过自定义房间设置',await page.locator('#pvp-overlay').count()===0&&await page.locator('#cr-teamsize option').count()===4);
+  await page.click('#btn-pvp-mode');await page.screenshot({path:path.join(OUT,'02-loading.png')});
   await page.waitForFunction(()=>FishGame.__debug.getPvp().active&&document.getElementById('loading-overlay').classList.contains('hidden'),null,{timeout:60000});
   await page.evaluate(()=>{const d=FishGame.__debug;d.enterFallback();d.setState('paused');window.stepGame=seconds=>{d.setState('playing');for(let t=0;t<seconds-.0001;t+=.05)d.update(Math.min(.05,seconds-t));if(d.getState()==='playing')d.setState('paused');};window.aiStep=d.getPvpTactics().step;d.getPvpTactics().step=()=>{};});
   const initial=await page.evaluate(()=>({state:FishGame.__debug.getPvp(),snap:FishGame.__debug.pvpSnapshot(),loading:loadStages,stats:FishGame.__debug.getSceneStats()}));
@@ -60,10 +60,10 @@ const OUT=process.env.FISH_TEST_OUTPUT||path.join(__dirname,'fps-results');fs.mk
     const friendHP=friend.hp;d.setState('paused');return {friendHP};});
   check('刀击不会伤害己方队员',combat.friendHP===100);
   const walls=await page.evaluate(()=>{const d=FishGame.__debug,p=d.getPlayer(),all=d.getEnemies().filter(e=>e.isBot),friend=all.find(e=>e.team==='red'),blue=all.filter(e=>e.team==='blue'),hidden=blue[0],exposed=blue[1];
-    all.forEach((e,i)=>{e.mesh.position.set(-40,1.4,-30+i*.1);e.protection=0;});friend.mesh.position.set(8,1.4,5);hidden.mesh.position.set(13,1.4,5);exposed.mesh.position.set(7,1.4,5);friend.hp=hidden.hp=exposed.hp=100;
+    all.forEach((e,i)=>{e.mesh.position.set(-40,1.4,-30+i*.1);e.protection=0;});friend.mesh.position.set(8,1.4,5);hidden.mesh.position.set(15,1.4,5);exposed.mesh.position.set(7,1.4,5);friend.hp=hidden.hp=exposed.hp=100;
     p.pos.set(9,0,5);p.yaw=-Math.PI/2;p.pitch=0;p.hp=100;d.setState('playing');d.update(.8);d.switchWeapon('rifle');d.update(.75);d.shootOnce();const gunBlocked=hidden.hp===100;
-    const t=d.getPvpTactics(),botBlocked=t.fire({source:friend,position:friend.mesh.position,eyeY:1.9},{x:13,y:1.5,z:5},{damage:36},0)===false;
-    d.setNadeCount(1);d.nadeThrow();const gr=d.getGrenades()[0];gr.pos.set(9,.1,5);gr.vel.set(0,0,0);d.update(0);d.setState('paused');return {gunBlocked,botBlocked,friend:friend.hp,hidden:hidden.hp,exposed:exposed.hp};});
+    const t=d.getPvpTactics(),botBlocked=t.fire({source:friend,position:friend.mesh.position,eyeY:1.9},{x:15,y:1.5,z:5},{damage:36},0)===false;
+    d.setNadeCount(1);d.nadeThrow();const gr=d.getGrenades()[0];gr.pos.set(9,.14,5);gr.vel.set(0,0,0);gr.fuse=0;d.update(0);d.setState('paused');return {gunBlocked,botBlocked,friend:friend.hp,hidden:hidden.hp,exposed:exposed.hp};});
   check('玩家子弹与 AI 枪口都不能隔墙射击',walls.gunBlocked&&walls.botBlocked);
   check('手雷伤害遵守墙体遮挡及无友伤，能伤害暴露敌人',walls.friend===100&&walls.hidden===100&&walls.exposed<100);
   const redLoss=await page.evaluate(()=>{const d=FishGame.__debug;d.pvpSetTickets(1,20);d.setState('playing');d.pvpHurtPlayer();d.setState('paused');return {p:d.getPvp(),s:d.pvpSnapshot()};});
@@ -86,10 +86,13 @@ const OUT=process.env.FISH_TEST_OUTPUT||path.join(__dirname,'fps-results');fs.mk
   await page.keyboard.down('Tab');await page.evaluate(()=>{FishGame.__debug.setState('playing');document.dispatchEvent(new KeyboardEvent('keydown',{code:'Tab',bubbles:true}));FishGame.__debug.setState('paused');});await page.screenshot({path:path.join(OUT,'06-scoreboard.png')});await page.keyboard.up('Tab');
   const finish=await page.evaluate(()=>{const d=FishGame.__debug;d.startPvp({teamSize:6});d.enterFallback();d.getPvpTactics().step=()=>{};stepGame(5);d.pvpSetRound(3,0,4);d.pvpSetTickets(10,1);d.pvpKillBot();stepGame(3.1);return {state:d.getState(),p:d.getPvp(),title:document.querySelector('#gameover-overlay h1').textContent};});
   check('先赢四回合结束整场比赛并显示正确结算 '+JSON.stringify(finish),finish.state==='gameover'&&finish.p.over&&finish.p.myRounds===4&&finish.title.includes('胜利'));
+  await page.click('#btn-restart');
+  await page.waitForFunction(()=>FishGame.__debug.getPvp().active&&document.getElementById('loading-overlay').classList.contains('hidden'),null,{timeout:60000});
+  check('再来一局直接载入并保留上场 6v6 规则',await page.evaluate(()=>FishGame.__debug.pvpSnapshot().teamSize===6&&FishGame.__debug.getSceneStats().worldMode==='pvp'));
   // 卸载/重建两次，确认模式的基地、标签与角色没有留在场景中。
   const cleanup=await page.evaluate(()=>{const d=FishGame.__debug;d.restart(true);return {scene:d.getSceneStats(),classes:document.body.className,p:d.getPvp()};});
   check('退出完整清理 FPS 对象与状态',cleanup.scene.trackedEnemies===0&&!cleanup.scene.envBuilt&&!cleanup.p.active&&!cleanup.classes.includes('pvp-mode'));
-  await page.evaluate(()=>{loadStages=[];});await page.click('#btn-start');await page.click('#btn-level-desert');
+  await page.evaluate(()=>{loadStages=[];});await page.click('#btn-start');await page.click('#btn-mode-endless');await page.click('#btn-map-desert');
   await page.waitForFunction(()=>FishGame.__debug.getSceneStats().envBuilt&&document.getElementById('loading-overlay').classList.contains('hidden'),null,{timeout:60000});
   await page.evaluate(()=>{FishGame.__debug.enterFallback();FishGame.__debug.setState('paused');});const endless=await page.evaluate(()=>({stages:loadStages,mode:FishGame.__debug.getPvp().mode}));
   check('无尽模式也使用完整载入画面',endless.mode==='endless'&&endless.stages.includes(4)&&endless.stages.includes(100));

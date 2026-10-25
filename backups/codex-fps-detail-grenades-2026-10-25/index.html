@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>3D射击 · 蓝色肥鱼大作战 V0.5.3</title>
+<script>
+/* 全局错误条：任何未捕获的运行错误都会显示在屏幕底部，便于排查 */
+window.addEventListener('error', function (e) {
+  var el = document.getElementById('error-bar');
+  if (el) { el.style.display = 'block'; el.textContent = '运行错误：' + (e.message || '未知错误'); }
+});
+/* 兜底：若游戏脚本未成功加载，点按钮时给出明确提示（而不是毫无反应） */
+document.addEventListener('click', function (e) {
+  var t = e.target;
+  if (t && (t.id === 'btn-start' || t.id === 'btn-resume' || t.id === 'btn-restart') && !window.FishGame) {
+    var el = document.getElementById('error-bar');
+    if (el) {
+      el.style.display = 'block';
+      el.textContent = '游戏脚本未加载成功（three.min.js / fish-texture.js / art.js / game.js 可能加载失败），请按 Ctrl+F5 强制刷新重试。';
+    }
+  }
+});
+window.addEventListener('load', function () {
+  setTimeout(function () {
+    if (!window.FishGame) {
+      var el = document.getElementById('error-bar');
+      if (el) {
+        el.style.display = 'block';
+        el.textContent = '游戏脚本未能加载：请按 Ctrl+F5 强制刷新；若仍失败，建议使用 Chrome 或 Edge 浏览器。';
+      }
+    }
+  }, 800);
+});
+</script>
+<style>
+  :root {
+    --accent: #4db6ff;
+    --danger: #ff5252;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0b1220;
+    font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+    -webkit-user-select: none; user-select: none; }
+  #game-canvas { display: block; width: 100vw; height: 100vh; }
+
+  /* ---------- 准星 ---------- */
+  #crosshair {
+    position: fixed; left: 50%; top: 50%; width: 0; height: 0; z-index: 10;
+    pointer-events: none; mix-blend-mode: difference;
+  }
+  #crosshair .line { position: absolute; background: rgba(255,255,255,.95); border-radius: 1px; }
+  #crosshair .up    { width: 2px; height: 11px; left: -1px; top: -19px; }
+  #crosshair .down  { width: 2px; height: 11px; left: -1px; top: 8px; }
+  #crosshair .left  { width: 11px; height: 2px; left: -19px; top: -1px; }
+  #crosshair .right { width: 11px; height: 2px; left: 8px; top: -1px; }
+  #crosshair .dot   { position: absolute; width: 3px; height: 3px; border-radius: 50%;
+    background: rgba(255,255,255,.9); left: -1.5px; top: -1.5px; }
+  #crosshair.hit-hit { mix-blend-mode: normal; }
+  #crosshair.hit-hit .line { background: #ff3b3b; }
+  #crosshair.hit-hit .dot  { background: #ff3b3b; transform: scale(1.6); }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; z-index: 9; pointer-events: none; }
+  #health-wrap {
+    position: absolute; left: 26px; top: 24px; width: 260px;
+    background: rgba(0,0,0,.45); border-radius: 10px; padding: 10px 14px 12px;
+    border: 1px solid rgba(255,255,255,.18); backdrop-filter: blur(3px);
+  }
+  #health-label { color: #dfe7f2; font-size: 13px; letter-spacing: 2px; margin-bottom: 7px;
+    display: flex; justify-content: space-between; }
+  #health-label b { color: #8ef0b0; font-weight: 600; }
+  #health-bar { height: 14px; background: rgba(255,255,255,.14); border-radius: 7px; overflow: hidden; }
+  #health-fill { height: 100%; width: 100%; border-radius: 7px;
+    background: linear-gradient(90deg, #41d16b, #8ef0b0);
+    box-shadow: 0 0 10px rgba(78,240,150,.55); transition: width .18s ease; }
+  #health-fill.low { background: linear-gradient(90deg, #e03131, #ff7a7a); }
+  #score-wrap {
+    position: absolute; right: 26px; top: 24px; text-align: right;
+    background: rgba(0,0,0,.45); border-radius: 10px; padding: 10px 18px;
+    border: 1px solid rgba(255,255,255,.18); backdrop-filter: blur(3px);
+  }
+  #score-value { color: #fff; font-size: 34px; font-weight: 700; line-height: 1.05;
+    text-shadow: 0 0 12px rgba(77,182,255,.7); }
+  #score-wrap .sub { color: #9fb2c8; font-size: 12px; letter-spacing: 1px; margin-top: 2px; }
+  #ammo-wrap { position: absolute; right: 26px; bottom: 26px; text-align: right;
+    color: #cfd9e6; font-size: 15px; background: rgba(0,0,0,.35); padding: 8px 14px;
+    border-radius: 8px; border: 1px solid rgba(255,255,255,.12); }
+  #ammo-wrap b { color: #fff; font-size: 22px; }
+  #ammo-wrap b.low { color: #ff7a7a; text-shadow: 0 0 8px rgba(255,40,40,.7); }
+  #ammo-wrap .ammo-sep { color: #7d8ea3; font-size: 18px; margin: 0 4px; }
+  #ammo-wrap .ammo-lbl { color: #cfd9e6; font-size: 13px; margin-left: 6px; }
+  #minimap { position: fixed; left: 26px; bottom: 26px; width: 210px; height: 210px;
+    z-index: 9; border-radius: 50%; overflow: hidden; pointer-events: none;
+    border: 2px solid rgba(255,255,255,.38);
+    box-shadow: 0 4px 18px rgba(0,0,0,.45), inset 0 0 22px rgba(0,0,0,.35);
+    background: rgba(10,16,26,.6); }
+  #minimap canvas { width: 100%; height: 100%; display: block; }
+  #nade-wrap { position: absolute; right: 208px; bottom: 26px;
+    background: rgba(0,0,0,.35); padding: 7px 14px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.12); color: #cfd9e6; font-size: 13.5px; }
+  #nade-wrap .nade-ico { font-size: 16px; }
+  #nade-wrap b { color: #d8ff9e; font-size: 20px; margin: 0 5px; }
+  #reload-wrap { position: absolute; right: 26px; bottom: 84px; width: 190px; display: none; }
+  #reload-wrap .reload-label { color: #ffd76e; font-size: 13px; letter-spacing: 2px;
+    text-align: center; margin-bottom: 6px; }
+  #reload-bar { height: 6px; background: rgba(255,255,255,.15); border-radius: 3px; overflow: hidden; }
+  #reload-fill { height: 100%; width: 0; border-radius: 3px;
+    background: linear-gradient(90deg, #ffb347, #ffd76e);
+    box-shadow: 0 0 8px rgba(255,200,80,.6); }
+  #boss-bar-wrap { position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    width: 520px; max-width: 92vw; display: none; z-index: 13; text-align: center; pointer-events: none; }
+  #boss-name { color: #ffd76e; font-size: 17px; font-weight: 700; letter-spacing: 3px;
+    text-shadow: 0 2px 6px rgba(0,0,0,.75); margin-bottom: 6px; }
+  #boss-hp-text { color: #fff; font-size: 15px; letter-spacing: 1px; margin-left: 10px;
+    text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+  #boss-hp-text b { color: #ff8a8a; font-weight: 700; }
+  #boss-bar { height: 13px; background: rgba(0,0,0,.55); border-radius: 7px; overflow: hidden;
+    border: 1px solid rgba(255,180,80,.55); }
+  #boss-fill { height: 100%; width: 100%; border-radius: 7px;
+    background: linear-gradient(90deg, #8e1d1d, #ff5252);
+    box-shadow: 0 0 10px rgba(255,80,80,.65); transition: width .12s; }
+  #notice-pop { position: fixed; left: 50%; top: 62%; transform: translateX(-50%);
+    z-index: 12; pointer-events: none; color: #fff; font-size: 21px; font-weight: 700;
+    letter-spacing: 2px; text-shadow: 0 2px 8px rgba(0,0,0,.75);
+    opacity: 0; transition: opacity .15s; white-space: nowrap; }
+  #notice-pop.show { animation: noticeUp 1.3s ease-out forwards; }
+  @keyframes noticeUp {
+    0%   { opacity: 0; transform: translateX(-50%) translateY(14px); }
+    14%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+    72%  { opacity: 1; }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+  }
+  #tip-bar { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+    color: rgba(255,255,255,.55); font-size: 12.5px; letter-spacing: 1px; }
+
+  /* ---------- 自爆鱼索敌警告（红屏脉冲） ---------- */
+  #bomber-warn { position: fixed; inset: 0; z-index: 7; pointer-events: none; opacity: 0;
+    background: radial-gradient(ellipse at center, rgba(255,0,0,0) 38%, rgba(255,26,26,.52) 100%);
+    transition: opacity .16s linear; }
+  #bomber-warn.on { animation: bomberWarnPulse .75s ease-in-out infinite; }
+  @keyframes bomberWarnPulse {
+    0%, 100% { opacity: .18; }
+    50%      { opacity: .82; }
+  }
+
+  /* ---------- 环境主题大字（半屏、渐显渐隐）---------- */
+  #env-title {
+    position: fixed; left: 50%; top: 44%; z-index: 25; pointer-events: none;
+    transform: translate(-50%, -50%) scale(0.92);
+    font-size: 11vw; font-weight: 900; letter-spacing: 10px;
+    color: rgba(255,255,255,.94); white-space: nowrap;
+    text-shadow: 0 0 34px rgba(120,200,255,.85), 0 0 80px rgba(70,150,255,.55), 0 4px 18px rgba(0,0,0,.7);
+    opacity: 0;
+    transition: opacity 1.15s ease, letter-spacing 1.7s ease, transform 1.7s ease;
+  }
+  #env-title.show { opacity: 1; letter-spacing: 22px; transform: translate(-50%, -50%) scale(1.0); }
+
+  /* 彻底屏蔽右键菜单与长按菜单（右键留给游戏操作） */
+  html, body { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  #game-canvas { -webkit-touch-callout: none; }
+
+  /* ---------- HUD 武器栏（三个槽位，当前武器高亮）---------- */
+  #weapon-bar { position: absolute; right: 24px; bottom: 92px; display: flex; gap: 8px; z-index: 6; }
+  .wslot { font-size: 17px; font-weight: 700; letter-spacing: .6px; padding: 6px 13px;
+    border-radius: 9px; background: rgba(0,0,0,.45); color: rgba(178,196,218,.85);
+    border: 1.5px solid rgba(255,255,255,.14); transition: all .16s ease; white-space: nowrap; }
+  .wslot.active {
+    color: #fff; transform: scale(1.08);
+    background: linear-gradient(135deg, rgba(47,133,221,.9), rgba(26,74,138,.95));
+    border-color: rgba(150,208,255,.9);
+    box-shadow: 0 0 14px rgba(80,170,255,.55);
+  }
+
+  /* ---------- 主菜单布局：立绘 + 成就并排，开始游戏居中 ---------- */
+  .menu-hero { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 4px 0 2px; }
+  .menu-hero .fish-preview { margin: 0; }
+
+  /* 开始游戏：蓝色渐变动态描边 + 居中 */
+  #btn-start.btn-start-glow {
+    display: block; margin: 16px auto 10px; padding: 15px 62px; font-size: 21px;
+    position: relative; z-index: 0; border: 2px solid transparent; border-radius: 999px;
+    background: linear-gradient(135deg, #1c4f92 0%, #2f86dd 52%, #17457f 100%);
+    box-shadow: 0 6px 26px rgba(47,133,221,.4);
+  }
+  #btn-start.btn-start-glow::before {
+    content: ''; position: absolute; inset: -2px; border-radius: inherit; z-index: -1;
+    background: linear-gradient(115deg, #2f9bff, #8fdcff, #3aa7ff, #1a6fd0, #2f9bff);
+    background-size: 300% 300%;
+    animation: blueBorderFlow 3.2s linear infinite;
+  }
+  #btn-start.btn-start-glow:hover { transform: translateY(-2px) scale(1.02); }
+  @keyframes blueBorderFlow { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+
+  /* 成就按钮：金色动态描边 + 轻微循环放大缩小 */
+  .big-btn.ach-btn {
+    position: relative; z-index: 0; margin: 0; padding: 12px 26px; font-size: 16.5px;
+    border: 2px solid transparent; border-radius: 12px;
+    background: linear-gradient(135deg, rgba(255,226,150,.14), rgba(255,190,60,.07));
+    color: #fff3d0;
+    animation: achBtnPulse 2.6s ease-in-out infinite;
+  }
+  .big-btn.ach-btn::before {
+    content: ''; position: absolute; inset: -2px; border-radius: 14px; z-index: -1;
+    background: linear-gradient(135deg, #ffe9a0, #ffc23d, #fff6d0, #ffab1f, #ffe9a0);
+    background-size: 300% 300%;
+    animation: jellyBorder 3.6s ease infinite;
+  }
+  .big-btn.ach-btn:hover { animation-play-state: paused; transform: scale(1.05); }
+  @keyframes achBtnPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.065); }
+  }
+
+  /* 暂停界面按钮竖排 */
+  #pause-overlay .big-btn { display: block; margin: 9px auto; min-width: 214px; }
+
+  /* ---------- 纯 UI 界面的独立背景（主菜单/选关/成就/退出不显示游戏场景）---------- */
+  #menu-overlay, #level-overlay, #achievements-overlay, #quit-overlay {
+    backdrop-filter: none;
+    background:
+      radial-gradient(1200px 640px at 50% 6%, rgba(74,142,255,.20), transparent 60%),
+      radial-gradient(900px 520px at 84% 92%, rgba(120,92,255,.13), transparent 58%),
+      radial-gradient(700px 400px at 12% 78%, rgba(60,200,220,.09), transparent 60%),
+      linear-gradient(180deg, #0a1424 0%, #070e1a 52%, #04080f 100%);
+  }
+
+  /* ---------- 成就一览 ---------- */
+  #ach-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+    margin: 14px 0 10px; max-height: 50vh; overflow-y: auto; padding: 3px; text-align: left; }
+  .ach-card { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 11px;
+    background: rgba(255,255,255,.045); border: 1.5px solid rgba(255,255,255,.1);
+    position: relative; isolation: isolate; }
+  .ach-card .ach-ico { font-size: 25px; line-height: 1; flex: 0 0 auto; }
+  .ach-card .ach-name { font-size: 14px; font-weight: 700; color: #eaf2ff; }
+  .ach-card .ach-desc { font-size: 11.5px; color: rgba(180,196,216,.9); margin-top: 2px; line-height: 1.45; }
+  .ach-card .ach-state { margin-left: auto; font-size: 15px; flex: 0 0 auto; }
+  /* 未解锁：整体灰掉 */
+  .ach-card.locked { filter: grayscale(1); opacity: .4; }
+  /* 已解锁：金色渐变 + 果冻描边（流动渐变 + 弹性缩放） */
+  /* 已解锁：内层天蓝渐变（padding-box）+ 外层金色渐变描边（border-box）
+     用双背景而不是 ::before，避免金色描边盖住卡片底色导致文字看不清 */
+  .ach-card.unlocked {
+    background:
+      linear-gradient(135deg, #1a3f68 0%, #27679f 50%, #142f4d 100%) padding-box,
+      linear-gradient(135deg, #ffe9a0, #ffc23d, #fff6d0, #ffab1f, #ffe9a0) border-box;
+    background-size: auto, 300% 300%;
+    border: 2px solid transparent;
+    box-shadow: 0 0 12px rgba(255,200,80,.2), inset 0 0 18px rgba(120,200,255,.1);
+    animation: jellyBorder 3.6s ease infinite, jellyWobble 2.8s ease-in-out infinite;
+  }
+  .ach-card.unlocked::before { content: none; }
+  .ach-card.unlocked .ach-name { color: #ffffff; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+  /* 已解锁成就的描述文字：静态渐变金色（文字渐变） */
+  .ach-card.unlocked .ach-desc {
+    background: linear-gradient(90deg, #ffd76e 0%, #fff6d0 48%, #ffc23d 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    font-weight: 600;
+  }
+  .ach-card.unlocked .ach-ico { filter: drop-shadow(0 0 9px rgba(255,205,80,.85)); }
+  .ach-card.unlocked .ach-state { color: #ffd76e; text-shadow: 0 0 8px rgba(255,215,110,.7); }
+
+  @keyframes jellyBorder { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+  @keyframes jellyWobble {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    30%      { transform: scale(1.02) rotate(-0.4deg); }
+    65%      { transform: scale(0.992) rotate(0.32deg); }
+  }
+  .big-btn.danger { border-color: rgba(255,120,120,.45); color: #ffb4b4; }
+  .big-btn.danger:hover { background: rgba(255,90,90,.16); }
+
+  /* ---------- 暴击飘字 ---------- */
+  .crit-pop { color: #ffe066; font-size: 24px; font-weight: 800; letter-spacing: 1.5px;
+    text-shadow: 0 0 12px rgba(255,200,60,.85), 0 2px 4px rgba(0,0,0,.7);
+    animation: critPop 0.85s ease-out forwards; }
+  @keyframes critPop {
+    0%   { opacity: 0; transform: scale(0.6) translateY(10px); }
+    22%  { opacity: 1; transform: scale(1.22) translateY(-4px); }
+    45%  { transform: scale(1.0) translateY(-10px); }
+    100% { opacity: 0; transform: scale(0.94) translateY(-38px); }
+  }
+
+  /* ---------- 成就解锁弹窗 ---------- */
+  #achievement-pop { position: fixed; right: 20px; top: 96px; z-index: 30; pointer-events: none;
+    display: flex; align-items: center; gap: 11px;
+    background: linear-gradient(135deg, rgba(18,32,58,.96), rgba(26,48,82,.96));
+    border: 1.5px solid rgba(255,215,110,.55); border-radius: 12px;
+    padding: 11px 16px 11px 13px; min-width: 252px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.45), 0 0 22px rgba(255,205,90,.18);
+    opacity: 0; transform: translateX(28px); transition: opacity .35s ease, transform .35s ease; }
+  #achievement-pop.show { opacity: 1; transform: translateX(0); }
+  #achievement-pop .ach-ico { font-size: 28px; line-height: 1; filter: drop-shadow(0 0 8px rgba(255,215,110,.5)); }
+  #achievement-pop .ach-title { color: #ffd76e; font-size: 11px; letter-spacing: 2px; font-weight: 700; }
+  #achievement-pop .ach-name { color: #fff; font-size: 15px; font-weight: 700; margin-top: 2px; }
+  #achievement-pop .ach-desc { color: rgba(190,208,230,.92); font-size: 11.5px; margin-top: 2px; }
+
+  /* ---------- 设置面板 ---------- */
+  .set-group { margin: 14px 0 6px; text-align: left; }
+  .set-row { display: flex; align-items: center; gap: 10px; margin: 9px 0; font-size: 13.5px; }
+  .set-row label { flex: 0 0 108px; color: #dfe7f2; letter-spacing: .5px; }
+  .set-row input[type=range] { flex: 1; height: 4px; -webkit-appearance: none; appearance: none;
+    background: rgba(255,255,255,.18); border-radius: 2px; outline: none; }
+  .set-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px;
+    border-radius: 50%; background: linear-gradient(180deg,#7fc4ff,#3f8ce0); cursor: pointer;
+    box-shadow: 0 0 6px rgba(90,160,255,.6); }
+  .set-row input[type=range]::-moz-range-thumb { width: 15px; height: 15px; border: none; border-radius: 50%;
+    background: #5aa0f0; cursor: pointer; }
+  .set-row input[type=checkbox] { width: 17px; height: 17px; accent-color: #4f9df0; cursor: pointer; }
+  .set-val { flex: 0 0 46px; text-align: right; color: #8ef0b0; font-size: 12.5px; }
+  .set-note { color: rgba(160,178,200,.8); font-size: 11.5px; margin: 8px 0 12px; }
+
+  /* ---------- 结算统计 / 历史最佳 ---------- */
+  .stat-detail { color: rgba(190,205,225,.88); font-size: 13px; line-height: 1.75; margin-top: 6px; }
+  .stat-detail b { color: #cfe3ff; font-weight: 600; }
+  .record-line { color: #ffd76e; font-size: 13.5px; font-weight: 700; letter-spacing: .5px;
+    margin-top: 8px; text-shadow: 0 0 10px rgba(255,215,110,.35); }
+  .best-records { margin-top: 12px; color: rgba(160,178,200,.9); font-size: 12px; line-height: 1.8; }
+  .best-records b { color: #8ef0b0; font-weight: 600; }
+
+  /* ---------- 受伤红闪 ---------- */
+  #damage-flash { position: fixed; inset: 0; z-index: 8; pointer-events: none;
+    background: radial-gradient(ellipse at center, rgba(255,0,0,0) 45%, rgba(255,30,30,.55) 100%);
+    opacity: 0; transition: opacity .12s; }
+
+  /* ---------- 击杀飘字 ---------- */
+  #killfeed { position: fixed; left: 50%; top: 38%; z-index: 11; pointer-events: none;
+    transform: translateX(-50%); text-align: center; }
+  .kill-pop { color: #ffd76e; font-size: 30px; font-weight: 800; letter-spacing: 2px;
+    text-shadow: 0 2px 6px rgba(0,0,0,.6), 0 0 18px rgba(255,190,60,.8);
+    animation: popUp 1s ease-out forwards; }
+  @keyframes popUp {
+    0%   { opacity: 0; transform: translateY(14px) scale(.7); }
+    18%  { opacity: 1; transform: translateY(0) scale(1.12); }
+    70%  { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-46px) scale(1); }
+  }
+
+  /* ---------- 连杀评级弹出（右侧黄金分割位，蓝色渐变字） ---------- */
+  #combo-pop {
+    position: fixed; left: 61.8vw; top: 36vh;              /* 右侧黄金分割线，不挡准星/左上HUD */
+    transform: translate(-50%, -50%); z-index: 12;
+    pointer-events: none; opacity: 0;
+    font-weight: 900; font-family: Arial Black, "Microsoft YaHei", sans-serif;
+    letter-spacing: 4px; white-space: nowrap; line-height: 1;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    filter: drop-shadow(0 2px 8px rgba(10,30,60,.65)) drop-shadow(0 0 16px rgba(90,180,255,.55));
+  }
+  /* 不支持渐变字的老浏览器：退化为纯色蓝字 */
+  @supports not (-webkit-background-clip: text) {
+    #combo-pop { color: #6ec6ff; -webkit-text-fill-color: initial; }
+  }
+  /* 字号：每级递增，SSS 单个字母 = D 的两倍（46px → 92px） */
+  #combo-pop.rank-0 { font-size: 46px; }
+  #combo-pop.rank-1 { font-size: 54px; }
+  #combo-pop.rank-2 { font-size: 61px; }
+  #combo-pop.rank-3 { font-size: 69px; }
+  #combo-pop.rank-4 { font-size: 77px; }
+  #combo-pop.rank-5 { font-size: 84px; }
+  #combo-pop.rank-6 { font-size: 92px; }
+  /* 渐变配色：等级越高，蓝色色相区域内颜色越丰富 */
+  #combo-pop.rank-0 {
+    background-image: linear-gradient(180deg, #9adcff 0%, #3f96ec 100%); }
+  #combo-pop.rank-1 {
+    background-image: linear-gradient(180deg, #a5e5ff 0%, #4db6ff 55%, #2f86e0 100%); }
+  #combo-pop.rank-2 {
+    background-image: linear-gradient(170deg, #b3f0ff 0%, #5cc5ff 42%, #3a7bff 78%, #8f6cff 100%); }
+  #combo-pop.rank-3 {
+    background-image: linear-gradient(160deg, #c6f6ff 0%, #63ccff 34%, #4d84ff 66%, #9a6cff 100%); }
+  #combo-pop.rank-4 {
+    background-image: linear-gradient(150deg, #dbfaff 0%, #71d5ff 26%, #4d7dff 52%, #a97bff 78%, #5fd0ff 100%); }
+  #combo-pop.rank-5 {
+    background-image: linear-gradient(140deg, #ebfdff 0%, #83e0ff 20%, #5d8bff 42%, #b285ff 64%, #6ec6ff 82%, #4d7dff 100%); }
+  #combo-pop.rank-6 {
+    background-image: linear-gradient(130deg, #f4feff 0%, #9fe9ff 16%, #57a7ff 34%, #4d6bff 50%, #c08aff 66%, #6ee0ff 82%, #3f8cff 100%); }
+  /* ---------- 击杀信息流（右下角） ---------- */
+  #killfeed {
+    position: fixed; right: 14px; bottom: 120px; z-index: 14;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
+    pointer-events: none;
+  }
+  #killfeed .kf-row {
+    padding: 4px 10px; border-radius: 7px; font-size: 13px; font-weight: 700;
+    background: rgba(8, 20, 36, .78); border: 1px solid rgba(120, 200, 255, .25);
+    color: #dff2ff; animation: kfIn .18s ease-out;
+  }
+  #killfeed .kf-row .kf-k { color: #7fe0a8; }
+  #killfeed .kf-row .kf-v { color: #ff9a9a; }
+  #killfeed .kf-row .kf-arrow { color: #7fa8c4; margin: 0 6px; font-weight: 600; }
+  @keyframes kfIn { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- 计分板（按住 Tab） ---------- */
+  #scoreboard {
+    position: fixed; left: 50%; top: 16%; transform: translateX(-50%);
+    z-index: 22; min-width: 520px; padding: 14px 18px;
+    background: rgba(6, 18, 32, .88); border: 1px solid rgba(120, 200, 255, .35);
+    border-radius: 12px; color: #e8f6ff; pointer-events: none;
+    box-shadow: 0 10px 40px rgba(0,0,0,.5);
+  }
+  #scoreboard.hidden { display: none; }
+  #scoreboard .sb-title { text-align: center; font-size: 14px; letter-spacing: 3px; color: #9fd6ff; margin-bottom: 10px; }
+  #scoreboard .sb-cols { display: flex; gap: 18px; }
+  #scoreboard .sb-team { flex: 1; }
+  #scoreboard .sb-head {
+    font-size: 15px; font-weight: 800; padding: 5px 10px; border-radius: 7px; margin-bottom: 6px;
+    display: flex; justify-content: space-between;
+  }
+  #scoreboard .sb-team.red .sb-head { background: rgba(60, 150, 220, .28); color: #bfe9ff; }
+  #scoreboard .sb-team.blue .sb-head { background: rgba(200, 70, 80, .28); color: #ffc6c6; }
+  #scoreboard .sb-rows { font-size: 13px; line-height: 1.75; }
+  #scoreboard .sb-row { display: flex; justify-content: space-between; padding: 0 8px; }
+  #scoreboard .sb-row.dead { opacity: .42; }
+  #scoreboard .sb-tip { text-align: center; font-size: 11px; color: #6f93ad; margin-top: 10px; }
+
+  /* ---------- 命中标记（hitmarker） ---------- */
+  #hitmarker {
+    position: fixed; left: 50%; top: 50%; width: 28px; height: 28px;
+    transform: translate(-50%, -50%) rotate(45deg) scale(0.8);
+    pointer-events: none; z-index: 16; opacity: 0;
+    background:
+      linear-gradient(#ffffff, #ffffff) center / 2px 28px no-repeat,
+      linear-gradient(#ffffff, #ffffff) center / 28px 2px no-repeat;
+    filter: drop-shadow(0 0 3px rgba(0, 0, 0, .65));
+    transition: opacity .09s ease, transform .09s ease;
+  }
+  #hitmarker.show { opacity: 0.95; transform: translate(-50%, -50%) rotate(45deg) scale(1); }
+  #hitmarker.kill {
+    background:
+      linear-gradient(#ff5a5a, #ff5a5a) center / 2px 30px no-repeat,
+      linear-gradient(#ff5a5a, #ff5a5a) center / 30px 2px no-repeat;
+    filter: drop-shadow(0 0 6px rgba(255, 60, 60, .85));
+  }
+
+  /* 对战记分板（左上角 HUD 下方） */
+  #pvp-score {
+    position: fixed; left: 50%; top: 8px; transform: translateX(-50%);
+    z-index: 12; display: none; gap: 18px; align-items: center;
+    padding: 6px 18px; border-radius: 10px;
+    background: rgba(8, 20, 36, .78); border: 1px solid rgba(120, 200, 255, .28);
+    font-size: 14px; font-weight: 800; color: #e8f6ff;
+  }
+  #pvp-score.show { display: flex; }
+  #pvp-score .ps-round { color: #ffd76e; }
+  #pvp-score .ps-live { color: #9fc4df; font-size: 12px; font-weight: 600; }
+  #pvp-score .ps-mine { color: #6ee7a8; }
+  #pvp-score .ps-bots { color: #ff8a8a; }
+  #pvp-score .ps-goal { color: #9fc4df; font-weight: 600; font-size: 12px; }
+
+  /* 对话框（剧情 / 旁白 / 播报通用）：底部居中，半透明卡片 */
+  #dialog-box {
+    position: fixed; left: 50%; bottom: 13vh; transform: translateX(-50%);
+    min-width: 44vw; max-width: 74vw; padding: 14px 22px; z-index: 20;
+    background: rgba(8, 20, 36, .82); border: 1px solid rgba(120, 200, 255, .35);
+    border-radius: 12px; box-shadow: 0 6px 28px rgba(0, 0, 0, .45);
+    opacity: 0; pointer-events: none; transition: opacity .35s ease;
+    backdrop-filter: blur(3px);
+  }
+  #dialog-box.show { opacity: 1; }
+  #dialog-box .dialog-speaker {
+    font-size: 14px; font-weight: 800; letter-spacing: 2px;
+    color: #7fd4ff; margin-bottom: 6px;
+  }
+  #dialog-box .dialog-text {
+    font-size: 17px; line-height: 1.55; color: #e8f6ff;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  /* N10：评级字母前加「交战中」前缀 —— 明确它是战斗状态增益，而不是技巧评价 */
+  #combo-pop { letter-spacing: 2px; }
+  /* 常驻显示：获得评级后字母保持（直到降级变化或 D 级衰减消失） */
+  #combo-pop.show { opacity: 1; }
+  /* D：首次获得评级的小弹出，出场后保持显示 */
+  #combo-pop.anim-d { animation: comboPopD 1.05s ease-out forwards; }
+  @keyframes comboPopD {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(.3); }
+    16%  { opacity: 1; transform: translate(-50%, -50%) scale(1.18); }
+    30%  { transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  /* 升级（C~SSS）：抖动登场，等级越高抖动幅度越大，出场后保持显示 */
+  #combo-pop.anim-up { animation: comboPopUp 1.25s ease-out forwards; }
+  @keyframes comboPopUp {
+    0%   { opacity: 0; transform: translate(calc(-50% + 0px), -50%) scale(.4) rotate(-9deg); }
+    8%   { opacity: 1; transform: translate(calc(-50% - 11px), -49%) scale(1.22) rotate(6deg); }
+    17%  { transform: translate(calc(-50% + 9px), -51%) scale(1.1)  rotate(-6deg); }
+    26%  { transform: translate(calc(-50% - 7px), -49.4%) scale(1.18) rotate(5deg); }
+    35%  { transform: translate(calc(-50% + 6px), -50.6%) scale(1.05) rotate(-4deg); }
+    44%  { transform: translate(calc(-50% - 4px), -49.7%) scale(1.12) rotate(3deg); }
+    53%  { transform: translate(calc(-50% + 3px), -50.3%) scale(1.02) rotate(-2deg); }
+    62%  { transform: translate(calc(-50% - 1px), -50%) scale(1.06) rotate(1deg); }
+    72%  { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  /* 降级：柔和切换到低一级（不抖动，低调整体） */
+  #combo-pop.anim-down { animation: comboPopDown .45s ease-out forwards; }
+  @keyframes comboPopDown {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(.78); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  /* SSS 后继续击杀：同级脉冲刷新（连杀延续反馈） */
+  #combo-pop.anim-keep { animation: comboPopKeep .5s ease-out forwards; }
+  @keyframes comboPopKeep {
+    0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+
+  /* ---------- 覆盖层（菜单/暂停/结算） ---------- */
+  .overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center;
+    justify-content: center; background: rgba(6,12,24,.72); backdrop-filter: blur(6px); }
+  .overlay.hidden { display: none; }
+  .panel { text-align: center; color: #eaf1fa; max-width: 560px; padding: 30px 46px 38px;
+    background: linear-gradient(160deg, rgba(23,40,68,.92), rgba(12,22,40,.94));
+    border: 1px solid rgba(120,180,255,.28); border-radius: 18px;
+    box-shadow: 0 18px 60px rgba(0,0,0,.55); }
+  .panel h1 { font-size: 40px; letter-spacing: 3px; margin-bottom: 6px;
+    background: linear-gradient(90deg, #6ec6ff, #a5e0ff, #6ec6ff);
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .panel h1 .ver-badge { font-size: 21px; letter-spacing: 1px; margin-left: 14px;
+    vertical-align: middle; font-weight: 700; color: #ffd76e;
+    -webkit-text-fill-color: #ffd76e; text-shadow: 0 0 14px rgba(255,190,60,.55); }
+  .panel .sub-title { color: #8fb4d8; font-size: 15px; letter-spacing: 2px; margin-bottom: 18px; }
+  .panel img.fish-preview { width: 130px; height: 130px; object-fit: contain; margin: 6px auto 4px;
+    display: block; filter: drop-shadow(0 6px 14px rgba(80,170,255,.45)); }
+  .controls { display: grid; grid-template-columns: auto auto; gap: 7px 22px; text-align: left;
+    justify-content: center; margin: 16px 0 22px; color: #b8cbde; font-size: 14px; }
+  .controls .k { color: #ffe9a8; font-weight: 700; letter-spacing: 1px; }
+  .big-btn { cursor: pointer; display: inline-block; padding: 13px 46px; font-size: 19px;
+    letter-spacing: 4px; color: #fff; border: none; border-radius: 26px;
+    background: linear-gradient(135deg, #2f9bff, #1668d8);
+    box-shadow: 0 6px 22px rgba(47,155,255,.45); transition: transform .12s, box-shadow .12s; }
+  .big-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(47,155,255,.6); }
+  .big-btn:active { transform: translateY(0) scale(.97); }
+  .stat-line { font-size: 17px; margin: 10px 0 20px; color: #c6d6e8; }
+  .stat-line b { color: #ffd76e; font-size: 26px; margin: 0 6px; }
+  .note { margin-top: 16px; font-size: 12px; color: #6f86a0; }
+
+  /* 菜单、大厅、仓库及房间样式统一维护在 css/lobby.css。 */
+  /* ---------- 关卡选择 ---------- */
+  .panel-wide { max-width: 780px; }
+  .level-cols { display: flex; gap: 22px; justify-content: center; margin: 14px 0 24px; }
+  .level-col { flex: 1; max-width: 330px; border-radius: 14px; padding: 18px 16px 20px;
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); }
+  .mode-title { font-size: 18px; font-weight: 700; letter-spacing: 2px; margin-bottom: 8px; color: #cfe2f5; }
+  .mode-desc { color: #8fa3ba; font-size: 13px; line-height: 1.9; }
+  .mode-locked { opacity: .55; filter: grayscale(.35); }
+  .mode-locked .mode-title { color: #63788f; }
+  .level-card { cursor: pointer; margin-top: 6px; padding: 18px 16px; border-radius: 12px;
+    background: linear-gradient(135deg, rgba(47,155,255,.22), rgba(22,104,216,.18));
+    border: 1px solid rgba(110,198,255,.5); transition: transform .15s, box-shadow .15s, border-color .15s; }
+  .level-card:hover { transform: translateY(-3px); border-color: #6ec6ff;
+    box-shadow: 0 8px 26px rgba(47,155,255,.35); }
+  .level-card .card-title { color: #fff; font-size: 20px; font-weight: 800; letter-spacing: 1px; margin-bottom: 8px; }
+  .level-card .card-tags { color: #9fc3e2; font-size: 12.5px; line-height: 1.8; margin-bottom: 10px; }
+  .level-card .card-go { color: #ffe9a8; font-size: 14px; font-weight: 700; letter-spacing: 2px; }
+  .ghost { background: rgba(255,255,255,.08); box-shadow: none; font-size: 14px; padding: 9px 26px;
+    letter-spacing: 2px; margin-top: 4px; }
+  .ghost:hover { background: rgba(255,255,255,.16); }
+
+  /* ---------- Boss 奖励选择（3 选 1） ---------- */
+  #reward-cards { display: flex; gap: 18px; justify-content: center; margin: 12px 0 6px; }
+  .reward-card { flex: 1; max-width: 230px; cursor: pointer; padding: 20px 16px; border-radius: 14px;
+    background: linear-gradient(150deg, rgba(255,205,80,.16), rgba(120,90,20,.12));
+    border: 1px solid rgba(255,215,110,.45); transition: transform .15s, box-shadow .15s, border-color .15s; }
+  .reward-card:hover { transform: translateY(-3px); border-color: #ffd76e;
+    box-shadow: 0 8px 26px rgba(255,190,60,.35); }
+  .reward-card .rw-ico { font-size: 30px; margin-bottom: 6px; }
+  .reward-card .rw-name { color: #ffe9a8; font-size: 19px; font-weight: 800; letter-spacing: 1px; margin-bottom: 4px; }
+  .reward-card .rw-lv { color: #9fc3e2; font-size: 12.5px; margin-bottom: 8px; }
+  .reward-card .rw-desc { color: #d8cfb8; font-size: 13.5px; line-height: 1.8; }
+  .reward-card .rw-next { color: #8ef0b0; font-size: 12.5px; margin-top: 8px; }
+  .reward-note { color: #8fa3ba; font-size: 12.5px; margin-top: 12px; }
+
+  /* ---------- 触屏控制（手机/平板，横屏） ---------- */
+  #touch-ui { display: none; position: fixed; inset: 0; z-index: 15; pointer-events: none; }
+  #touch-ui.touch-on { display: block; }
+  #joy-pad { position: absolute; left: 26px; bottom: 30px; width: 170px; height: 170px;
+    border-radius: 50%; background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.28);
+    pointer-events: auto; touch-action: none; }
+  #joy-stick { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px;
+    border-radius: 50%; background: rgba(255,255,255,.35); border: 2px solid rgba(255,255,255,.5); }
+  /* 按钮组：开火大按钮在底部，跳/R/G/I 2x2 网格在上方 */
+  #touch-right { position: absolute; right: 22px; bottom: 26px; width: 150px;
+    display: flex; flex-direction: column-reverse; flex-wrap: wrap-reverse;
+    height: 226px; align-content: flex-end; gap: 8px; pointer-events: auto; }
+  .tch-btn { pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none;
+    width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(200,225,255,.55);
+    background: rgba(20,40,70,.55); color: #dff0ff; font-size: 14px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; }
+  .tch-btn:active { background: rgba(47,155,255,.6); }
+  .tch-btn.fire { width: 96px; height: 96px; font-size: 22px;
+    background: rgba(180,40,40,.5); border-color: rgba(255,140,140,.7); }
+  .tch-btn.fire:active { background: rgba(255,80,80,.7); }
+  #touch-pause { position: absolute; right: 190px; bottom: 40px; width: 58px; height: 58px;
+    pointer-events: auto; }
+  /* 触屏模式下 HUD 重排：小地图上移避让摇杆、弹药避让按钮、隐藏键位提示 */
+  body.touch-mode #minimap { left: 26px; bottom: 212px; width: 165px; height: 165px; }
+  body.touch-mode #health-wrap, body.touch-mode #armor-wrap { left: 210px; }
+  body.touch-mode #tip-bar { display: none; }
+  body.touch-mode #ammo-wrap { right: 26px; bottom: 268px; }
+  body.touch-mode #nade-wrap { right: 218px; bottom: 268px; }
+  body.touch-mode #reload-wrap { right: 26px; bottom: 322px; }
+
+  /* ---------- 作弊被抓全屏界面 ---------- */
+  #cheat-overlay { z-index: 40; background: rgba(30, 8, 12, .88); }
+  .cheat-panel { text-align: center; }
+  .cheat-title { font-size: 84px; font-weight: 900; letter-spacing: 8px; color: #ff5d5d;
+    text-shadow: 0 4px 24px rgba(255, 40, 40, .65), 0 0 60px rgba(255, 80, 80, .35);
+    animation: cheatWobble .9s ease-in-out infinite; }
+  .cheat-sub { margin-top: 22px; color: #ffc9c9; font-size: 24px; letter-spacing: 4px; }
+  .cheat-hint { margin-top: 46px; color: #ffd76e; font-size: 16px; letter-spacing: 3px;
+    animation: cheatHint 1.2s ease-in-out infinite; }
+  @keyframes cheatWobble {
+    0%, 100% { transform: rotate(-2.5deg) scale(1); }
+    25% { transform: rotate(2deg) scale(1.04); }
+    50% { transform: rotate(-1.5deg) scale(.98); }
+    75% { transform: rotate(2.5deg) scale(1.02); }
+  }
+  @keyframes cheatHint {
+    0%, 100% { opacity: .45; }
+    50% { opacity: 1; }
+  }
+
+  /* ---------- 开发者模式 Debug 日志（屏幕左侧，从下缓慢上移） ---------- */
+  #debug-log { position: fixed; left: 20px; bottom: 272px; width: 430px;
+    z-index: 14; pointer-events: none; display: none; }
+  .dbg-line { position: absolute; bottom: 0; left: 0; right: 0;
+    color: #9fe8ff; font-size: 12.5px; line-height: 1.5; padding: 4px 10px;
+    background: rgba(8, 18, 34, .62); border-left: 3px solid #4db6ff;
+    border-radius: 4px; margin-bottom: 5px; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+  .dbg-line.dbg-dmg { border-left-color: #ff7a7a; color: #ffc9c9; }
+  .dbg-line.dbg-hit { border-left-color: #ffd54a; color: #ffe9a8; }
+  .dbg-line.dbg-kill { border-left-color: #8ef0b0; color: #c8f5d8; }
+
+  /* ---------- 技能等级查看面板（按 I 打开） ---------- */
+  #skills-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin: 10px 0 16px; }
+  .skill-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px;
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); text-align: left; }
+  .skill-row .sk-ico { font-size: 26px; width: 40px; text-align: center; flex-shrink: 0; }
+  .skill-row .sk-body { flex: 1; min-width: 0; }
+  .skill-row .sk-name { color: #eaf1fa; font-size: 15px; font-weight: 700; letter-spacing: 1px; }
+  .skill-row .sk-name .sk-lv { color: #ffe9a8; margin-left: 8px; font-size: 13.5px; }
+  .skill-row .sk-desc { color: #8fa3ba; font-size: 12.5px; margin-top: 4px; }
+  .skill-row.sk-max .sk-name .sk-lv { color: #8ef0b0; }
+  .skill-row .sk-ctrl { display: flex; flex-direction: column; gap: 6px; margin-left: 8px; flex-shrink: 0; }
+  .sk-btn { width: 34px; height: 34px; border-radius: 8px; border: 1px solid rgba(110,198,255,.5);
+    background: rgba(47,155,255,.25); color: #dff0ff; font-size: 18px; font-weight: 700;
+    cursor: pointer; line-height: 1; transition: background .12s, transform .12s; }
+  .sk-btn:hover:not(:disabled) { background: rgba(47,155,255,.45); transform: scale(1.06); }
+  .sk-btn:disabled { opacity: .35; cursor: not-allowed; }
+  .sk-btn.sk-minus { border-color: rgba(255,122,122,.5); background: rgba(200,60,60,.2); }
+  .sk-btn.sk-minus:hover:not(:disabled) { background: rgba(220,80,80,.4); }
+  .skill-row.sk-max { border-color: rgba(140,230,170,.4); background: rgba(80,160,110,.1); }
+  .sk-dots { font-size: 11px; letter-spacing: 2px; margin-top: 5px; color: #4da3ff; }
+  .sk-dots .off { color: rgba(255,255,255,.18); }
+  .skills-note { color: #8fa3ba; font-size: 12.5px; }
+
+  /* ---------- 护甲 HUD（生命条下方） ---------- */
+  #armor-wrap { position: absolute; left: 26px; top: 96px; width: 260px;
+    background: rgba(0,0,0,.35); border-radius: 10px; padding: 8px 14px;
+    border: 1px solid rgba(255,255,255,.12); color: #cfd9e6; font-size: 13.5px; }
+  #armor-wrap .armor-ico { font-size: 15px; }
+  #armor-wrap b { color: #d8ecff; font-size: 17px; margin: 0 6px; }
+  #armor-dots { color: #7dc4ff; letter-spacing: 2px; font-size: 12px; }
+
+  /* ---------- 降级模式提示条 / 错误条 ---------- */
+  #fallback-hint { position: fixed; left: 50%; top: 74px; transform: translateX(-50%);
+    z-index: 15; display: none; max-width: 92vw; text-align: center;
+    background: rgba(20,30,48,.94); color: #ffd76e; font-size: 13.5px;
+    padding: 9px 18px; border-radius: 8px; border: 1px solid rgba(255,215,110,.45);
+    transition: opacity .5s; pointer-events: none; }
+  #error-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 99; display: none;
+    background: #b00020; color: #fff; font-size: 14px; padding: 10px 18px; }
+</style>
+<link rel="stylesheet" href="css/fps.css">
+<link rel="stylesheet" href="css/combat-feedback.css">
+<link rel="stylesheet" href="css/lobby.css">
+<link rel="preload" as="image" href="assets/ui-art/menu-sandwatch.webp">
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+
+<!-- 准星 -->
+<div id="crosshair">
+  <div class="line up"></div><div class="line down"></div>
+  <div class="line left"></div><div class="line right"></div>
+  <div class="dot"></div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="health-wrap">
+    <div id="health-label"><span>生命值</span><b id="health-text">100</b></div>
+    <div id="health-bar"><div id="health-fill"></div></div>
+  </div>
+  <div id="armor-wrap"><span class="armor-ico">🛡️</span>护甲<b id="armor-value">0</b><span id="armor-dots"></span></div>
+  <div id="score-wrap">
+    <div id="score-value">0</div>
+    <div class="sub">得分 · 击杀 <span id="kills-value">0</span></div>
+  </div>
+  <div id="weapon-bar">
+    <span class="wslot" data-wkey="1">1 手枪</span>
+    <span class="wslot" data-wkey="2">2 步枪</span>
+    <span class="wslot" data-wkey="3">3 匕首</span>
+  </div>
+<div id="ammo-wrap"><b id="ammo-mag">7</b><span class="ammo-sep">/</span><span id="ammo-reserve">42</span><span class="ammo-lbl">弹药</span></div>
+  <div id="nade-wrap"><span class="nade-ico">💣</span><b id="nade-count">1</b><span class="ammo-lbl">手雷</span></div>
+  <div id="reload-wrap">
+    <div class="reload-label">换弹中...</div>
+    <div id="reload-bar"><div id="reload-fill"></div></div>
+  </div>
+  <div id="hitmarker"></div>
+  <div id="weapon-switch" class="hidden" role="status"><span id="weapon-switch-name">换装</span><div class="switch-track"><i id="weapon-switch-fill"></i></div></div>
+  <button id="btn-fullscreen" class="hidden" title="按 F 或点击进入全屏，Esc 可退出">⛶ F 全屏对局</button>
+  <div id="kill-medal" role="status" aria-live="polite" aria-atomic="true" data-tier="single">
+    <div class="medal-emblem" aria-hidden="true">
+      <svg viewBox="0 0 160 100" focusable="false">
+        <path class="medal-wings" d="M49 35 9 23 18 41 43 48 23 46 33 61 48 64M111 35 151 23 142 41 117 48 137 46 127 61 112 64"/>
+        <path class="medal-shell" d="M80 5 116 25 116 65 80 91 44 65 44 25Z"/>
+        <path class="medal-line" d="M80 13 109 29 109 61 80 82 51 61 51 29Z"/>
+        <path class="medal-skull" d="M63 43C63 22 97 22 97 43L94 56 88 59 88 68 72 68 72 59 66 56Z"/>
+        <path class="medal-eyes" d="M67 43 77 46 75 51 68 50ZM93 43 83 46 85 51 92 50ZM80 52 76 58 84 58ZM77 61H79V68H77ZM82 61H84V68H82Z"/>
+        <path class="medal-crown" d="M64 24 60 9 73 16 80 5 87 16 100 9 96 24Z"/>
+      </svg>
+      <b id="kill-medal-count">✓</b>
+    </div>
+    <strong id="kill-medal-title">击杀确认</strong>
+    <small id="kill-medal-detail">本次生存 · 1 击杀</small>
+    <div class="medal-window" aria-hidden="true"><i id="kill-medal-window"></i></div>
+  </div>
+  <div id="killfeed"></div>
+  <div id="scoreboard" class="hidden">
+    <div class="sb-title">歼灭战 · 第 <span id="sb-round">1</span> 回合</div>
+    <div class="sb-cols">
+      <div class="sb-team red">
+        <div class="sb-head">红队 <span id="sb-red-score">0</span></div>
+        <div class="sb-rows" id="sb-red-rows"></div>
+      </div>
+      <div class="sb-team blue">
+        <div class="sb-head">蓝队 <span id="sb-blue-score">0</span></div>
+        <div class="sb-rows" id="sb-blue-rows"></div>
+      </div>
+    </div>
+    <div class="sb-tip">姓名 / 状态　　击杀 / 阵亡 · 统计跨回合累计 · 按住 Tab 查看</div>
+  </div>
+  <div id="pvp-score">
+    <div class="ps-team red"><span class="ps-red-alive">红队 · 我方</span><b class="ps-mine">24</b><span class="ps-caption">剩余额度</span><div class="ps-meter"><i class="ps-red-fill"></i></div></div>
+    <div class="ps-center"><span class="ps-round">ROUND 01 / 7</span><span class="ps-goal">0 : 0</span><span class="ps-live">部署</span></div>
+    <div class="ps-team blue"><span class="ps-blue-alive">蓝队 · 敌方</span><span class="ps-caption">剩余额度</span><b class="ps-bots">24</b><div class="ps-meter"><i class="ps-blue-fill"></i></div></div>
+  </div>
+  <div id="pvp-status"></div>
+  <div id="pvp-radar-key">红 · 队友　 蓝 · 目击情报（3s）</div>
+  <div id="dialog-box">
+    <div class="dialog-speaker"></div>
+    <div class="dialog-text"></div>
+  </div>
+  <div id="tip-bar">WASD 移动 · <b>1/2/3 切换武器</b> · 左键射击 · <b>右键匕首重击</b> · R 换弹 · G 手雷 · I 技能面板 · 空格跳跃 · Esc 暂停</div>
+  <div id="minimap"><canvas id="minimap-canvas" width="210" height="210"></canvas></div>
+</div>
+
+<!-- 触屏控制层（手机版显示） -->
+<div id="touch-ui">
+  <div id="joy-pad"><div id="joy-stick"></div></div>
+  <div id="touch-right">
+    <button id="btn-tch-fire" class="tch-btn fire">开火</button>
+    <button id="btn-tch-jump" class="tch-btn">跳</button>
+    <button id="btn-tch-reload" class="tch-btn">R</button>
+    <button id="btn-tch-nade" class="tch-btn">G</button>
+    <button id="btn-tch-skill" class="tch-btn">I</button>
+  </div>
+  <button id="touch-pause" class="tch-btn">暂停</button>
+</div>
+
+<div id="boss-bar-wrap">
+  <div id="boss-name">超级蓝色大肥鱼<span id="boss-hp-text"><b id="boss-hp-cur">15</b> / <span id="boss-hp-max">15</span></span></div>
+  <div id="boss-bar"><div id="boss-fill"></div></div>
+</div>
+<div id="pvp-respawn" class="hidden"><span>重新部署</span><b>4</b><span>秒</span><small>返回己方基地</small></div>
+<div id="loading-overlay" class="hidden" aria-label="场景载入" aria-busy="true">
+  <div class="loading-art" id="loading-art" aria-hidden="true"></div><div class="loading-shade" aria-hidden="true"></div>
+  <div class="loading-top"><span class="game-mark">✦ BLUE FISH</span><span id="loading-scene">沙漠城 / 行动准备</span></div>
+  <div class="loading-content"><div class="loading-eyebrow" id="loading-mode">沙海哨站 / DEPLOYMENT</div><h2>下一站，战场。</h2>
+    <div class="loading-tip"><span>战术提示</span><p id="loading-tip">利用掩体接近对手，与队友一起推进。</p></div>
+    <div class="loading-meta"><span id="loading-label" role="status">准备载入</span><span id="loading-percent">0%</span></div>
+    <div id="loading-track" role="progressbar" aria-label="场景载入进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="loading-fill"></div></div>
+    <div class="loading-note"><span>正在准备地图与战斗资源</span><span id="loading-art-count">01 / 03</span></div>
+    <button id="loading-back" class="big-btn ghost hidden">返回主菜单</button>
+  </div>
+</div>
+<div id="fallback-hint">浏览器未允许指针锁定，已启用拖动瞄准模式：移动鼠标转向，点击画面射击，Esc 暂停</div>
+<div id="combo-pop" class=""></div>
+<div id="notice-pop" role="status" aria-live="polite"></div>
+<div id="error-bar"></div>
+<div id="env-title"></div>
+<div id="achievement-pop" class="hidden"></div>
+<div id="bomber-warn"></div>
+<div id="damage-flash"></div>
+<div id="debug-log"></div>
+
+<!-- 作弊被抓全屏提示（开发者模式通关回主菜单时） -->
+<div id="cheat-overlay" class="overlay hidden">
+  <div class="cheat-panel">
+    <div class="cheat-title">抓到你作弊咯！</div>
+    <div class="cheat-sub">开发者模式的胜利不算数哦 🕵️</div>
+    <div class="cheat-hint">按任意键回到主菜单…</div>
+  </div>
+</div>
+<!-- 主菜单 -->
+<div id="menu-overlay" class="overlay ui-home" aria-label="游戏开始菜单">
+  <div class="home-shell">
+    <header class="home-top"><div class="game-mark"><span class="mark-cross" aria-hidden="true">✦</span> BLUE FISH <span class="edition">V0.5.3</span></div><span class="local-status"><i></i> 本地游戏 · 离线可玩</span></header>
+    <main class="home-content">
+      <div class="eyebrow"><span></span> SANDWATCH / 沙海哨站</div>
+      <h1>蓝色肥鱼<span>大作战<span class="title-dot">.</span></span></h1>
+      <p class="home-intro">在沙海中集结，向胜利进发。</p>
+      <div class="home-mode-note"><span>红蓝歼灭战</span><i></i><span>无尽生存</span><i></i><span>最多 16 v 16</span></div>
+      <button id="btn-start" class="deploy-btn home-start"><span><small>READY WHEN YOU ARE</small>进入游戏大厅</span><span class="btn-arrow" aria-hidden="true">↗</span></button>
+      <nav class="home-links" aria-label="主菜单功能"><button id="btn-achievements">成就</button><button id="btn-settings-menu">设置</button><button id="btn-menu-help" data-open-help>操作指南</button><button id="btn-quit">退出</button></nav>
+      <div id="best-records" class="home-records hidden"><span>无尽纪录</span><b id="best-score">0</b><span>分 / <b id="best-time">0:00</b></span><span class="record-extra">连杀 <b id="best-combo">—</b> · 阶段 <b id="best-stage">1</b> · 波次 <b id="best-wave">0</b> · Boss <b id="best-boss">0</b></span></div>
+    </main>
+    <footer class="home-bottom"><span>01 / 沙漠城行动</span><span>小小肥鱼，全力出击。<b aria-hidden="true">＋</b></span></footer>
+  </div>
+</div>
+
+<!-- 游戏大厅：常用入口集中在左侧，背景保留角色展示空间 -->
+<div id="level-overlay" class="overlay hidden" aria-label="游戏大厅">
+  <div class="lobby-shell">
+    <header class="lobby-topbar">
+      <div class="lt-user"><div class="lt-avatar" id="lobby-avatar"></div><div class="lt-meta"><div class="lt-name" id="lobby-name">指挥官</div><div class="lt-level">Lv.<b id="lobby-lv">1</b><span>本地档案 · 最高分 <b id="lobby-best">0</b></span></div></div></div>
+      <nav class="lt-nav" aria-label="大厅功能"><span class="lt-tab active" aria-current="page">游戏大厅</span><button class="lt-tab" id="btn-lobby-ach">成就</button><button class="lt-tab" id="btn-lobby-settings">设置</button><button class="lt-tab" data-open-help>指南</button></nav>
+      <div class="lt-right"><span class="local-status"><i></i> 本地模式</span><button class="lt-exit" id="btn-lobby-quit" aria-label="返回主菜单" title="返回主菜单">↗</button></div>
+    </header>
+    <main class="lobby-body">
+      <section class="lobby-modes" aria-label="选择游戏模式">
+        <div class="eyebrow">PLAY / 选择行动</div>
+        <h1>准备好出战了吗？</h1>
+        <article class="featured-mode"><div class="mode-kicker"><span class="status-pill">推荐模式</span><span>01 / TEAM BATTLE</span></div><h2>红蓝歼灭战</h2><p>协同推进，争夺每一条战线。<br>耗尽对手的共享复活额度，赢下回合。</p><div class="mode-specs"><span>6–16 人 / 队</span><span>4 秒复活</span><span>先赢 4 回合</span></div><button class="deploy-btn" id="btn-pvp-mode"><span>快速出战<small>8v8 · 标准难度 · 使用仓库装备</small></span><span class="btn-arrow" aria-hidden="true">↗</span></button><button class="mode-room-link" id="btn-mode-pvp">自定义房间 <span aria-hidden="true">→</span></button></article>
+        <button class="mode-card endless-card" id="btn-mode-endless"><span class="mode-index">02</span><span><b>无尽生存</b><small>波次挑战 · Boss 战 · 局内成长</small></span><span class="mode-arrow" aria-hidden="true">↗</span></button>
+        <button class="mode-card locked" id="btn-mode-campaign" disabled><span class="mode-index">03</span><span><b>剧情模式</b><small>新的冒险，正在筹备</small></span><span class="mode-lock">未开放</span></button>
+      </section>
+      <div class="lobby-stage" aria-hidden="true"><div class="stage-caption"><span>THE OUTPOST</span><b>沙海哨站</b><small>集结完毕，等待你的指令。</small></div></div>
+      <aside class="lobby-side">
+        <section class="side-card loadout-card"><div class="side-card-heading"><h2>当前装备</h2><span>LOADOUT</span></div><div class="loadout-portrait"><img id="lobby-hero-img" alt="当前形象"><div><b id="lobby-skin-name">常规鱼</b><small>形象预览</small></div></div><div class="loadout-line"><span>主武器</span><b>突击步枪</b></div><div class="loadout-line"><span>副武器</span><b id="lobby-sidearm">手枪</b></div><div class="loadout-line"><span>近战</span><b>匕首</b></div><button id="btn-inventory" class="outline-btn">打开仓库 <span aria-hidden="true">→</span></button></section>
+        <section class="side-card lobby-record-card"><div class="side-card-heading"><h2>无尽最佳</h2><span>RECORD</span></div><div class="lobby-record-main"><b id="side-best-score">0</b><span>历史最高分</span></div><div class="record-pair"><div><b id="side-best-time">0:00</b><span>最长存活</span></div><div><b id="side-best-combo">—</b><span>最高连杀</span></div></div></section>
+      </aside>
+    </main>
+    <footer class="lobby-footer"><button id="btn-level-back" class="text-back">← 主菜单</button><span>FPS · 沙海双城 / 无尽 · 沙海哨站<span class="footer-divider">/</span>当前对战由你与 AI 队伍参与</span><span class="footer-key"><kbd>Esc</kbd> 返回</span></footer>
+  </div>
+</div>
+
+<!-- 无尽模式 · 地图选择 -->
+<div id="map-overlay" class="overlay hidden">
+  <div class="panel panel-wide">
+    <h1>选择地图</h1>
+    <div class="sub-title">无尽模式 · 波次生存</div>
+    <div class="map-grid">
+      <button class="map-card" id="btn-map-desert">
+        <div class="map-thumb desert"><span>已开放 / DESERT</span></div>
+        <div class="map-name">沙漠城</div>
+        <div class="map-desc">开阔广场 · 拱门竞技场 · 随机掩体</div><span class="map-play">进入沙漠城 →</span>
+      </button>
+      <div class="map-card locked">
+        <div class="map-thumb">🔒</div>
+        <div class="map-name">冰封港湾</div>
+        <div class="map-desc">敬请期待</div>
+      </div>
+      <div class="map-card locked">
+        <div class="map-thumb">🔒</div>
+        <div class="map-name">深海遗迹</div>
+        <div class="map-desc">敬请期待</div>
+      </div>
+    </div>
+    <button id="btn-map-back" class="big-btn ghost">← 返回大厅</button>
+  </div>
+</div>
+
+<!-- 玩家仓库 -->
+<div id="inventory-overlay" class="overlay hidden">
+  <div class="shell-page">
+    <div class="shell-top">
+      <div class="st-left">
+        <button class="st-back" id="btn-inv-back" aria-label="返回大厅">←</button>
+        <div class="st-title">玩家仓库</div>
+        <div class="st-sub">选择装备与形象 · 仅对射击对战生效</div>
+      </div>
+      <div class="st-right">
+        <div class="inv-loadout" id="inv-loadout"></div>
+      </div>
+    </div>
+
+    <div class="armory-banner"><div><div class="eyebrow">ARMORY / 整备区</div><h1>整装待发。</h1><p>装备选好了，铁盆也戴稳了。</p><small>「铁盆先锋」· 仓库主题插画</small></div></div>
+    <div class="shell-main inv-main">
+      <div class="inv-tabs">
+        <div class="rf-title">分类</div>
+        <button class="inv-tab active" data-tab="weapon">武器装备</button>
+        <button class="inv-tab" data-tab="skin">角色形象</button>
+      </div>
+
+      <div class="inv-grid" id="inv-grid"></div>
+
+      <div class="inv-detail" id="inv-detail">
+        <div class="inv-detail-empty">选择左侧物品查看详情</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 射击对战 · 房间列表 -->
+<div id="roomlist-overlay" class="overlay hidden">
+  <div class="shell-page">
+
+    <div class="shell-top">
+      <div class="st-left">
+        <button class="st-back" id="btn-roomlist-back" aria-label="返回大厅">←</button>
+        <div class="st-title">射击对战</div>
+        <div class="st-sub">本地 AI 对战 · 自定义部署</div>
+      </div>
+      <div class="st-right">
+        <input id="room-search" class="st-search" type="search" maxlength="40" aria-label="搜索房间名称" placeholder="搜索房间名…">
+        <button class="st-btn primary" id="btn-room-create">+ 创建房间</button>
+        <button class="st-btn" id="btn-room-refresh">刷新</button>
+      </div>
+    </div>
+
+    <div class="shell-main">
+      <div class="rl-filters">
+        <div class="rf-title">筛选</div>
+        <div class="rf-group">
+          <div class="rf-label">模式</div>
+          <button class="rf-chip active" data-filter="mode" data-value="all">全部</button>
+          <button class="rf-chip" data-filter="mode" data-value="online">编队演示</button>
+          <button class="rf-chip" data-filter="mode" data-value="bot">AI 对战</button>
+        </div>
+        <div class="rf-group">
+          <div class="rf-label">人数</div>
+          <button class="rf-chip active" data-filter="size" data-value="all">全部</button>
+          <button class="rf-chip" data-filter="size" data-value="small">6v6</button>
+          <button class="rf-chip" data-filter="size" data-value="mid">8v8</button>
+          <button class="rf-chip" data-filter="size" data-value="big">12v12+</button>
+        </div>
+      </div>
+
+      <div class="rl-table-wrap"><div class="roomlist-banner"><span class="status-pill">LOCAL</span><span>当前为本地房间，尚未开放网络联机。编队演示中的队员为模拟数据。</span><b id="room-result-count" aria-live="polite"></b></div>
+        <div class="rl-table-head">
+          <span class="c-name">房间名</span>
+          <span class="c-map">地图</span>
+          <span class="c-mode">模式</span>
+          <span class="c-size">规模</span>
+          <span class="c-ping">连接</span>
+          <span class="c-act"></span>
+        </div>
+        <div class="rl-list" id="room-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 创建房间 -->
+<div id="createroom-overlay" class="overlay hidden">
+  <div class="panel">
+    <h1>创建房间</h1>
+    <div class="sub-title">定义你的队伍，准备下一场交锋</div>
+    <div class="cr-form">
+      <label class="cr-row"><span>房间名</span><input id="cr-name" maxlength="16" value="我的房间"></label>
+      <label class="cr-row"><span>模式</span>
+        <select id="cr-mode">
+          <option value="online">编队演示（未联网）</option>
+          <option value="bot" selected>本地 AI 对战</option>
+        </select>
+      </label>
+      <label class="cr-row"><span>队伍规模</span>
+        <select id="cr-teamsize">
+          <option value="6">6 v 6</option>
+          <option value="8" selected>8 v 8</option>
+          <option value="12">12 v 12</option>
+          <option value="16">16 v 16</option>
+        </select>
+      </label>
+      <label class="cr-row"><span>AI 难度</span>
+        <select id="cr-difficulty">
+          <option value="easy">轻松</option>
+          <option value="normal" selected>普通</option>
+          <option value="hard">困难</option>
+        </select>
+      </label>
+      <label class="cr-row"><span>每队复活额度</span><select id="cr-tickets"><option value="2">人数 × 2</option><option value="3" selected>人数 × 3</option><option value="5">人数 × 5</option></select></label>
+      <label class="cr-check" id="cr-fill-row">
+        <input type="checkbox" id="cr-fillai" checked>
+        <span>AI 补满队伍<em>（编队演示也由 AI 接管；关闭后仅供预览）</em></span>
+      </label>
+    </div>
+    <button id="btn-cr-create" class="big-btn btn-start-glow">创建并进入</button>
+    <button id="btn-cr-back" class="big-btn ghost">← 返回房间列表</button>
+  </div>
+</div>
+
+<!-- 房间等待 -->
+<div id="room-overlay" class="overlay hidden">
+  <div class="shell-page">
+
+    <div class="shell-top">
+      <div class="st-left">
+        <button class="st-back" id="btn-room-leave" aria-label="离开房间，返回列表">←</button>
+        <div class="st-title" id="room-title">房间</div>
+        <div class="st-sub" id="room-sub">等待部署…</div>
+      </div>
+      <div class="st-right">
+        <button class="st-btn primary" id="btn-room-start">开始对战</button>
+      </div>
+    </div>
+
+    <div class="room-main">
+      <div class="room-team red">
+        <div class="rt-head"><span>红队 / 我方</span><span id="room-red-count">0 / 0</span></div>
+        <div class="rt-slots" id="room-red-slots"></div>
+      </div>
+
+      <div class="room-center">
+        <div class="rc-map">
+          <div class="rc-map-thumb" aria-hidden="true"></div>
+          <div class="rc-map-name">沙海双城 · 152m</div>
+        </div>
+        <div class="rc-info">
+          <div class="rc-row"><span>模式</span><b>歼灭战 · 回合制</b></div>
+          <div class="rc-row"><span>规则</span><b id="room-ticket-text">共享复活额度 · 先拿 4 回合</b></div>
+          <div class="rc-row"><span>AI 补位</span><b id="room-fill-text">开</b></div>
+        </div>
+        <div class="room-note" id="room-note"></div>
+        <button class="rc-sim" id="btn-room-simjoin">添加模拟队员（AI 接管）</button>
+      </div>
+
+      <div class="room-team blue">
+        <div class="rt-head"><span>蓝队 / 对方</span><span id="room-blue-count">0 / 0</span></div>
+        <div class="rt-slots" id="room-blue-slots"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 暂停 -->
+<div id="pause-overlay" class="overlay hidden">
+  <div class="panel">
+    <h1>已暂停</h1>
+    <div class="sub-title">大鱼们都在原地等你</div>
+    <button id="btn-resume" class="big-btn">继续游戏</button>
+    <button id="btn-settings-pause" class="big-btn ghost">设置</button>
+    <button id="btn-pause-menu" class="big-btn ghost">回到游戏大厅</button>
+    <div class="note">进入或继续对局时自动请求全屏并锁定鼠标。<br>Esc 退出全屏并暂停；切回窗口时战斗也会暂停。</div>
+  </div>
+</div>
+
+<!-- 设置（音量 / 灵敏度 / 画质 / 色盲友好） -->
+<div id="settings-overlay" class="overlay hidden">
+  <div class="panel">
+    <h1>设置</h1>
+    <div class="sub-title">调整后立即生效，并自动保存到本地</div>
+    <div class="set-group">
+      <div class="set-row"><label>主背景音乐</label><input type="range" id="set-bgm" min="0" max="100" step="5" value="100"><span class="set-val" id="set-bgm-val">100%</span></div>
+      <div class="set-row"><label>Boss 战斗曲</label><input type="range" id="set-boss" min="0" max="100" step="5" value="100"><span class="set-val" id="set-boss-val">100%</span></div>
+      <div class="set-row"><label>菜单音乐</label><input type="range" id="set-menu" min="0" max="100" step="5" value="100"><span class="set-val" id="set-menu-val">100%</span></div>
+      <div class="set-row"><label>音效</label><input type="range" id="set-sfx" min="0" max="100" step="5" value="100"><span class="set-val" id="set-sfx-val">100%</span></div>
+      <div class="set-row"><label>难度</label>
+        <select id="set-difficulty" style="background:#1b2a44;color:#dff2ff;border:1px solid #3d5a86;border-radius:6px;padding:4px 8px;font-size:14px;">
+          <option value="casual">休闲（敌人伤害 ×0.7 · 补给 ×1.3）</option>
+          <option value="normal" selected>标准</option>
+          <option value="hard">硬核（敌人伤害 ×1.3 · 补给 ×0.7）</option>
+        </select>
+      </div>
+      <div class="set-row"><label>鼠标灵敏度</label><input type="range" id="set-sens" min="25" max="300" step="5" value="100"><span class="set-val" id="set-sens-val">100%</span></div>
+      <div class="set-row"><label>粒子特效</label><input type="checkbox" id="set-particles" checked></div>
+      <div class="set-row"><label>阴影渲染</label><input type="checkbox" id="set-shadow" checked></div>
+      <div class="set-row"><label>色盲友好配色</label><input type="checkbox" id="set-colorblind"></div>
+    </div>
+    <div class="set-note">色盲友好配色会把剑气与自爆警告从红/青改为蓝/黄系</div>
+    <button id="btn-settings-close" class="big-btn">关闭</button>
+    <button id="btn-wipe-data" class="big-btn ghost danger">清空全部本地数据</button>
+  </div>
+</div>
+
+<!-- 成就一览 -->
+<div id="achievements-overlay" class="overlay hidden">
+  <div class="panel panel-wide">
+    <h1>成就</h1>
+    <div class="sub-title" id="ach-progress">已解锁 0 / 13</div>
+    <div id="ach-grid"></div>
+    <div class="set-note">开发者模式下不会记录新成就</div>
+    <button id="btn-ach-close" class="big-btn">关闭</button>
+    <button id="btn-ach-reset" class="big-btn ghost danger">重置成就记录</button>
+  </div>
+</div>
+
+<!-- 退出游戏 -->
+<div id="quit-overlay" class="overlay hidden">
+  <div class="panel">
+    <h1>感谢游玩！</h1>
+    <div class="sub-title">现在可以安全关闭此页面了</div>
+    <div class="note">蓝色肥鱼大作战 · 期待下次再见 🐟</div>
+  </div>
+</div>
+
+<!-- 结算 -->
+<div id="gameover-overlay" class="overlay hidden">
+  <div class="panel">
+    <h1 id="gameover-title">你被肥鱼吃掉了！</h1>
+    <div class="sub-title">GAME OVER</div>
+    <div class="stat-line">最终得分 <b id="final-score">0</b><br>击杀肥鱼 <b id="final-kills">0</b> 条 · Boss <b id="final-bosskills">0</b> 只</div>
+    <div class="stat-detail">存活 <b id="final-time">0:00</b> · 最高连杀 <b id="final-combo">—</b><br>到达 第 <b id="final-stage">1</b> 阶段 · 第 <b id="final-wave">0</b> 波</div>
+    <div id="final-record" class="record-line hidden">★ 新纪录 —— <span id="final-record-list"></span></div>
+    <button id="btn-restart" class="big-btn">再来一局</button>
+  </div>
+</div>
+
+<!-- Boss 奖励选择（无尽模式，3 选 1，选择前游戏暂停） -->
+<div id="reward-overlay" class="overlay hidden">
+  <div class="panel panel-wide">
+    <h1>BOSS 击破！</h1>
+    <div class="sub-title">选择一项战利品强化自身（选择后自动继续）</div>
+    <div id="reward-cards"></div>
+    <div class="reward-note">每击败一只 BOSS 可强化两次 · 技能满级(8级)后不再出现<br>核心五项全部满级后再击败 BOSS —— 即完成本次无尽试炼！</div>
+  </div>
+</div>
+
+<!-- 技能等级查看（按 I 打开 / I 或 Esc 关闭，打开时游戏暂停） -->
+<div id="skills-overlay" class="overlay hidden">
+  <div class="panel panel-wide">
+    <h1>技能等级</h1>
+    <div class="sub-title">局内强化一览（无尽模式 · 本局有效）</div>
+    <div id="skills-list"></div>
+    <div class="skills-note">按 <b>I</b> 或 <b>Esc</b> 关闭并继续游戏</div>
+    <button id="btn-skills-close" class="big-btn ghost" style="margin-top:4px">关闭并继续游戏</button>
+  </div>
+</div>
+
+<!-- 无尽模式通关 -->
+<div id="victory-overlay" class="overlay hidden">
+  <div class="panel">
+    <h1>无尽模式通关！</h1>
+    <div class="sub-title">全部强化满级 · 嗜血肥鱼已无力回天</div>
+    <div class="stat-line">最终得分 <b id="final-score-v">0</b><br>击杀肥鱼 <b id="final-kills-v">0</b> 条 · Boss <b id="final-bosskills-v">0</b> 只</div>
+    <div class="stat-detail">存活 <b id="final-time-v">0:00</b> · 最高连杀 <b id="final-combo-v">—</b><br>到达 第 <b id="final-stage-v">1</b> 阶段 · 第 <b id="final-wave-v">0</b> 波</div>
+    <div id="final-record-v" class="record-line hidden">★ 新纪录 —— <span id="final-record-list-v"></span></div>
+    <button id="btn-victory-restart" class="big-btn">回到游戏大厅</button>
+  </div>
+</div>
+
+<dialog id="controls-dialog" aria-labelledby="controls-title"><div class="help-head"><div><div class="eyebrow">FIELD GUIDE</div><h2 id="controls-title">出战指南</h2></div><button id="btn-help-close" class="outline-btn" aria-label="关闭操作指南">✕</button></div><div class="help-grid"><section><h3>移动与观察</h3><p><kbd>W A S D</kbd> 移动 <kbd>空格</kbd> 跳跃</p><p><kbd>Ctrl</kbd> 蹲下 <kbd>鼠标</kbd> 观察</p><p><kbd>Esc</kbd> 暂停 <kbd>F</kbd> 全屏</p></section><section><h3>武器与战术</h3><p><kbd>左键</kbd> 射击 <kbd>R</kbd> 换弹</p><p><kbd>1 / 2 / 3</kbd> 切换武器 <kbd>G</kbd> 手雷</p><p><kbd>右键</kbd> 匕首重击 <kbd>Tab</kbd> 对战计分板</p></section></div><div class="help-rule"><b>红蓝歼灭战</b><p>你与 AI 队友从红队基地出发。每次阵亡消耗本队 1 次共享复活额度，4 秒后返回基地；一方额度归零结束回合，先赢 4 回合获胜。</p><b>无尽生存</b><p>迎战一波又一波肥鱼，击败 Boss 选择强化。按 I 查看本局技能。</p></div><p class="help-foot">进入对局后自动请求全屏。切换武器动作完成后才能攻击。触屏设备可使用游戏内虚拟摇杆与按钮。</p></dialog>
+
+<!-- 依赖（全部本地化，离线可玩） -->
+<script src="lib/three.min.js"></script>
+<!-- 文件名带版本后缀：file:// 下浏览器会缓存本地脚本，改名才能确保读到新内容 -->
+<script src="assets/fish-texture-v2.js"></script>
+<script src="assets/enemy-textures-v2.js"></script>
+<script src="js/art.js"></script>
+<script src="js/scene-detail.js"></script>
+<script src="js/combat-art.js"></script>
+<script src="js/fps-ai.js"></script>
+<script src="js/player-physics.js"></script>
+<script src="js/fps-map.js"></script>
+<script src="js/fps-art.js"></script>
+<script src="js/menu-ui.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

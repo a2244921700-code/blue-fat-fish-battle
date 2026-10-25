@@ -1,0 +1,30 @@
+{
+  "checks": [
+    "file:// 离线入口"
+  ],
+  "result": {
+    "mode": "live",
+    "stats": {
+      "children": 28,
+      "meshes": 704,
+      "envBuilt": true,
+      "envObjects": 3,
+      "worldMode": "pvp",
+      "mapName": "沙海双城",
+      "arena": 76,
+      "modelParts": 24939,
+      "obstacles": 276,
+      "wallMeshes": 382,
+      "enemies": 11,
+      "trackedEnemies": 11,
+      "renderCalls": 0,
+      "triangles": 0,
+      "geometries": 0,
+      "textures": 0
+    },
+    "gate": 2,
+    "help": true,
+    "module": 3
+  },
+  "errors": []
+}

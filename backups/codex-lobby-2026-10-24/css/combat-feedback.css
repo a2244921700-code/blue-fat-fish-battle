@@ -1,0 +1,36 @@
+/* OpenAI Codex · 共享战斗反馈；SVG 图标本地绘制，不依赖字体图标或网络素材。 */
+#kill-medal{--medal:#bce8f1;position:fixed;left:50%;top:calc(50% + 58px);transform:translateX(-50%);width:230px;z-index:13;pointer-events:none;text-align:center;color:var(--medal);opacity:0;visibility:hidden;filter:drop-shadow(0 3px 7px #12202b);transition:opacity .2s,visibility .2s;font-family:"Microsoft YaHei",sans-serif}
+#kill-medal.show{opacity:1;visibility:visible;animation:medal-arrive .32s cubic-bezier(.18,.78,.3,1.2)}
+#kill-medal[data-tier="multi"]{--medal:#f9db91}
+#kill-medal[data-tier="hot"]{--medal:#ffbd7c}
+#kill-medal[data-tier="legend"]{--medal:#ff9981}
+.medal-emblem{position:relative;width:146px;height:91px;margin:0 auto -1px}
+.medal-emblem svg{width:100%;height:100%;overflow:visible}
+.medal-shell{fill:#142833;stroke:currentColor;stroke-width:2}
+.medal-line{fill:none;stroke:currentColor;stroke-width:.7;opacity:.5}
+.medal-wings{fill:currentColor;opacity:.9}
+.medal-skull{fill:currentColor}
+.medal-eyes{fill:#142833}
+.medal-crown{display:none;fill:currentColor;stroke:#142833;stroke-width:1.5}
+.boss-kill .medal-crown{display:block}
+#kill-medal-count{position:absolute;right:6px;bottom:0;min-width:31px;padding:2px 6px;border:1px solid currentColor;border-radius:3px;background:#172731;font:700 18px Consolas,monospace}
+#kill-medal-title{display:block;font-size:24px;font-weight:900;letter-spacing:5px;text-indent:5px;text-shadow:0 2px 3px #15232e}
+#kill-medal-detail{display:block;margin-top:6px;font-size:11px;letter-spacing:1.5px;color:#e9edf0;text-shadow:0 1px 3px #12202b}
+.medal-window{width:78px;height:2px;margin:10px auto 0;background:#1f3544}
+#kill-medal-window{display:block;height:100%;background:currentColor;transform-origin:left}
+@keyframes medal-arrive{0%{opacity:0;transform:translate(-50%,14px) scale(.7)}65%{opacity:1;transform:translate(-50%,-3px) scale(1.07)}100%{transform:translate(-50%,0) scale(1)}}
+#weapon-switch{position:fixed;right:26px;bottom:151px;z-index:14;width:190px;color:#bfe6ed;font-size:12px;letter-spacing:1px;text-shadow:0 1px 3px #14202c;pointer-events:none}
+#weapon-switch.hidden,#btn-fullscreen.hidden{display:none}
+.switch-track{height:3px;background:#2a3c4a;margin-top:8px;overflow:hidden}
+#weapon-switch-fill{display:block;width:0;height:100%;background:#a8e0e8}
+.weapon-switching #crosshair{opacity:.32}
+.weapon-switching #weapon-bar{opacity:.65}
+#btn-fullscreen{position:fixed;right:24px;top:22px;pointer-events:auto;color:#d5e4ee;border:1px solid #617e93;border-radius:4px;padding:8px 12px;background:#152938;font:12px "Microsoft YaHei",sans-serif;cursor:pointer}
+#btn-fullscreen:hover{background:#284858}
+#notice-pop{top:21%;max-width:70vw;padding:6px 14px;border-radius:3px;background:rgba(16,30,41,.82);font-size:15px;font-weight:600;letter-spacing:1px;line-height:1.6;text-align:center}
+.combat-suspended #kill-medal,.combat-suspended #weapon-switch,.combat-suspended #btn-fullscreen,.pvp-dead #weapon-switch{visibility:hidden}
+.combat-suspended #kill-medal{animation-play-state:paused}
+.pvp-scoreboard #kill-medal{visibility:hidden}
+@media(max-height:650px){#kill-medal{top:calc(50% + 35px)}.medal-emblem{width:108px;height:68px}#kill-medal-title{font-size:19px}#kill-medal-detail{font-size:10px}#notice-pop{top:26%;font-size:12px}}
+@media(prefers-reduced-motion:reduce){#kill-medal.show{animation:none}#kill-medal{transition:none}}
+body.touch-mode #weapon-switch{bottom:355px}

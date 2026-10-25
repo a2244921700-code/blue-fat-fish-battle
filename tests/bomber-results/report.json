@@ -1,0 +1,158 @@
+{
+  "checks": [
+    "真实自爆鱼点燃 3 秒引信后才产生污染区",
+    "蘑菇云独立合批，4.5 秒时仍完整存在",
+    "9.5 秒时仍有消散烟云",
+    "云在 12 秒消散，污染边界持续至 15 秒且随后清理",
+    "辐射绕过 100 层护甲、难度、天气及普通受击冷却，每秒固定 2 点",
+    "重叠三片污染区仍只每秒扣 2 点",
+    "实际移动距离减半，走出 10 米后立即恢复且不再掉血",
+    "暂停冻结辐射寿命、接触计时和蘑菇云演出",
+    "受辐射伤害触发实际画面的撕裂后处理，按屏幕尺寸分配",
+    "视野撕裂缓冲随窗口尺寸调整 {\"remaining\":0.3300000000000007,\"allocated\":true,\"width\":1000,\"height\":700}",
+    "离开后停止伤害，短促撕裂消退后恢复直接渲染",
+    "关闭装饰粒子仍保留污染范围标记、真实伤害与受击撕裂",
+    "连续 20 次自爆云团不超过 6 组，所有污染区各自到期清理",
+    "辐射能致死并进入正常结算，死亡后清除减速区和画面撕裂",
+    "重复进入、引爆、受伤、退出三次，几何和纹理数量不累积",
+    "切换 FPS 清理辐射及 GPU 缓冲，FPS 不触发自爆污染",
+    "返回大厅后无污染、云团或视野撕裂资源残留",
+    "新特效与画面撕裂无脚本或着色器错误"
+  ],
+  "errors": [],
+  "shaderErrors": [],
+  "formed": {
+    "world": {
+      "clouds": 1,
+      "allocated": 1,
+      "capacity": 6,
+      "partsPerCloud": 84,
+      "fields": 1,
+      "cloudLife": 12,
+      "ages": [
+        4.4999999999999485
+      ]
+    },
+    "screen": null
+  },
+  "trueDamage": {
+    "hp": 98,
+    "after": 90,
+    "armor": 100,
+    "fx": {
+      "world": {
+        "clouds": 1,
+        "allocated": 1,
+        "capacity": 6,
+        "partsPerCloud": 84,
+        "fields": 1,
+        "cloudLife": 12,
+        "ages": [
+          1
+        ]
+      },
+      "screen": {
+        "remaining": 0.33,
+        "allocated": false,
+        "width": 0,
+        "height": 0
+      }
+    }
+  },
+  "movement": {
+    "normal": 0.6000000000000085,
+    "slowed": 0.30000000000000426,
+    "outside": 0.6000000000000085,
+    "hp": 100,
+    "after": 100
+  },
+  "tearing": {
+    "world": {
+      "clouds": 1,
+      "allocated": 3,
+      "capacity": 6,
+      "partsPerCloud": 84,
+      "fields": 1,
+      "cloudLife": 12,
+      "ages": [
+        1
+      ]
+    },
+    "screen": {
+      "remaining": 0.3300000000000007,
+      "allocated": true,
+      "width": 1440,
+      "height": 900
+    }
+  },
+  "stress": {
+    "peak": {
+      "world": {
+        "clouds": 6,
+        "allocated": 6,
+        "capacity": 6,
+        "partsPerCloud": 84,
+        "fields": 20,
+        "cloudLife": 12,
+        "ages": [
+          0.09999999999999999,
+          0.09999999999999999,
+          0.09999999999999999,
+          0.09999999999999999,
+          0.09999999999999999,
+          0.09999999999999999
+        ]
+      },
+      "screen": {
+        "remaining": 0,
+        "allocated": true,
+        "width": 1440,
+        "height": 900
+      }
+    },
+    "zones": 20,
+    "end": {
+      "world": {
+        "clouds": 0,
+        "allocated": 6,
+        "capacity": 6,
+        "partsPerCloud": 84,
+        "fields": 0,
+        "cloudLife": 12,
+        "ages": []
+      },
+      "screen": {
+        "remaining": 0,
+        "allocated": true,
+        "width": 1440,
+        "height": 900
+      }
+    }
+  },
+  "resourceCycles": [
+    {
+      "geometries": 36,
+      "textures": 20,
+      "fx": {
+        "world": null,
+        "screen": null
+      }
+    },
+    {
+      "geometries": 36,
+      "textures": 20,
+      "fx": {
+        "world": null,
+        "screen": null
+      }
+    },
+    {
+      "geometries": 36,
+      "textures": 20,
+      "fx": {
+        "world": null,
+        "screen": null
+      }
+    }
+  ]
+}

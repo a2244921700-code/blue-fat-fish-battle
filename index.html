@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>3D射击 · 蓝色肥鱼大作战 V0.5.3</title>
+<title>3D射击 · 蓝色肥鱼大作战 V0.6.0</title>
 <script>
 /* 全局错误条：任何未捕获的运行错误都会显示在屏幕底部，便于排查 */
 window.addEventListener('error', function (e) {
@@ -432,33 +432,6 @@ window.addEventListener('load', function () {
     filter: drop-shadow(0 0 6px rgba(255, 60, 60, .85));
   }
 
-  /* ---------- 射击对战：选人页 ---------- */
-  #pvp-overlay .panel { max-width: 960px; }
-  .pvp-section { margin: 14px 0 6px; }
-  .pvp-label {
-    font-size: 13px; letter-spacing: 2px; color: #8fd7ff;
-    margin-bottom: 8px; font-weight: 800;
-  }
-  .pvp-row { display: flex; gap: 10px; flex-wrap: wrap; }
-  .pvp-card {
-    flex: 1 1 150px; min-width: 140px; padding: 10px 12px; cursor: pointer;
-    background: rgba(10, 26, 44, .72); border: 1px solid rgba(120, 200, 255, .22);
-    border-radius: 10px; transition: all .16s ease;
-  }
-  .pvp-card:hover { border-color: rgba(120, 200, 255, .55); transform: translateY(-1px); }
-  .pvp-card.selected {
-    border-color: #7fd4ff; background: rgba(30, 80, 130, .82);
-    box-shadow: 0 0 0 1px #7fd4ff inset, 0 0 14px rgba(90, 180, 255, .35);
-  }
-  .pvp-card .pc-name { font-size: 15px; font-weight: 800; color: #e8f6ff; }
-  .pvp-card .pc-desc { font-size: 11px; line-height: 1.45; color: #9fc4df; margin-top: 5px; }
-  .pvp-card .pc-thumb {
-    width: 100%; height: 76px; margin-top: 6px; border-radius: 6px;
-    background: radial-gradient(circle at 50% 40%, rgba(90,160,255,.25), rgba(0,0,0,0) 70%);
-    background-size: contain; background-repeat: no-repeat; background-position: center bottom;
-  }
-  #pvp-overlay .big-btn { display: block; margin: 14px auto 8px; min-width: 220px; }
-
   /* 对战记分板（左上角 HUD 下方） */
   #pvp-score {
     position: fixed; left: 50%; top: 8px; transform: translateX(-50%);
@@ -562,423 +535,7 @@ window.addEventListener('load', function () {
   .stat-line b { color: #ffd76e; font-size: 26px; margin: 0 6px; }
   .note { margin-top: 16px; font-size: 12px; color: #6f86a0; }
 
-  /* ---------- 游戏大厅：女仆形象 ---------- */
-  #level-overlay .panel { max-height: 92vh; overflow-y: auto; }
-  #level-overlay .panel::-webkit-scrollbar { width: 8px; }
-  #level-overlay .panel::-webkit-scrollbar-thumb { background: rgba(120, 200, 255, .28); border-radius: 4px; }
-  .lobby-hero { display: flex; justify-content: center; margin: -4px 0 10px; }
-  .lobby-hero-img {
-    width: 150px; height: 150px; object-fit: contain;
-    filter: drop-shadow(0 6px 18px rgba(80, 170, 255, .35));
-    animation: lobbyFloat 4s ease-in-out infinite;
-  }
-  @keyframes lobbyFloat {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-6px); }
-  }
-
-  /* ---------- 游戏大厅：地图选择 ---------- */
-  .map-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 14px 0 18px; }
-  .map-card {
-    background: rgba(14, 32, 54, .72); border: 2px solid rgba(120, 200, 255, .22);
-    border-radius: 12px; padding: 16px 12px; text-align: center; cursor: pointer;
-    transition: border-color .15s, transform .15s, background .15s;
-  }
-  .map-card:hover { border-color: rgba(120, 200, 255, .7); transform: translateY(-2px); background: rgba(20, 44, 72, .85); }
-  .map-card.locked { opacity: .42; cursor: not-allowed; }
-  .map-card.locked:hover { transform: none; border-color: rgba(120, 200, 255, .22); }
-  .map-thumb { font-size: 40px; line-height: 1.2; margin-bottom: 8px; }
-  .map-name { font-size: 16px; font-weight: 800; color: #dff2ff; margin-bottom: 4px; }
-  .map-desc { font-size: 12px; color: #7fa8c4; }
-
-  /* ---------- 房间列表 ---------- */
-  .rl-toolbar { display: flex; gap: 10px; justify-content: center; margin: 12px 0; }
-  .rl-toolbar .big-btn { margin: 0; min-width: 140px; }
-  .rl-head, .rl-row {
-    display: grid; grid-template-columns: 1fr 92px 92px 92px; align-items: center;
-    gap: 8px; padding: 8px 12px; font-size: 13px;
-  }
-  .rl-head { color: #7fa8c4; font-weight: 700; border-bottom: 1px solid rgba(120, 200, 255, .18); }
-  .rl-list { max-height: 300px; overflow-y: auto; margin-bottom: 14px; }
-  .rl-row {
-    background: rgba(14, 32, 54, .55); border: 1px solid rgba(120, 200, 255, .12);
-    border-radius: 8px; margin-bottom: 6px; color: #cfe8f8;
-  }
-  .rl-row:hover { border-color: rgba(120, 200, 255, .45); }
-  .rl-empty { text-align: center; color: #6f93ad; font-size: 13px; padding: 26px 0; }
-  .rl-mode-tag { font-size: 11px; padding: 2px 7px; border-radius: 5px; font-weight: 700; }
-  .rl-mode-tag.online { background: rgba(60, 150, 220, .28); color: #9fd6ff; }
-  .rl-mode-tag.bot { background: rgba(200, 150, 60, .28); color: #ffd98a; }
-  .rl-join {
-    padding: 5px 0; border-radius: 6px; border: 1px solid rgba(120, 200, 255, .5);
-    background: rgba(40, 110, 170, .35); color: #dff2ff; font-size: 12px;
-    font-weight: 700; cursor: pointer; font-family: inherit;
-  }
-  .rl-join:hover { background: rgba(60, 150, 220, .55); }
-  .rl-join:disabled { opacity: .4; cursor: not-allowed; }
-
-  /* ---------- 创建房间表单 ---------- */
-  .cr-form { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 18px; }
-  .cr-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; color: #dff2ff; }
-  .cr-row > span { flex: 0 0 88px; text-align: right; color: #9fc4df; font-weight: 700; }
-  .cr-row input, .cr-row select {
-    flex: 1; padding: 8px 10px; border-radius: 8px; font-family: inherit; font-size: 14px;
-    background: rgba(10, 26, 44, .9); color: #e8f6ff;
-    border: 1px solid rgba(120, 200, 255, .3);
-  }
-  .cr-check {
-    display: flex; align-items: flex-start; gap: 9px; padding: 10px 12px;
-    background: rgba(14, 32, 54, .55); border: 1px solid rgba(120, 200, 255, .16);
-    border-radius: 9px; font-size: 13px; color: #cfe8f8; cursor: pointer;
-  }
-  .cr-check input { margin-top: 2px; width: 16px; height: 16px; accent-color: #3fa9f5; }
-  .cr-check em { display: block; font-style: normal; font-size: 11px; color: #6f93ad; margin-top: 3px; }
-  .cr-check.disabled { opacity: .4; pointer-events: none; }
-
-  /* ---------- 房间等待 ---------- */
-  .room-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 14px 0; }
-  .room-team { background: rgba(14, 32, 54, .6); border-radius: 11px; padding: 10px 12px; }
-  .room-team.red { border: 1px solid rgba(80, 170, 235, .38); }
-  .room-team.blue { border: 1px solid rgba(220, 90, 100, .38); }
-  .rt-head {
-    display: flex; justify-content: space-between; font-size: 14px; font-weight: 800;
-    margin-bottom: 8px; color: #dff2ff;
-  }
-  .room-team.red .rt-head { color: #9fd6ff; }
-  .room-team.blue .rt-head { color: #ffb3b3; }
-  .rt-slots { display: flex; flex-direction: column; gap: 5px; }
-  .rt-slot {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 6px 10px; border-radius: 7px; font-size: 13px;
-    background: rgba(8, 20, 34, .7); color: #cfe8f8;
-  }
-  .rt-slot.me { border: 1px solid rgba(120, 220, 160, .6); color: #b8ffd8; }
-  .rt-slot.bot { color: #8fb4cc; }
-  .rt-slot.empty { color: #4d6a80; font-style: italic; }
-  .rt-slot .rt-tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: rgba(120, 200, 255, .18); }
-  .rt-slot.bot .rt-tag { background: rgba(255, 200, 120, .16); color: #ffd98a; }
-  .room-note { text-align: center; font-size: 12px; color: #7fa8c4; margin-bottom: 12px; }
-
-  /* ---------- 游戏大厅（标准 FPS 布局：顶栏 / 左模式 / 中角色 / 右信息） ---------- */
-  #level-overlay { align-items: stretch; justify-content: stretch; padding: 0; }
-  .lobby-shell {
-    width: 100%; height: 100%; display: flex; flex-direction: column;
-    background:
-      radial-gradient(ellipse at 50% 0%, rgba(40, 110, 180, .34), transparent 62%),
-      linear-gradient(180deg, #07131f 0%, #040a12 100%);
-    color: #e8f6ff; font-family: inherit;
-  }
-  .lobby-topbar {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 22px; background: rgba(6, 16, 28, .82);
-    border-bottom: 1px solid rgba(120, 200, 255, .18); flex: 0 0 auto;
-  }
-  .lt-user { display: flex; align-items: center; gap: 11px; }
-  .lt-avatar {
-    width: 42px; height: 42px; border-radius: 50%;
-    background: linear-gradient(135deg, #3fa9f5, #1b6fb5);
-    border: 2px solid rgba(160, 220, 255, .7);
-    background-size: cover; background-position: center;
-    box-shadow: 0 0 14px rgba(80, 170, 255, .5);
-  }
-  .lt-name { font-size: 15px; font-weight: 800; letter-spacing: .5px; }
-  .lt-lv { font-size: 11px; color: #7fa8c4; margin-top: 2px; }
-  .lt-lv b { color: #9fd6ff; }
-  .lt-nav { display: flex; gap: 6px; }
-  .lt-tab {
-    padding: 8px 20px; border-radius: 8px; border: 1px solid transparent;
-    background: transparent; color: #8fb4cc; font-size: 13px; font-weight: 700;
-    cursor: pointer; font-family: inherit; transition: all .15s;
-  }
-  .lt-tab:hover { color: #dff2ff; background: rgba(60, 130, 190, .22); }
-  .lt-tab.active { color: #dff2ff; background: rgba(60, 140, 210, .3); border-color: rgba(120, 200, 255, .4); }
-  .lt-icon {
-    width: 34px; height: 34px; border-radius: 8px; border: 1px solid rgba(120, 200, 255, .25);
-    background: rgba(14, 32, 54, .7); color: #9fc4df; font-size: 15px;
-    cursor: pointer; font-family: inherit;
-  }
-  .lt-icon:hover { color: #fff; border-color: rgba(255, 120, 120, .6); background: rgba(120, 40, 40, .4); }
-
-  .lobby-body {
-    flex: 1 1 auto; display: grid; grid-template-columns: 290px 1fr 270px;
-    gap: 18px; padding: 20px 22px; min-height: 0; overflow: hidden;
-  }
-  .lobby-modes { display: flex; flex-direction: column; gap: 9px; overflow-y: auto; }
-  .lm-title {
-    font-size: 11px; letter-spacing: 3px; color: #5f8299;
-    text-transform: uppercase; margin-bottom: 4px; padding-left: 4px;
-  }
-  .lm-item {
-    display: flex; align-items: center; gap: 12px; padding: 13px 14px;
-    border-radius: 11px; border: 1px solid rgba(120, 200, 255, .16);
-    background: linear-gradient(90deg, rgba(16, 38, 62, .82), rgba(10, 24, 40, .6));
-    color: #dff2ff; cursor: pointer; font-family: inherit; text-align: left;
-    transition: all .16s; position: relative; overflow: hidden;
-  }
-  .lm-item::before {
-    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-    background: #3fa9f5; opacity: 0; transition: opacity .16s;
-  }
-  .lm-item:hover { border-color: rgba(120, 200, 255, .55); background: linear-gradient(90deg, rgba(26, 60, 96, .95), rgba(14, 34, 56, .8)); transform: translateX(3px); }
-  .lm-item:hover::before { opacity: 1; }
-  .lm-item.locked { opacity: .38; cursor: not-allowed; }
-  .lm-icon { font-size: 24px; width: 34px; text-align: center; flex: 0 0 auto; }
-  .lm-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
-  .lm-text b { font-size: 15px; font-weight: 800; }
-  .lm-text em { font-style: normal; font-size: 11px; color: #6f93ad; }
-  .lm-arrow { color: #3fa9f5; font-size: 12px; opacity: 0; transition: opacity .16s; }
-  .lm-item:hover .lm-arrow { opacity: 1; }
-  .lm-lock { font-size: 14px; opacity: .7; }
-
-  .lobby-stage {
-    position: relative; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; overflow: hidden;
-  }
-  .stage-glow {
-    position: absolute; width: 460px; height: 460px; border-radius: 50%;
-    background: radial-gradient(circle, rgba(60, 150, 230, .28), transparent 66%);
-    filter: blur(18px); animation: stagePulse 5s ease-in-out infinite;
-  }
-  @keyframes stagePulse {
-    0%, 100% { transform: scale(1); opacity: .75; }
-    50% { transform: scale(1.07); opacity: 1; }
-  }
-  .lobby-hero-img {
-    position: relative; width: 300px; height: 300px; object-fit: contain;
-    filter: drop-shadow(0 14px 34px rgba(60, 150, 230, .55));
-    animation: heroFloat 4.5s ease-in-out infinite;
-  }
-  @keyframes heroFloat {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-12px); }
-  }
-  .stage-name {
-    position: relative; margin-top: 6px; font-size: 13px; letter-spacing: 2px;
-    color: #8fc4e8; text-shadow: 0 0 12px rgba(80, 170, 255, .6);
-  }
-
-  .lobby-side { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
-  .side-card {
-    background: rgba(10, 24, 40, .72); border: 1px solid rgba(120, 200, 255, .16);
-    border-radius: 10px; padding: 11px 13px;
-  }
-  .side-title { font-size: 12px; font-weight: 800; color: #9fd6ff; margin-bottom: 7px; letter-spacing: .5px; }
-  .side-body { font-size: 12px; line-height: 1.7; color: #b8d4e6; }
-  .side-body b { color: #ffd76e; }
-  .side-body.small { font-size: 11px; color: #7fa8c4; line-height: 1.65; }
-
-  .lobby-footer {
-    flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 22px; background: rgba(6, 16, 28, .82);
-    border-top: 1px solid rgba(120, 200, 255, .18);
-  }
-  .lbtn {
-    padding: 9px 22px; border-radius: 9px; font-size: 13px; font-weight: 700;
-    cursor: pointer; font-family: inherit; transition: all .15s;
-  }
-  .lbtn.ghost { background: transparent; color: #8fb4cc; border: 1px solid rgba(120, 200, 255, .28); }
-  .lbtn.ghost:hover { color: #dff2ff; border-color: rgba(120, 200, 255, .6); background: rgba(40, 90, 140, .25); }
-  .lobby-hint { font-size: 12px; color: #5f8299; letter-spacing: 1px; }
-
-  /* ---------- 玩家仓库 ---------- */
-  #inventory-overlay { align-items: stretch; justify-content: stretch; padding: 0; }
-  .shell-main.inv-main { grid-template-columns: 160px 1fr 300px; }
-  .inv-tabs { background: rgba(10, 24, 40, .7); border: 1px solid rgba(120, 200, 255, .14); border-radius: 11px; padding: 14px 12px; }
-  .inv-tab {
-    display: block; width: 100%; text-align: left; margin-bottom: 8px; padding: 10px 12px;
-    border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
-    background: rgba(14, 32, 54, .8); color: #8fb4cc; border: 1px solid transparent;
-  }
-  .inv-tab:hover { color: #dff2ff; }
-  .inv-tab.active { background: rgba(60, 140, 210, .38); color: #fff; border-color: rgba(120, 200, 255, .6); }
-
-  .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; align-content: start; overflow-y: auto; }
-  .inv-item {
-    position: relative; background: rgba(12, 28, 46, .75); border: 2px solid rgba(120, 200, 255, .12);
-    border-radius: 10px; padding: 10px 8px 10px; text-align: center; cursor: pointer; transition: all .14s;
-    display: flex; flex-direction: column;
-  }
-  .inv-item:hover { border-color: rgba(120, 200, 255, .5); transform: translateY(-2px); }
-  .inv-item.selected { border-color: rgba(120, 200, 255, .85); background: rgba(24, 52, 82, .9); }
-  .inv-item.equipped { border-color: rgba(120, 220, 160, .7); }
-  .ii-thumb {
-    width: 100%; height: 78px; margin-bottom: 8px;
-    display: flex; align-items: center; justify-content: center;
-    background: radial-gradient(ellipse at 50% 62%, rgba(70, 150, 220, .22), transparent 72%);
-    border-radius: 8px; overflow: hidden;
-  }
-  .ii-thumb img {
-    max-width: 100%; max-height: 100%;
-    object-fit: contain;
-    filter: drop-shadow(0 4px 10px rgba(60, 140, 210, .45));
-  }
-  .ii-thumb-empty { color: #4d6a80; font-size: 24px; }
-  .ii-stats {
-    display: flex; justify-content: center; gap: 7px; flex-wrap: wrap;
-    margin-top: 6px; font-size: 10px; color: #6f93ad;
-  }
-  .ii-stats b { color: #ffd76e; font-weight: 800; }
-  .ii-icon { font-size: 30px; margin-bottom: 6px; }
-  .ii-name { font-size: 13px; font-weight: 800; color: #dff2ff; }
-  .ii-badge { font-size: 10px; color: #6f93ad; margin-top: 3px; }
-  .ii-eq {
-    position: absolute; top: 6px; right: 6px; font-size: 9px; padding: 1px 6px;
-    border-radius: 4px; background: rgba(120, 220, 160, .25); color: #b8ffd8; font-weight: 700;
-  }
-
-  .inv-detail { background: rgba(10, 24, 40, .75); border: 1px solid rgba(120, 200, 255, .16); border-radius: 11px; padding: 15px 14px; overflow-y: auto; }
-  .inv-detail-empty { color: #5f8299; font-size: 12px; text-align: center; padding: 30px 0; }
-  .id-name { font-size: 17px; font-weight: 900; color: #dff2ff; margin-bottom: 4px; }
-  .id-type { font-size: 11px; color: #6f93ad; margin-bottom: 12px; }
-  .id-row { display: flex; justify-content: space-between; font-size: 12px; padding: 5px 0; border-bottom: 1px solid rgba(120, 200, 255, .08); }
-  .id-row span { color: #6f93ad; }
-  .id-row b { color: #cfe8f8; }
-  .id-equip {
-    width: 100%; margin-top: 14px; padding: 10px 0; border-radius: 9px; font-size: 13px; font-weight: 800;
-    cursor: pointer; font-family: inherit; color: #fff;
-    background: linear-gradient(180deg, #3fa9f5, #1f7fc8); border: 1px solid rgba(160, 220, 255, .6);
-  }
-  .id-equip:hover { background: linear-gradient(180deg, #5bb8ff, #2b8fd8); }
-  .id-equip:disabled { background: rgba(14, 32, 54, .8); color: #6f93ad; border-color: rgba(120, 200, 255, .2); cursor: default; }
-
-  .inv-loadout { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8fb4cc; }
-  .inv-loadout b { color: #dff2ff; font-weight: 800; margin-right: 8px; }
-  .lo-tag { font-size: 10px; color: #5f8299; padding: 1px 5px; border-radius: 4px; background: rgba(120, 200, 255, .1); }
-
-  /* ---------- 通用全屏页（房间列表 / 房间等待复用） ---------- */
-  #roomlist-overlay, #room-overlay { align-items: stretch; justify-content: stretch; padding: 0; }
-  .shell-page {
-    width: 100%; height: 100%; display: flex; flex-direction: column;
-    background:
-      radial-gradient(ellipse at 50% 0%, rgba(40, 110, 180, .28), transparent 60%),
-      linear-gradient(180deg, #07131f 0%, #040a12 100%);
-    color: #e8f6ff; font-family: inherit;
-  }
-  .shell-top {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 22px; background: rgba(6, 16, 28, .85);
-    border-bottom: 1px solid rgba(120, 200, 255, .18); flex: 0 0 auto; gap: 16px;
-  }
-  .st-left { display: flex; align-items: center; gap: 13px; min-width: 0; }
-  .st-back {
-    width: 36px; height: 36px; border-radius: 9px; flex: 0 0 auto;
-    border: 1px solid rgba(120, 200, 255, .28); background: rgba(14, 32, 54, .7);
-    color: #9fc4df; font-size: 15px; cursor: pointer; font-family: inherit;
-  }
-  .st-back:hover { color: #dff2ff; border-color: rgba(120, 200, 255, .6); background: rgba(40, 90, 140, .3); }
-  .st-title { font-size: 19px; font-weight: 900; letter-spacing: 1px; }
-  .st-sub { font-size: 11px; color: #6f93ad; margin-top: 1px; }
-  .st-right { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
-  .st-search {
-    width: 190px; padding: 8px 12px; border-radius: 8px; font-family: inherit; font-size: 13px;
-    background: rgba(10, 26, 44, .9); color: #e8f6ff;
-    border: 1px solid rgba(120, 200, 255, .26); outline: none;
-  }
-  .st-search:focus { border-color: rgba(120, 200, 255, .7); }
-  .st-btn {
-    padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 700;
-    cursor: pointer; font-family: inherit; transition: all .15s;
-    background: rgba(14, 32, 54, .8); color: #a8cde4; border: 1px solid rgba(120, 200, 255, .28);
-  }
-  .st-btn:hover { color: #dff2ff; border-color: rgba(120, 200, 255, .6); }
-  .st-btn.primary {
-    background: linear-gradient(180deg, #3fa9f5, #1f7fc8); color: #fff;
-    border-color: rgba(160, 220, 255, .6); box-shadow: 0 4px 16px rgba(40, 130, 210, .45);
-  }
-  .st-btn.primary:hover { background: linear-gradient(180deg, #5bb8ff, #2b8fd8); }
-
-  .shell-main { flex: 1 1 auto; display: grid; grid-template-columns: 190px 1fr; gap: 16px; padding: 18px 22px; min-height: 0; overflow: hidden; }
-
-  .rl-filters {
-    background: rgba(10, 24, 40, .7); border: 1px solid rgba(120, 200, 255, .14);
-    border-radius: 11px; padding: 14px 13px; overflow-y: auto;
-  }
-  .rf-title { font-size: 11px; letter-spacing: 3px; color: #5f8299; text-transform: uppercase; margin-bottom: 12px; }
-  .rf-group { margin-bottom: 18px; }
-  .rf-label { font-size: 12px; color: #8fb4cc; margin-bottom: 7px; font-weight: 700; }
-  .rf-chip {
-    display: inline-block; margin: 0 5px 5px 0; padding: 5px 12px;
-    border-radius: 7px; font-size: 12px; cursor: pointer; font-family: inherit;
-    background: rgba(14, 32, 54, .8); color: #8fb4cc; border: 1px solid rgba(120, 200, 255, .18);
-    transition: all .14s;
-  }
-  .rf-chip:hover { color: #dff2ff; border-color: rgba(120, 200, 255, .45); }
-  .rf-chip.active { background: rgba(60, 140, 210, .4); color: #fff; border-color: rgba(120, 200, 255, .65); }
-
-  .rl-table-wrap { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-  .rl-table-head, .rl-row {
-    display: grid; grid-template-columns: 1fr 110px 82px 82px 72px 92px;
-    align-items: center; gap: 8px; padding: 9px 14px; font-size: 13px;
-  }
-  .rl-table-head {
-    color: #5f8299; font-weight: 700; font-size: 11px; letter-spacing: 1px;
-    border-bottom: 1px solid rgba(120, 200, 255, .18); flex: 0 0 auto;
-  }
-  .rl-list { flex: 1 1 auto; overflow-y: auto; padding-top: 6px; }
-  .rl-row {
-    background: rgba(12, 28, 46, .72); border: 1px solid rgba(120, 200, 255, .1);
-    border-radius: 9px; margin-bottom: 6px; color: #cfe8f8; transition: all .14s;
-  }
-  .rl-row:hover { border-color: rgba(120, 200, 255, .45); background: rgba(18, 40, 64, .9); }
-  .rl-row .c-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rl-row .c-ping { color: #7fe0a8; font-size: 12px; }
-  .rl-mode-tag { font-size: 11px; padding: 2px 8px; border-radius: 5px; font-weight: 700; }
-  .rl-mode-tag.online { background: rgba(60, 150, 220, .26); color: #9fd6ff; }
-  .rl-mode-tag.bot { background: rgba(200, 150, 60, .26); color: #ffd98a; }
-  .rl-join {
-    width: 100%; padding: 6px 0; border-radius: 6px; font-size: 12px; font-weight: 700;
-    border: 1px solid rgba(120, 200, 255, .5); background: rgba(40, 110, 170, .35);
-    color: #dff2ff; cursor: pointer; font-family: inherit;
-  }
-  .rl-join:hover { background: rgba(60, 150, 220, .55); }
-  .rl-join:disabled { opacity: .35; cursor: not-allowed; }
-  .rl-empty { text-align: center; color: #5f8299; font-size: 13px; padding: 40px 0; }
-
-  .room-main {
-    flex: 1 1 auto; display: grid; grid-template-columns: 1fr 300px 1fr;
-    gap: 16px; padding: 18px 22px; min-height: 0; overflow: hidden;
-  }
-  .room-team {
-    background: rgba(10, 24, 40, .72); border-radius: 11px; padding: 12px 13px;
-    overflow-y: auto; min-height: 0;
-  }
-  .room-team.red { border: 1px solid rgba(80, 170, 235, .4); }
-  .room-team.blue { border: 1px solid rgba(220, 90, 100, .4); }
-  .rt-head {
-    display: flex; justify-content: space-between; font-size: 14px; font-weight: 800;
-    margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(120, 200, 255, .14);
-  }
-  .room-team.red .rt-head { color: #9fd6ff; }
-  .room-team.blue .rt-head { color: #ffb3b3; }
-  .rt-slots { display: flex; flex-direction: column; gap: 6px; }
-  .rt-slot {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 8px 11px; border-radius: 8px; font-size: 13px;
-    background: rgba(8, 20, 34, .75); color: #cfe8f8;
-  }
-  .rt-slot.me { border: 1px solid rgba(120, 220, 160, .65); color: #b8ffd8; background: rgba(20, 50, 40, .55); }
-  .rt-slot.bot { color: #8fb4cc; }
-  .rt-slot.empty { color: #4d6a80; font-style: italic; }
-  .rt-slot .rt-tag { font-size: 10px; padding: 1px 7px; border-radius: 4px; background: rgba(120, 200, 255, .16); }
-  .rt-slot.bot .rt-tag { background: rgba(255, 200, 120, .16); color: #ffd98a; }
-
-  .room-center { display: flex; flex-direction: column; gap: 12px; align-items: stretch; justify-content: center; }
-  .rc-map {
-    background: rgba(10, 24, 40, .8); border: 1px solid rgba(120, 200, 255, .22);
-    border-radius: 12px; padding: 18px 12px; text-align: center;
-  }
-  .rc-map-thumb { font-size: 54px; line-height: 1.1; }
-  .rc-map-name { font-size: 16px; font-weight: 800; margin-top: 6px; color: #dff2ff; }
-  .rc-info { background: rgba(10, 24, 40, .7); border: 1px solid rgba(120, 200, 255, .14); border-radius: 10px; padding: 11px 13px; }
-  .rc-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; }
-  .rc-row span { color: #6f93ad; }
-  .rc-row b { color: #cfe8f8; font-weight: 700; }
-  .rc-sim {
-    padding: 8px 10px; border-radius: 8px; font-size: 11px; cursor: pointer; font-family: inherit;
-    background: rgba(14, 32, 54, .8); color: #8fb4cc; border: 1px dashed rgba(120, 200, 255, .3);
-  }
-  .rc-sim:hover { color: #dff2ff; border-color: rgba(120, 200, 255, .6); }
-
+  /* 菜单、大厅、仓库及房间样式统一维护在 css/lobby.css。 */
   /* ---------- 关卡选择 ---------- */
   .panel-wide { max-width: 780px; }
   .level-cols { display: flex; gap: 22px; justify-content: center; margin: 14px 0 24px; }
@@ -1118,6 +675,8 @@ window.addEventListener('load', function () {
 </style>
 <link rel="stylesheet" href="css/fps.css">
 <link rel="stylesheet" href="css/combat-feedback.css">
+<link rel="stylesheet" href="css/lobby.css">
+<link rel="preload" as="image" href="assets/ui-art/menu-sandwatch.webp">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -1146,7 +705,7 @@ window.addEventListener('load', function () {
     <span class="wslot" data-wkey="3">3 匕首</span>
   </div>
 <div id="ammo-wrap"><b id="ammo-mag">7</b><span class="ammo-sep">/</span><span id="ammo-reserve">42</span><span class="ammo-lbl">弹药</span></div>
-  <div id="nade-wrap"><span class="nade-ico">💣</span><b id="nade-count">1</b><span class="ammo-lbl">手雷</span></div>
+  <div id="nade-wrap" title="按住 G 拉环读秒，松开投出；3 秒引信，久握会自伤。移动、跳跃影响投掷。"><span class="nade-ico">💣</span><b id="nade-count">1</b><span class="ammo-lbl">手雷</span></div>
   <div id="reload-wrap">
     <div class="reload-label">换弹中...</div>
     <div id="reload-bar"><div id="reload-fill"></div></div>
@@ -1196,7 +755,7 @@ window.addEventListener('load', function () {
     <div class="dialog-speaker"></div>
     <div class="dialog-text"></div>
   </div>
-  <div id="tip-bar">WASD 移动 · <b>1/2/3 切换武器</b> · 左键射击 · <b>右键匕首重击</b> · R 换弹 · G 手雷 · I 技能面板 · 空格跳跃 · Esc 暂停</div>
+  <div id="tip-bar">WASD 移动 · <b>1/2/3 切换武器</b> · 左键射击 · <b>右键匕首重击</b> · R 换弹 · G 按住预热 / 松开投雷 · I 技能面板 · 空格跳跃 · Esc 暂停</div>
   <div id="minimap"><canvas id="minimap-canvas" width="210" height="210"></canvas></div>
 </div>
 
@@ -1207,7 +766,7 @@ window.addEventListener('load', function () {
     <button id="btn-tch-fire" class="tch-btn fire">开火</button>
     <button id="btn-tch-jump" class="tch-btn">跳</button>
     <button id="btn-tch-reload" class="tch-btn">R</button>
-    <button id="btn-tch-nade" class="tch-btn">G</button>
+    <button id="btn-tch-nade" class="tch-btn" aria-label="按住预热手雷，松开投出">G</button>
     <button id="btn-tch-skill" class="tch-btn">I</button>
   </div>
   <button id="touch-pause" class="tch-btn">暂停</button>
@@ -1218,17 +777,20 @@ window.addEventListener('load', function () {
   <div id="boss-bar"><div id="boss-fill"></div></div>
 </div>
 <div id="pvp-respawn" class="hidden"><span>重新部署</span><b>4</b><span>秒</span><small>返回己方基地</small></div>
-<div id="loading-overlay" class="hidden" aria-label="场景载入">
-  <div class="loading-content"><div class="loading-eyebrow">蓝色肥鱼大作战 / LOADING</div><h2>正在进入沙海哨站</h2>
+<div id="loading-overlay" class="hidden" aria-label="场景载入" aria-busy="true">
+  <div class="loading-art" id="loading-art" aria-hidden="true"></div><div class="loading-shade" aria-hidden="true"></div>
+  <div class="loading-top"><span class="game-mark">✦ BLUE FISH</span><span id="loading-scene">沙漠城 / 行动准备</span></div>
+  <div class="loading-content"><div class="loading-eyebrow" id="loading-mode">沙海哨站 / DEPLOYMENT</div><h2>下一站，战场。</h2>
+    <div class="loading-tip"><span>战术提示</span><p id="loading-tip">利用掩体接近对手，与队友一起推进。</p></div>
     <div class="loading-meta"><span id="loading-label" role="status">准备载入</span><span id="loading-percent">0%</span></div>
     <div id="loading-track" role="progressbar" aria-label="场景载入进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="loading-fill"></div></div>
-    <div class="loading-note">载入地图、纹理与模型，完成战斗准备。<br>进度按场景构建阶段显示。</div>
+    <div class="loading-note"><span>正在准备地图与战斗资源</span><span id="loading-art-count">01 / 03</span></div>
     <button id="loading-back" class="big-btn ghost hidden">返回主菜单</button>
   </div>
 </div>
 <div id="fallback-hint">浏览器未允许指针锁定，已启用拖动瞄准模式：移动鼠标转向，点击画面射击，Esc 暂停</div>
 <div id="combo-pop" class=""></div>
-<div id="notice-pop"></div>
+<div id="notice-pop" role="status" aria-live="polite"></div>
 <div id="error-bar"></div>
 <div id="env-title"></div>
 <div id="achievement-pop" class="hidden"></div>
@@ -1245,169 +807,45 @@ window.addEventListener('load', function () {
   </div>
 </div>
 <!-- 主菜单 -->
-<div id="menu-overlay" class="overlay">
-  <div class="panel">
-    <h1>蓝色肥鱼大作战<span class="ver-badge">V0.5.3</span></h1>
-    <div class="sub-title">3D 第一人称射击 · Three.js</div>
-    <div class="menu-hero">
-      <img id="fish-preview" class="fish-preview" alt="蓝色大肥鱼">
-      <button id="btn-achievements" class="big-btn ach-btn">成就</button>
-    </div>
-    <div class="controls">
-      <span><span class="k">W A S D</span> 移动</span>
-      <span><span class="k">1 / 2 / 3</span> 切换武器（手枪 / 步枪 / 匕首）</span>
-      <span><span class="k">鼠标左键</span> 射击（步枪可按住连发）／ 匕首轻击</span>
-      <span><span class="k">鼠标右键</span> 匕首重击（伤害 2 倍）</span>
-      <span><span class="k">空格</span> 跳跃</span>
-      <span><span class="k">R</span> 换弹</span>
-      <span><span class="k">G</span> 手雷（落地即爆炸，小心自伤）</span>
-      <span><span class="k">I</span> 技能等级面板（打开时游戏暂停）</span>
-      <span><span class="k">Esc</span> 暂停</span>
-    </div>
-    <button id="btn-start" class="big-btn btn-start-glow">载入游戏</button>
-    <button id="btn-settings-menu" class="big-btn ghost">设置</button>
-    <button id="btn-quit" class="big-btn ghost danger">退出游戏</button>
-    <div id="best-records" class="best-records hidden">
-      历史最佳：得分 <b id="best-score">0</b> · 存活 <b id="best-time">0:00</b> · 最高连杀 <b id="best-combo">—</b><br>
-      最远到达 第 <b id="best-stage">1</b> 阶段 · 第 <b id="best-wave">0</b> 波 · 击破 Boss <b id="best-boss">0</b> 只
-    </div>
-    <div class="note">一群蓝色大肥鱼占领了沙漠城 —— 有的端着枪、有的抱着核弹、还有的举着能量盾！<br><b>手枪 / 步枪 / 匕首</b>三把武器任你切换；每 10 波环境剧变，每推进一个阶段 Boss 就会换一种打法。<br>清空鱼潮、猎杀五类 Boss、在越来越恶劣的环境里活下去！<br><br>点击开始后鼠标会锁定到画面中央；若浏览器阻止指针锁定，<br>游戏将自动切换为「拖动瞄准」模式（移动鼠标转向、点击射击、Esc 暂停）。</div>
+<div id="menu-overlay" class="overlay ui-home" aria-label="游戏开始菜单">
+  <div class="home-shell">
+    <header class="home-top"><div class="game-mark"><span class="mark-cross" aria-hidden="true">✦</span> BLUE FISH <span class="edition">V0.6.0</span></div><span class="local-status"><i></i> 本地游戏 · 离线可玩</span></header>
+    <main class="home-content">
+      <div class="eyebrow"><span></span> SANDWATCH / 沙海哨站</div>
+      <h1>蓝色肥鱼<span>大作战<span class="title-dot">.</span></span></h1>
+      <p class="home-intro">在沙海中集结，向胜利进发。</p>
+      <div class="home-mode-note"><span>红蓝歼灭战</span><i></i><span>无尽生存</span><i></i><span>最多 16 v 16</span></div>
+      <button id="btn-start" class="deploy-btn home-start"><span><small>READY WHEN YOU ARE</small>进入游戏大厅</span><span class="btn-arrow" aria-hidden="true">↗</span></button>
+      <nav class="home-links" aria-label="主菜单功能"><button id="btn-achievements">成就</button><button id="btn-settings-menu">设置</button><button id="btn-menu-help" data-open-help>操作指南</button><button id="btn-quit">退出</button></nav>
+      <div id="best-records" class="home-records hidden"><span>无尽纪录</span><b id="best-score">0</b><span>分 / <b id="best-time">0:00</b></span><span class="record-extra">连杀 <b id="best-combo">—</b> · 阶段 <b id="best-stage">1</b> · 波次 <b id="best-wave">0</b> · Boss <b id="best-boss">0</b></span></div>
+    </main>
+    <footer class="home-bottom"><span>01 / 沙漠城行动</span><span>小小肥鱼，全力出击。<b aria-hidden="true">＋</b></span></footer>
   </div>
 </div>
 
-<!-- 游戏大厅 -->
-<div id="level-overlay" class="overlay hidden">
+<!-- 游戏大厅：常用入口集中在左侧，背景保留角色展示空间 -->
+<div id="level-overlay" class="overlay hidden" aria-label="游戏大厅">
   <div class="lobby-shell">
-
-    <!-- 顶部玩家栏 -->
-    <div class="lobby-topbar">
-      <div class="lt-user">
-        <div class="lt-avatar" id="lobby-avatar"></div>
-        <div class="lt-meta">
-          <div class="lt-name" id="lobby-name">指挥官</div>
-          <div class="lt-lv">Lv.<b id="lobby-lv">1</b> · 最高分 <b id="lobby-best">0</b></div>
-        </div>
-      </div>
-      <div class="lt-nav">
-        <button class="lt-tab active">游戏大厅</button>
-        <button class="lt-tab" id="btn-lobby-ach">成就</button>
-        <button class="lt-tab" id="btn-lobby-settings">设置</button>
-      </div>
-      <div class="lt-right">
-        <button class="lt-icon" id="btn-lobby-quit" title="返回主菜单">✕</button>
-      </div>
-    </div>
-
-    <!-- 主体：左模式 / 中角色 / 右面板 -->
-    <div class="lobby-body">
-
-      <!-- 左侧：模式列表 -->
-      <div class="lobby-modes">
-        <div class="lm-title">选择模式</div>
-        <button class="lm-item locked" id="btn-mode-campaign" disabled>
-          <span class="lm-icon">🎯</span>
-          <span class="lm-text">
-            <b>闯关模式</b>
-            <em>剧情关卡 · 开发中</em>
-          </span>
-          <span class="lm-lock">🔒</span>
-        </button>
-        <button class="lm-item" id="btn-mode-endless">
-          <span class="lm-icon">🌊</span>
-          <span class="lm-text">
-            <b>无尽模式</b>
-            <em>波次生存 · 越打越强</em>
-          </span>
-          <span class="lm-arrow">▶</span>
-        </button>
-        <button class="lm-item" id="btn-mode-pvp">
-          <span class="lm-icon">🔫</span>
-          <span class="lm-text">
-            <b>射击对战</b>
-            <em>房间对战 · 联机 / 人机</em>
-          </span>
-          <span class="lm-arrow">▶</span>
-        </button>
-        <button class="lm-item" id="btn-inventory">
-          <span class="lm-icon">🎒</span>
-          <span class="lm-text">
-            <b>玩家仓库</b>
-            <em>装备武器 · 选择形象</em>
-          </span>
-          <span class="lm-arrow">▶</span>
-        </button>
-      </div>
-
-      <!-- 中央：角色展示 -->
-      <div class="lobby-stage">
-        <div class="stage-glow"></div>
-        <img id="lobby-hero-img" class="lobby-hero-img" alt="蓝色大肥鱼">
-        <div class="stage-name">蓝色大肥鱼 · 参战准备</div>
-      </div>
-
-      <!-- 右侧：信息面板 -->
-      <div class="lobby-side">
-        <div class="side-card">
-          <div class="side-title">📢 公告</div>
-          <div class="side-body">
-            歼灭战开放：红蓝两队共享复活额度，先拿 4 回合获胜。<br>
-            新地图「冰封港湾」制作中。
-          </div>
-        </div>
-        <div class="side-card">
-          <div class="side-title">📊 战绩</div>
-          <div class="side-body">
-            最高分 <b id="side-best-score">0</b><br>
-            最长存活 <b id="side-best-time">0:00</b><br>
-            最高连杀 <b id="side-best-combo">—</b>
-          </div>
-        </div>
-        <div class="side-card">
-          <div class="side-title">🎮 操作</div>
-          <div class="side-body small">
-            WASD 移动 · 左键射击 · 右键重击<br>
-            Ctrl 蹲下 · R 换弹 · Tab 计分板
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 底部操作栏 -->
-    <div class="lobby-footer">
-      <button class="lbtn ghost" id="btn-level-back">← 返回主菜单</button>
-      <div class="lobby-hint">选择左侧模式开始游戏</div>
-    </div>
-  </div>
-</div>
-
-<!-- 射击对战 · 选人页 -->
-<div id="pvp-overlay" class="overlay hidden">
-  <div class="panel panel-wide">
-    <h1>歼灭战 · 准备</h1>
-    <div class="sub-title">本地红蓝队伍对抗 · 每回合共享复活额度 · 先赢 4 回合获胜</div>
-
-    <div class="pvp-section">
-      <div class="pvp-label">武器（主武器固定 · 副武器可选）</div>
-      <div class="pvp-row" id="pvp-weapons"></div>
-    </div>
-
-    <div class="pvp-section">
-      <div class="pvp-label">角色形象预览（第一人称暂无自身角色模型）</div>
-      <div class="pvp-row" id="pvp-skins"></div>
-    </div>
-
-    <div class="pvp-section">
-      <div class="pvp-label">队伍规模（红队 = 你 + AI 队友 / 蓝队 = AI）</div>
-      <div class="pvp-row" id="pvp-bots"></div>
-    </div>
-
-    <div class="pvp-settings">
-      <label>AI 难度<select id="pvp-difficulty"><option value="easy">轻松</option><option value="normal" selected>标准</option><option value="hard">困难</option></select></label>
-      <label>每队复活额度<select id="pvp-tickets"><option value="2">人数 × 2</option><option value="3" selected>人数 × 3</option><option value="5">人数 × 5</option></select></label>
-    </div>
-    <div class="pvp-rule">南端红队 / 北端蓝队 · 阵亡扣 1 额度，4 秒后回基地复活 · 开火会解除出生保护<br>一方额度归零结束本回合；先赢 4 回合获胜，回合间重新部署并补满双方额度。</div>
-    <button id="btn-pvp-start" class="big-btn btn-start-glow">开始对战</button>
-    <button id="btn-pvp-back" class="big-btn ghost">← 返回模式选择</button>
+    <header class="lobby-topbar">
+      <div class="lt-user"><div class="lt-avatar" id="lobby-avatar"></div><div class="lt-meta"><div class="lt-name" id="lobby-name">指挥官</div><div class="lt-level">Lv.<b id="lobby-lv">1</b><span>本地档案 · 最高分 <b id="lobby-best">0</b></span></div></div></div>
+      <nav class="lt-nav" aria-label="大厅功能"><span class="lt-tab active" aria-current="page">游戏大厅</span><button class="lt-tab" id="btn-lobby-ach">成就</button><button class="lt-tab" id="btn-lobby-settings">设置</button><button class="lt-tab" data-open-help>指南</button></nav>
+      <div class="lt-right"><span class="local-status"><i></i> 本地模式</span><button class="lt-exit" id="btn-lobby-quit" aria-label="返回主菜单" title="返回主菜单">↗</button></div>
+    </header>
+    <main class="lobby-body">
+      <section class="lobby-modes" aria-label="选择游戏模式">
+        <div class="eyebrow">PLAY / 选择行动</div>
+        <h1>准备好出战了吗？</h1>
+        <article class="featured-mode"><div class="mode-kicker"><span class="status-pill">推荐模式</span><span>01 / TEAM BATTLE</span></div><h2>红蓝歼灭战</h2><p>协同推进，争夺每一条战线。<br>耗尽对手的共享复活额度，赢下回合。</p><div class="mode-specs"><span>6–16 人 / 队</span><span>4 秒复活</span><span>先赢 4 回合</span></div><button class="deploy-btn" id="btn-pvp-mode"><span>快速出战<small>8v8 · 标准难度 · 使用仓库装备</small></span><span class="btn-arrow" aria-hidden="true">↗</span></button><button class="mode-room-link" id="btn-mode-pvp">自定义房间 <span aria-hidden="true">→</span></button></article>
+        <button class="mode-card endless-card" id="btn-mode-endless"><span class="mode-index">02</span><span><b>无尽生存</b><small>波次挑战 · Boss 战 · 局内成长</small></span><span class="mode-arrow" aria-hidden="true">↗</span></button>
+        <button class="mode-card locked" id="btn-mode-campaign" disabled><span class="mode-index">03</span><span><b>剧情模式</b><small>新的冒险，正在筹备</small></span><span class="mode-lock">未开放</span></button>
+      </section>
+      <div class="lobby-stage" aria-hidden="true"><div class="stage-caption"><span>THE OUTPOST</span><b>沙海哨站</b><small>集结完毕，等待你的指令。</small></div></div>
+      <aside class="lobby-side">
+        <section class="side-card loadout-card"><div class="side-card-heading"><h2>当前装备</h2><span>LOADOUT</span></div><div class="loadout-portrait"><img id="lobby-hero-img" alt="当前形象"><div><b id="lobby-skin-name">常规鱼</b><small>形象预览</small></div></div><div class="loadout-line"><span>主武器</span><b>突击步枪</b></div><div class="loadout-line"><span>副武器</span><b id="lobby-sidearm">手枪</b></div><div class="loadout-line"><span>近战</span><b>匕首</b></div><button id="btn-inventory" class="outline-btn">打开仓库 <span aria-hidden="true">→</span></button></section>
+        <section class="side-card lobby-record-card"><div class="side-card-heading"><h2>无尽最佳</h2><span>RECORD</span></div><div class="lobby-record-main"><b id="side-best-score">0</b><span>历史最高分</span></div><div class="record-pair"><div><b id="side-best-time">0:00</b><span>最长存活</span></div><div><b id="side-best-combo">—</b><span>最高连杀</span></div></div></section>
+      </aside>
+    </main>
+    <footer class="lobby-footer"><button id="btn-level-back" class="text-back">← 主菜单</button><span>FPS · 沙海双城 / 无尽 · 沙海哨站<span class="footer-divider">/</span>当前对战由你与 AI 队伍参与</span><span class="footer-key"><kbd>Esc</kbd> 返回</span></footer>
   </div>
 </div>
 
@@ -1417,11 +855,11 @@ window.addEventListener('load', function () {
     <h1>选择地图</h1>
     <div class="sub-title">无尽模式 · 波次生存</div>
     <div class="map-grid">
-      <div class="map-card" id="btn-map-desert">
-        <div class="map-thumb desert">🏜️</div>
+      <button class="map-card" id="btn-map-desert">
+        <div class="map-thumb desert"><span>已开放 / DESERT</span></div>
         <div class="map-name">沙漠城</div>
-        <div class="map-desc">开阔广场 · 拱门竞技场 · 随机掩体</div>
-      </div>
+        <div class="map-desc">开阔广场 · 拱门竞技场 · 随机掩体</div><span class="map-play">进入沙漠城 →</span>
+      </button>
       <div class="map-card locked">
         <div class="map-thumb">🔒</div>
         <div class="map-name">冰封港湾</div>
@@ -1442,7 +880,7 @@ window.addEventListener('load', function () {
   <div class="shell-page">
     <div class="shell-top">
       <div class="st-left">
-        <button class="st-back" id="btn-inv-back">←</button>
+        <button class="st-back" id="btn-inv-back" aria-label="返回大厅">←</button>
         <div class="st-title">玩家仓库</div>
         <div class="st-sub">选择装备与形象 · 仅对射击对战生效</div>
       </div>
@@ -1451,11 +889,12 @@ window.addEventListener('load', function () {
       </div>
     </div>
 
+    <div class="armory-banner"><div><div class="eyebrow">ARMORY / 整备区</div><h1>整装待发。</h1><p>装备选好了，铁盆也戴稳了。</p><small>「铁盆先锋」· 仓库主题插画</small></div></div>
     <div class="shell-main inv-main">
       <div class="inv-tabs">
         <div class="rf-title">分类</div>
-        <button class="inv-tab active" data-tab="weapon">🔫 武器</button>
-        <button class="inv-tab" data-tab="skin">👤 形象</button>
+        <button class="inv-tab active" data-tab="weapon">武器装备</button>
+        <button class="inv-tab" data-tab="skin">角色形象</button>
       </div>
 
       <div class="inv-grid" id="inv-grid"></div>
@@ -1473,12 +912,12 @@ window.addEventListener('load', function () {
 
     <div class="shell-top">
       <div class="st-left">
-        <button class="st-back" id="btn-roomlist-back">←</button>
+        <button class="st-back" id="btn-roomlist-back" aria-label="返回大厅">←</button>
         <div class="st-title">射击对战</div>
-        <div class="st-sub">选择房间加入，或创建自己的房间</div>
+        <div class="st-sub">本地 AI 对战 · 自定义部署</div>
       </div>
       <div class="st-right">
-        <input id="room-search" class="st-search" placeholder="搜索房间名…">
+        <input id="room-search" class="st-search" type="search" maxlength="40" aria-label="搜索房间名称" placeholder="搜索房间名…">
         <button class="st-btn primary" id="btn-room-create">+ 创建房间</button>
         <button class="st-btn" id="btn-room-refresh">刷新</button>
       </div>
@@ -1490,8 +929,8 @@ window.addEventListener('load', function () {
         <div class="rf-group">
           <div class="rf-label">模式</div>
           <button class="rf-chip active" data-filter="mode" data-value="all">全部</button>
-          <button class="rf-chip" data-filter="mode" data-value="online">联机</button>
-          <button class="rf-chip" data-filter="mode" data-value="bot">人机</button>
+          <button class="rf-chip" data-filter="mode" data-value="online">编队演示</button>
+          <button class="rf-chip" data-filter="mode" data-value="bot">AI 对战</button>
         </div>
         <div class="rf-group">
           <div class="rf-label">人数</div>
@@ -1502,13 +941,13 @@ window.addEventListener('load', function () {
         </div>
       </div>
 
-      <div class="rl-table-wrap">
+      <div class="rl-table-wrap"><div class="roomlist-banner"><span class="status-pill">LOCAL</span><span>当前为本地房间，尚未开放网络联机。编队演示中的队员为模拟数据。</span><b id="room-result-count" aria-live="polite"></b></div>
         <div class="rl-table-head">
           <span class="c-name">房间名</span>
           <span class="c-map">地图</span>
           <span class="c-mode">模式</span>
-          <span class="c-size">人数</span>
-          <span class="c-ping">延迟</span>
+          <span class="c-size">规模</span>
+          <span class="c-ping">连接</span>
           <span class="c-act"></span>
         </div>
         <div class="rl-list" id="room-list"></div>
@@ -1521,13 +960,13 @@ window.addEventListener('load', function () {
 <div id="createroom-overlay" class="overlay hidden">
   <div class="panel">
     <h1>创建房间</h1>
-    <div class="sub-title">配置好后进入房间等待</div>
+    <div class="sub-title">定义你的队伍，准备下一场交锋</div>
     <div class="cr-form">
       <label class="cr-row"><span>房间名</span><input id="cr-name" maxlength="16" value="我的房间"></label>
       <label class="cr-row"><span>模式</span>
         <select id="cr-mode">
-          <option value="online">联机模式</option>
-          <option value="bot">人机模式</option>
+          <option value="online">编队演示（未联网）</option>
+          <option value="bot" selected>本地 AI 对战</option>
         </select>
       </label>
       <label class="cr-row"><span>队伍规模</span>
@@ -1545,9 +984,10 @@ window.addEventListener('load', function () {
           <option value="hard">困难</option>
         </select>
       </label>
+      <label class="cr-row"><span>每队复活额度</span><select id="cr-tickets"><option value="2">人数 × 2</option><option value="3" selected>人数 × 3</option><option value="5">人数 × 5</option></select></label>
       <label class="cr-check" id="cr-fill-row">
         <input type="checkbox" id="cr-fillai" checked>
-        <span>人数不足时用高级 AI 补位<em>（默认为开；真人加入后会自动顶替 AI）</em></span>
+        <span>AI 补满队伍<em>（编队演示也由 AI 接管；关闭后仅供预览）</em></span>
       </label>
     </div>
     <button id="btn-cr-create" class="big-btn btn-start-glow">创建并进入</button>
@@ -1561,9 +1001,9 @@ window.addEventListener('load', function () {
 
     <div class="shell-top">
       <div class="st-left">
-        <button class="st-back" id="btn-room-leave">←</button>
+        <button class="st-back" id="btn-room-leave" aria-label="离开房间，返回列表">←</button>
         <div class="st-title" id="room-title">房间</div>
-        <div class="st-sub" id="room-sub">等待玩家加入…</div>
+        <div class="st-sub" id="room-sub">等待部署…</div>
       </div>
       <div class="st-right">
         <button class="st-btn primary" id="btn-room-start">开始对战</button>
@@ -1572,26 +1012,26 @@ window.addEventListener('load', function () {
 
     <div class="room-main">
       <div class="room-team red">
-        <div class="rt-head"><span>红队</span><span id="room-red-count">0 / 0</span></div>
+        <div class="rt-head"><span>红队 / 我方</span><span id="room-red-count">0 / 0</span></div>
         <div class="rt-slots" id="room-red-slots"></div>
       </div>
 
       <div class="room-center">
         <div class="rc-map">
-          <div class="rc-map-thumb">🏜️</div>
-          <div class="rc-map-name">沙漠城</div>
+          <div class="rc-map-thumb" aria-hidden="true"></div>
+          <div class="rc-map-name">沙海双城 · 152m</div>
         </div>
         <div class="rc-info">
           <div class="rc-row"><span>模式</span><b>歼灭战 · 回合制</b></div>
-          <div class="rc-row"><span>规则</span><b>共享复活额度 · 先拿 4 回合</b></div>
+          <div class="rc-row"><span>规则</span><b id="room-ticket-text">共享复活额度 · 先拿 4 回合</b></div>
           <div class="rc-row"><span>AI 补位</span><b id="room-fill-text">开</b></div>
         </div>
         <div class="room-note" id="room-note"></div>
-        <button class="rc-sim" id="btn-room-simjoin">模拟真人加入（演示顶替 AI）</button>
+        <button class="rc-sim" id="btn-room-simjoin">添加模拟队员（AI 接管）</button>
       </div>
 
       <div class="room-team blue">
-        <div class="rt-head"><span>蓝队</span><span id="room-blue-count">0 / 0</span></div>
+        <div class="rt-head"><span>蓝队 / 对方</span><span id="room-blue-count">0 / 0</span></div>
         <div class="rt-slots" id="room-blue-slots"></div>
       </div>
     </div>
@@ -1704,6 +1144,8 @@ window.addEventListener('load', function () {
   </div>
 </div>
 
+<dialog id="controls-dialog" aria-labelledby="controls-title"><div class="help-head"><div><div class="eyebrow">FIELD GUIDE</div><h2 id="controls-title">出战指南</h2></div><button id="btn-help-close" class="outline-btn" aria-label="关闭操作指南">✕</button></div><div class="help-grid"><section><h3>移动与观察</h3><p><kbd>W A S D</kbd> 移动 <kbd>空格</kbd> 跳跃</p><p><kbd>Ctrl</kbd> 蹲下 <kbd>鼠标</kbd> 观察</p><p><kbd>Esc</kbd> 暂停 <kbd>F</kbd> 全屏</p></section><section><h3>武器与战术</h3><p><kbd>左键</kbd> 射击 <kbd>R</kbd> 换弹</p><p><kbd>1 / 2 / 3</kbd> 切换武器 <kbd>G</kbd> 松开投雷 / 按住预热</p><p><kbd>右键</kbd> 匕首重击 <kbd>Tab</kbd> 对战计分板</p></section></div><div class="help-rule"><b>红蓝歼灭战</b><p>你与 AI 队友从红队基地出发。每次阵亡消耗本队 1 次共享复活额度，4 秒后返回基地；一方额度归零结束回合，先赢 4 回合获胜。</p><b>手雷投掷</b><p>轻按 G 并松开快速投出；按住 G 拉环读秒，松开投出。引信共 3 秒，碰墙或落地后反弹，到时爆炸；久握会自伤。前进、后退、侧移与跳跃都会改变弹道，触屏手雷按钮同样支持长按。</p><b>无尽生存</b><p>迎战一波又一波肥鱼，击败 Boss 选择强化。按 I 查看本局技能。自爆鱼爆炸后留下半径 10 米、持续 15 秒的辐射区：每秒 2 点真实伤害、移速减半；离开范围可恢复。多个辐射区的伤害和减速不叠加。</p></div><p class="help-foot">进入对局后自动请求全屏。切换武器动作完成后才能攻击。触屏设备可使用游戏内虚拟摇杆与按钮。</p></dialog>
+
 <!-- 依赖（全部本地化，离线可玩） -->
 <script src="lib/three.min.js"></script>
 <!-- 文件名带版本后缀：file:// 下浏览器会缓存本地脚本，改名才能确保读到新内容 -->
@@ -1712,8 +1154,16 @@ window.addEventListener('load', function () {
 <script src="js/art.js"></script>
 <script src="js/scene-detail.js"></script>
 <script src="js/combat-art.js"></script>
+<script src="js/radiation.js"></script>
+<script src="js/bomber-fx.js"></script>
 <script src="js/fps-ai.js"></script>
+<script src="js/player-physics.js"></script>
+<script src="js/grenade-physics.js"></script>
+<script src="js/map-surfaces.js"></script>
+<script src="js/fps-map-detail.js"></script>
+<script src="js/fps-map.js"></script>
 <script src="js/fps-art.js"></script>
+<script src="js/menu-ui.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>
