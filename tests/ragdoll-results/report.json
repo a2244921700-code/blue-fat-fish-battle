@@ -1,0 +1,99 @@
+{
+  "checks": [
+    "死亡保留完整模型，冻结原动作并关闭攻击",
+    "每具布娃娃为 14 个物理刚体和 13 个关节",
+    "攻击中阵亡保留每根骨骼的位置，不跳回待机或绑定姿势",
+    "骨骼受到重力倒地，模型不再缩小上浮",
+    "身体碰撞地面，关节位置保持连接",
+    "暂停冻结物理与尸体清理计时",
+    "无尽尸体在 4.9 秒时仍保留",
+    "无尽尸体满 5 秒移除模型、刚体与关节",
+    "开始下一波不会提前清除未满 5 秒的尸体",
+    "布娃娃可落在高台，侧向冲量被实体墙阻挡",
+    "连续死亡创建独立尸体，并在到期后完整回收",
+    "掩体更新同步物理碰撞，保留现有布娃娃",
+    "自爆敌人也进入布娃娃，5 秒后尸体消失但蘑菇云继续",
+    "对战阵亡留下尸体并启动复活读秒",
+    "对战复活前尸体仍在原地",
+    "对战复活时移除旧尸体，骨骼恢复动画并返回基地",
+    "本地玩家死亡有完整第三人称尸体，复活时释放",
+    "直接重开清除本地尸体和旧物理世界，恢复玩家身体",
+    "退出场景清空布娃娃、静态物理世界及骨骼实例",
+    "布娃娃流程没有浏览器脚本错误"
+  ],
+  "errors": [],
+  "initial": {
+    "alive": false,
+    "visible": true,
+    "scale": 1,
+    "frozen": true,
+    "attack": false,
+    "head": [
+      -0.009537820667257715,
+      1.0935513820617042,
+      30.984520559076966
+    ],
+    "stats": {
+      "ragdolls": 1,
+      "looseProps": 0,
+      "droppedWeapons": 0,
+      "dynamicBodies": 14,
+      "staticBodies": 289,
+      "constraints": 13,
+      "sleeping": 0
+    }
+  },
+  "fallen": {
+    "visible": true,
+    "scale": 1,
+    "head": [
+      0.1995368877393361,
+      0.24780820199530965,
+      29.958383252959656
+    ],
+    "gap": 0.002194736339797663,
+    "minY": -0.0005586977297047657,
+    "torso": 0.2069705667196935
+  },
+  "platform": {
+    "x": 0.6222367931514035,
+    "y": 1.2531257480872433,
+    "finite": true,
+    "gap": 0.00876519115231322
+  },
+  "repeated": {
+    "before": {
+      "ragdolls": 10,
+      "looseProps": 0,
+      "droppedWeapons": 0,
+      "dynamicBodies": 140,
+      "staticBodies": 289,
+      "constraints": 130,
+      "sleeping": 0
+    },
+    "after": {
+      "ragdolls": 0,
+      "looseProps": 0,
+      "droppedWeapons": 0,
+      "dynamicBodies": 0,
+      "staticBodies": 289,
+      "constraints": 0,
+      "sleeping": 0
+    }
+  },
+  "respawn": {
+    "alive": true,
+    "rag": false,
+    "frozen": false,
+    "z": -69,
+    "stats": {
+      "ragdolls": 0,
+      "looseProps": 0,
+      "droppedWeapons": 1,
+      "dynamicBodies": 0,
+      "staticBodies": 435,
+      "constraints": 0,
+      "sleeping": 0
+    }
+  }
+}

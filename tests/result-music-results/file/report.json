@@ -1,0 +1,222 @@
+{
+  "checks": [
+    {
+      "name": "菜单与大厅不提前请求两首胜利音乐"
+    },
+    {
+      "name": "单个回合获胜不会提前播放整场胜利曲"
+    },
+    {
+      "name": "red方胜利视角只播放己方指定音乐",
+      "detail": {
+        "state": "gameover",
+        "pvp": {
+          "mode": "pvp",
+          "active": false,
+          "over": true,
+          "resultWin": true,
+          "roundState": "idle",
+          "prepareT": 0,
+          "roundNum": 4,
+          "myRounds": 4,
+          "botRounds": 0,
+          "winRounds": 4,
+          "maxRounds": 7,
+          "bots": 0,
+          "botTotal": 0,
+          "weapon": "rifle",
+          "mySkin": "deepseek",
+          "myTeam": "red",
+          "teamSkins": {
+            "red": "deepseek",
+            "blue": "claude_fake"
+          },
+          "myWeapon": "pistol"
+        },
+        "music": {
+          "exists": true,
+          "loop": true,
+          "volume": 0.18,
+          "paused": true,
+          "overExists": true,
+          "overPaused": true,
+          "overVolume": 0.22,
+          "result": {
+            "win": true,
+            "team": "red",
+            "src": "assets/music/pvp-victory-red.mp3",
+            "selected": "victory-red",
+            "start": 0,
+            "loop": true,
+            "ready": true,
+            "time": 0.107337,
+            "paused": false,
+            "volume": 0.22,
+            "duration": 26.540408
+          },
+          "bossExists": true,
+          "bossTempo": 0,
+          "bossVol": 0,
+          "progressExists": true,
+          "progressOn": false,
+          "menuExists": true,
+          "menuOn": false,
+          "menuVol": 0
+        },
+        "title": "歼灭战胜利！",
+        "playing": [
+          "assets/music/pvp-victory-red.mp3"
+        ]
+      }
+    },
+    {
+      "name": "red方真实音频解码并从文件开头播放",
+      "detail": {
+        "win": true,
+        "team": "red",
+        "src": "assets/music/pvp-victory-red.mp3",
+        "selected": "victory-red",
+        "start": 0,
+        "loop": true,
+        "ready": true,
+        "time": 0.107337,
+        "paused": false,
+        "volume": 0.22,
+        "duration": 26.540408
+      }
+    },
+    {
+      "name": "red方胜利曲遵循主背景音乐音量设置"
+    },
+    {
+      "name": "red方实际播完后从头循环"
+    },
+    {
+      "name": "离开red方结算进入设置时停止胜利曲"
+    },
+    {
+      "name": "返回red方结算仍播放胜利曲而非战败曲"
+    },
+    {
+      "name": "red方失败视角不会播放对手胜利曲"
+    },
+    {
+      "name": "blue方胜利视角只播放己方指定音乐",
+      "detail": {
+        "state": "gameover",
+        "pvp": {
+          "mode": "pvp",
+          "active": false,
+          "over": true,
+          "resultWin": true,
+          "roundState": "idle",
+          "prepareT": 0,
+          "roundNum": 4,
+          "myRounds": 4,
+          "botRounds": 0,
+          "winRounds": 4,
+          "maxRounds": 7,
+          "bots": 0,
+          "botTotal": 0,
+          "weapon": "rifle",
+          "mySkin": "claude_fake",
+          "myTeam": "blue",
+          "teamSkins": {
+            "red": "deepseek",
+            "blue": "claude_fake"
+          },
+          "myWeapon": "pistol"
+        },
+        "music": {
+          "exists": true,
+          "loop": true,
+          "volume": 0.18,
+          "paused": true,
+          "overExists": true,
+          "overPaused": true,
+          "overVolume": 0.22,
+          "result": {
+            "win": true,
+            "team": "blue",
+            "src": "assets/music/pvp-victory-blue.mp3",
+            "selected": "victory-blue",
+            "start": 0,
+            "loop": true,
+            "ready": true,
+            "time": 0.13948,
+            "paused": false,
+            "volume": 0.22,
+            "duration": 134.505
+          },
+          "bossExists": true,
+          "bossTempo": 0,
+          "bossVol": 0,
+          "progressExists": true,
+          "progressOn": false,
+          "menuExists": true,
+          "menuOn": false,
+          "menuVol": 0
+        },
+        "title": "歼灭战胜利！",
+        "playing": [
+          "assets/music/pvp-victory-blue.mp3"
+        ]
+      }
+    },
+    {
+      "name": "blue方真实音频解码并从文件开头播放",
+      "detail": {
+        "win": true,
+        "team": "blue",
+        "src": "assets/music/pvp-victory-blue.mp3",
+        "selected": "victory-blue",
+        "start": 0,
+        "loop": true,
+        "ready": true,
+        "time": 0.13948,
+        "paused": false,
+        "volume": 0.22,
+        "duration": 134.505
+      }
+    },
+    {
+      "name": "blue方胜利曲遵循主背景音乐音量设置"
+    },
+    {
+      "name": "blue方实际播完后从头循环"
+    },
+    {
+      "name": "离开blue方结算进入设置时停止胜利曲"
+    },
+    {
+      "name": "返回blue方结算仍播放胜利曲而非战败曲"
+    },
+    {
+      "name": "blue方失败视角不会播放对手胜利曲"
+    },
+    {
+      "name": "胜利曲自动播放被拒绝时不回退到战败曲"
+    },
+    {
+      "name": "真实点击正确重试蓝方胜利曲"
+    },
+    {
+      "name": "返回菜单立即停止并清除上一场结算音乐状态"
+    },
+    {
+      "name": "离开结算后的点击不会重新启动旧胜利曲"
+    },
+    {
+      "name": "无尽失败继续使用原失败曲，不受上场蓝方胜利影响"
+    },
+    {
+      "name": "结算流程无脚本错误或缺失资源",
+      "detail": {
+        "errors": [],
+        "missing": []
+      }
+    }
+  ],
+  "errors": [],
+  "missing": []
+}

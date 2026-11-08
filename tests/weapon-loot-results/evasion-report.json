@@ -1,0 +1,43 @@
+{
+  "checks": [
+    {
+      "name": "背后、隔墙与友军手雷不让 AI 全知躲避",
+      "ok": true,
+      "behind": false,
+      "friendly": false,
+      "hidden": false
+    },
+    {
+      "name": "player 投出的敌方可见手雷触发真实撤离、暂停开火并减少爆炸伤害",
+      "ok": true,
+      "alert": "grenade-alert",
+      "moved": 6.256243551931112,
+      "distance": 7.619011181976281,
+      "shots": 0,
+      "evades": 1,
+      "hp": 100,
+      "mag": 30
+    },
+    {
+      "name": "bot 投出的敌方可见手雷触发真实撤离、暂停开火并减少爆炸伤害",
+      "ok": true,
+      "alert": "grenade-alert",
+      "moved": 6.256243551931112,
+      "distance": 7.619011181976281,
+      "shots": 0,
+      "evades": 1,
+      "hp": 100,
+      "mag": 30
+    },
+    {
+      "name": "复活清空手雷目击缓存和躲避目标",
+      "ok": true
+    },
+    {
+      "name": "无脚本异常",
+      "ok": true,
+      "errors": []
+    }
+  ],
+  "errors": []
+}

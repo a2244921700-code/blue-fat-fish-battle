@@ -1,0 +1,53 @@
+{
+  "date": "2026-11-01",
+  "platform": "Desktop Edge / WebGL, keyboard and mouse",
+  "scope": "AI combat retreat facing and locomotion",
+  "suites": [
+    {
+      "test": "tests/fps-retreat-test.cjs",
+      "passed": 11,
+      "report": "tests\\retreat-results\\logic-report.json"
+    },
+    {
+      "test": "tests/browser-retreat-test.cjs",
+      "passed": 9,
+      "report": "tests\\retreat-results\\browser-report.json"
+    },
+    {
+      "test": "tests/browser-fps-test.cjs",
+      "passed": 38,
+      "report": "tests\\retreat-results\\fps-regression\\report.json"
+    },
+    {
+      "test": "tests/fps-ai-test.cjs",
+      "passed": 10,
+      "log": "tests\\retreat-results\\fps-ai-test.cjs.log"
+    },
+    {
+      "test": "tests/fps-jump-test.cjs",
+      "passed": 11,
+      "log": "tests\\retreat-results\\fps-jump-test.cjs.log"
+    },
+    {
+      "test": "tests/fps-spawn-flow-test.cjs",
+      "passed": 9,
+      "log": "tests\\retreat-results\\fps-spawn-flow-test.cjs.log"
+    },
+    {
+      "test": "tests/elevation-map-test.cjs",
+      "passed": 20,
+      "log": "tests\\retreat-results\\elevation-map-test.cjs.log"
+    }
+  ],
+  "total": 108,
+  "sourceSHA256": {
+    "js/fps-ai.js": "b059d81e756b8cbec227ae9df3e854ef3d2e74116c3c1f4bc1cd9340023aa998",
+    "js/characters.js": "af5e35a9a9f615c392cd8390a53c0761377eb7bd046bb3e1743b6702f0fc5fe1",
+    "tests/fps-retreat-test.cjs": "e8fde59124709c74e4e748a2541624f9fcc9c4b49a8b189962f1e85a386c7daf",
+    "tests/browser-retreat-test.cjs": "99602d059559e359330cb5d4bad92de79224cf19ca65fe69ca9c84391054ffc2",
+    "tests/browser-fps-test.cjs": "673e68bf5e88d6883aa57efb4709e19b468e820e97cc815472df552a3f13715d",
+    "README.md": "c26ef3805ea780f38dfe22b8bc8fb09f1d4138a08ea7fca7b63a4ac9b2127077",
+    "FPS_开发进度.md": "1f9de56f032505d15371c6ce4fb4de597574549882983d0c337dc122f6ce1f2d",
+    "CODEX_优化与开发建议.md": "57e27452d9b910c7910649029b4d36e78c922329ae02ce52a86e06e0411ceb68"
+  }
+}

@@ -1,0 +1,182 @@
+{
+  "checks": [
+    "两名实机角色可选、其余六名仍为预告",
+    "红蓝双方分别默认装配正确角色",
+    "仓库可查看新角色详情",
+    "出战阵营选择同步角色预览并持久保存",
+    "blue 方实机、第一人称和出生点正确",
+    "blue 方 AI 形象按阵营分开，人数和队友标识正确",
+    "blue 方头盔正确挂接且双方随机配装仍平衡",
+    "blue 方拔销后停在持雷姿势，出手前不生成弹体",
+    "blue 方松键立即出手一次、收招前禁止开火",
+    "blue 方阵亡尸体与复活保持角色和头盔规则",
+    "red 方实机、第一人称和出生点正确",
+    "red 方 AI 形象按阵营分开，人数和队友标识正确",
+    "red 方头盔正确挂接且双方随机配装仍平衡",
+    "red 方拔销后停在持雷姿势，出手前不生成弹体",
+    "red 方松键立即出手一次、收招前禁止开火",
+    "red 方阵亡尸体与复活保持角色和头盔规则",
+    "出手后立即死亡不重复掉雷，复活无残留动作",
+    "无尽自爆怪实际子弹前三次爆头免疫，第四次正常受伤",
+    "双阵营与投雷流程没有脚本/着色器异常"
+  ],
+  "errors": [],
+  "blue": {
+    "skin": "deepseek",
+    "local": "deepseek",
+    "view": "deepseek",
+    "z": -69,
+    "bots": [
+      {
+        "team": "red",
+        "skin": "claude_fake"
+      },
+      {
+        "team": "red",
+        "skin": "claude_fake"
+      },
+      {
+        "team": "red",
+        "skin": "claude_fake"
+      },
+      {
+        "team": "red",
+        "skin": "claude_fake"
+      },
+      {
+        "team": "red",
+        "skin": "claude_fake"
+      },
+      {
+        "team": "red",
+        "skin": "claude_fake"
+      },
+      {
+        "team": "blue",
+        "skin": "deepseek"
+      },
+      {
+        "team": "blue",
+        "skin": "deepseek"
+      },
+      {
+        "team": "blue",
+        "skin": "deepseek"
+      },
+      {
+        "team": "blue",
+        "skin": "deepseek"
+      },
+      {
+        "team": "blue",
+        "skin": "deepseek"
+      }
+    ],
+    "helmet": "Head",
+    "head": [
+      -0.008750865732120567,
+      1.1099999793241841,
+      -69.01634910795289
+    ],
+    "visible": [
+      "Mesh_Arms"
+    ],
+    "balance": {
+      "red": 4,
+      "blue": 6
+    },
+    "tag": true
+  },
+  "red": {
+    "skin": "claude_fake",
+    "local": "claude_fake",
+    "view": "claude_fake",
+    "z": 69,
+    "bots": [
+      {
+        "team": "red",
+        "skin": "claude_fake"
+      },
+      {
+        "team": "red",
+        "skin": "claude_fake"
+      },
+      {
+        "team": "red",
+        "skin": "claude_fake"
+      },
+      {
+        "team": "red",
+        "skin": "claude_fake"
+      },
+      {
+        "team": "red",
+        "skin": "claude_fake"
+      },
+      {
+        "team": "blue",
+        "skin": "deepseek"
+      },
+      {
+        "team": "blue",
+        "skin": "deepseek"
+      },
+      {
+        "team": "blue",
+        "skin": "deepseek"
+      },
+      {
+        "team": "blue",
+        "skin": "deepseek"
+      },
+      {
+        "team": "blue",
+        "skin": "deepseek"
+      },
+      {
+        "team": "blue",
+        "skin": "deepseek"
+      }
+    ],
+    "helmet": "Head",
+    "head": [
+      -0.003021924133416096,
+      1.0959999695753055,
+      69.0297510820084
+    ],
+    "visible": [
+      "Mesh_Arms"
+    ],
+    "balance": {
+      "red": 2,
+      "blue": 2
+    },
+    "tag": true
+  },
+  "bomber": {
+    "hp": [
+      {
+        "hp": 100,
+        "charges": 2,
+        "part": "head"
+      },
+      {
+        "hp": 100,
+        "charges": 1,
+        "part": "head"
+      },
+      {
+        "hp": 100,
+        "charges": 0,
+        "part": "head"
+      },
+      {
+        "hp": 98.25,
+        "charges": 0,
+        "part": "head"
+      }
+    ],
+    "helmet": false,
+    "loose": 1
+  }
+}

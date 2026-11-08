@@ -1,0 +1,136 @@
+{
+  "date": "2026-11-01",
+  "browser": "Microsoft Edge (headless), actual WebGL and WebAudio",
+  "assetComparison": {
+    "animationTracks": 25662,
+    "meshAccessors": 42
+  },
+  "suites": [
+    {
+      "name": "asset-lossless",
+      "checks": null,
+      "log": "pack-latest.log",
+      "passed": true
+    },
+    {
+      "name": "equipment-unit",
+      "checks": 14,
+      "log": "equipment-test.cjs.log",
+      "passed": true
+    },
+    {
+      "name": "grenade-physics",
+      "checks": 10,
+      "log": "grenade-physics-test.cjs.log",
+      "passed": true
+    },
+    {
+      "name": "ai-unit",
+      "checks": 10,
+      "log": "fps-ai-test.cjs.log",
+      "passed": true
+    },
+    {
+      "name": "jump-unit",
+      "checks": 11,
+      "log": "fps-jump-test.cjs.log",
+      "passed": true
+    },
+    {
+      "name": "hitboxes",
+      "checks": 10,
+      "log": "character-hitboxes-test.cjs.log",
+      "passed": true
+    },
+    {
+      "name": "smoke",
+      "checks": 180,
+      "log": "smoke-test.js.log",
+      "passed": true
+    },
+    {
+      "name": "factions",
+      "checks": 19,
+      "log": "browser-factions-test.cjs.log",
+      "passed": true
+    },
+    {
+      "name": "tactical-grenade",
+      "checks": 15,
+      "log": "tactical-latest.log",
+      "passed": true
+    },
+    {
+      "name": "spatial-voice-file",
+      "checks": 15,
+      "log": "voice-file-final.log",
+      "passed": true
+    },
+    {
+      "name": "spatial-voice-http",
+      "checks": 15,
+      "log": "voice-http-final.log",
+      "passed": true
+    },
+    {
+      "name": "loading-file",
+      "checks": 2,
+      "log": "character-loading-file-final.log",
+      "passed": true
+    },
+    {
+      "name": "loading-http",
+      "checks": 2,
+      "log": "browser-character-loading-test.cjs-final.log",
+      "passed": true
+    },
+    {
+      "name": "fps",
+      "checks": 38,
+      "log": "browser-fps-test.cjs.log",
+      "passed": true
+    },
+    {
+      "name": "grenade-input",
+      "checks": 17,
+      "log": "browser-grenade-test.cjs.log",
+      "passed": true
+    },
+    {
+      "name": "characters",
+      "checks": 27,
+      "log": "browser-character-test.cjs-final.log",
+      "passed": true
+    },
+    {
+      "name": "equipment-browser",
+      "checks": 32,
+      "log": "equipment-latest.log",
+      "passed": true
+    },
+    {
+      "name": "lobby",
+      "checks": 59,
+      "log": "lobby-latest.log",
+      "passed": true
+    },
+    {
+      "name": "firstperson-jump",
+      "checks": 16,
+      "log": "browser-view-jump-test.cjs-final.log",
+      "passed": true
+    },
+    {
+      "name": "ragdoll",
+      "checks": 20,
+      "log": "browser-ragdoll-test.cjs.log",
+      "passed": true
+    },
+    {
+      "name": "death-camera",
+      "checks": 19,
+      "log": "browser-death-camera-test.cjs.log",
+      "passed": true
+    }
+  ]
+}

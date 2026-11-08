@@ -1,0 +1,215 @@
+{
+  "verifiedAt": "2026-11-01T22:52:20.3528127+08:00",
+  "author": "OpenAI Codex",
+  "status": "passed",
+  "platform": "Windows desktop Edge / WebGL; HTTP and file://; keyboard and mouse",
+  "change": "FPS volumetric fog, preserved anime preset, new western cartoon preset, lobby-only saved settings, shared yellow sand-haze palette",
+  "backup": "D:/CodexWork/蓝色肥鱼开发备份/2026-11-01-体积雾与双风格",
+  "suites": [
+    {
+      "name": "render-options",
+      "status": "passed",
+      "namedChecks": 22,
+      "log": "tests/render-options-results/test.log",
+      "stage": "final-yellow-palette",
+      "logModifiedUtc": "2026-11-01T14:51:11.5807955Z",
+      "sha256": "3cea186eb8b04a02dec0a8587b877dbd1e12aaadf248d0ceff74580e3e34530c"
+    },
+    {
+      "name": "anime-style",
+      "status": "passed",
+      "namedChecks": 19,
+      "log": "tests/render-options-results/browser-anime-style-test.cjs.log",
+      "stage": "before-palette-only-adjustment",
+      "logModifiedUtc": "2026-11-01T14:34:42.7428583Z",
+      "sha256": "e7495b0d521addd08d788cc67fe97018de7ab16cf0a5102486ce57fa3c8d8dd3"
+    },
+    {
+      "name": "bomber-radiation",
+      "status": "passed",
+      "namedChecks": 18,
+      "log": "tests/render-options-results/browser-bomber-test.cjs.log",
+      "stage": "before-palette-only-adjustment",
+      "logModifiedUtc": "2026-11-01T14:35:26.9006837Z",
+      "sha256": "a1da11ebc9841f76c99ca2faf289b91d34b1c75f23ce7806685f875b8dc691bf"
+    },
+    {
+      "name": "combat",
+      "status": "passed",
+      "namedChecks": 0,
+      "log": "tests/render-options-results/browser-combat-test.cjs.log",
+      "stage": "before-palette-only-adjustment",
+      "logModifiedUtc": "2026-11-01T14:36:01.5814759Z",
+      "sha256": "b932b320297472b2d1e0e51a80911daadf59b74adcc4c040732304907564c7b7"
+    },
+    {
+      "name": "death-camera-desktop",
+      "status": "passed",
+      "namedChecks": 15,
+      "log": "tests/render-options-results/browser-death-camera-test.cjs.log",
+      "stage": "before-palette-only-adjustment",
+      "logModifiedUtc": "2026-11-01T14:36:18.1956458Z",
+      "sha256": "0540766f63b6b6f75c6e2f2bdd736560d0edb68eb503df0a3747981925a60907"
+    },
+    {
+      "name": "weapon-ui-desktop",
+      "status": "passed",
+      "namedChecks": 16,
+      "log": "tests/render-options-results/browser-weapon-ui-test.cjs.log",
+      "stage": "before-palette-only-adjustment",
+      "logModifiedUtc": "2026-11-01T14:36:33.8042285Z",
+      "sha256": "5c28a91ff89e51f4793d799a406e7800922ceaab406c4f5521fe1471d9292e0f"
+    },
+    {
+      "name": "smoke",
+      "status": "passed",
+      "namedChecks": 180,
+      "log": "tests/render-options-results/smoke-test.js.log",
+      "stage": "before-palette-only-adjustment",
+      "logModifiedUtc": "2026-11-01T14:36:38.0821953Z",
+      "sha256": "c2cd1ba786c199b2998db127a4ef1962de0432b40d45cee9e5356946db3395ea"
+    }
+  ],
+  "sourceHashes": [
+    {
+      "file": "index.html",
+      "bytes": 77278,
+      "sha256": "313891df7c77b7bb2b6eacf42112ef54886be39869f7a05c7f6b212176d2de15"
+    },
+    {
+      "file": "js/game.js",
+      "bytes": 409035,
+      "sha256": "3cae192a0f2070fc976961837486484fe4aab243c4e5e7548c3aeecb3f475e00"
+    },
+    {
+      "file": "js/render-shaders.js",
+      "bytes": 10083,
+      "sha256": "80a38672588efe08d8bbda092e310d0cac46b40949b003fbe6612b13b45be481"
+    },
+    {
+      "file": "js/render-style.js",
+      "bytes": 6314,
+      "sha256": "031b37dd94ca09923ae3378ce448a3af398a6f02909f92ef272bdf07c0b5c35f"
+    },
+    {
+      "file": "js/render-pipeline.js",
+      "bytes": 5504,
+      "sha256": "d052228c6aca6d544130a3d9f6fa12574d3095ca149015df3dd377c93585982b"
+    },
+    {
+      "file": "js/volumetric-fog.js",
+      "bytes": 5833,
+      "sha256": "681b8f66da4630eb87d489688dc5cce2586a26051c6d4917d07874839a07574d"
+    },
+    {
+      "file": "js/anime-fx.js",
+      "bytes": 1070,
+      "sha256": "f920c5d1b937ea4464175b616abbbd68c213979c781f2d3ea47adc857426b6a8"
+    },
+    {
+      "file": "js/bomber-fx.js",
+      "bytes": 8187,
+      "sha256": "1297875594e816dd0361335a2c998ea04edfd6aac008fd247583733eeac4d1d8"
+    },
+    {
+      "file": "tests/browser-render-options-test.cjs",
+      "bytes": 14964,
+      "sha256": "f07305d9578decf9aa38900eebc09b5232035a844d15bc3d85d78160d2146e0a"
+    },
+    {
+      "file": "tests/browser-anime-style-test.cjs",
+      "bytes": 14766,
+      "sha256": "253689dfccbb51cd20bf0e33fc723b47b7edd8ebd953af4d7f3943efeea76797"
+    },
+    {
+      "file": "tests/smoke-test.js",
+      "bytes": 62307,
+      "sha256": "8355ab92eb0d7e07a986e3cf3935327b19119fe7d901620a471d01d7e1ba90ef"
+    },
+    {
+      "file": "assets/ui-art/styles/anime.webp",
+      "bytes": 21870,
+      "sha256": "6c97c46358e079657ce309ec7e0e82d7ae582e083a032ca867c6011881aa63b1"
+    },
+    {
+      "file": "assets/ui-art/styles/western.webp",
+      "bytes": 26164,
+      "sha256": "ae406e2507eadbfe12dd9ace2f07aafb568b7ecf2fc2253bd6a174ebb810f8a3"
+    },
+    {
+      "file": "README.md",
+      "bytes": 63759,
+      "sha256": "996d4d079050d151ffdeb5d61fd0b43bf13d581f13d81285114797e9c00b8115"
+    },
+    {
+      "file": "FPS_开发进度.md",
+      "bytes": 27967,
+      "sha256": "07029955c71e01235c202a7446614411fb1de2f9521242e2575b28ac9f75e50d"
+    },
+    {
+      "file": "CODEX_优化与开发建议.md",
+      "bytes": 146161,
+      "sha256": "92373f4274b08de146833a6676a0e6c4e5d455487e276a5e55079a9a6a54a203"
+    },
+    {
+      "file": "渲染与特效开发说明.md",
+      "bytes": 11894,
+      "sha256": "d27c0c80202d75aa6d46875b26376fce24815d9303f74a8b12a7bc36ecefdfec"
+    }
+  ],
+  "finalPalette": {
+    "space": "linear RGB",
+    "lightColor": [
+      0.96,
+      0.8,
+      0.44
+    ],
+    "shadeColor": [
+      0.4,
+      0.35,
+      0.23
+    ],
+    "density": 0.0068,
+    "sharedBy": [
+      "anime",
+      "western"
+    ]
+  },
+  "renderReport": "tests/render-options-results/report.json",
+  "reportSha256": "88b171c501c8ede64932cdd1dbf3030f71f6ec86da18d44ca0a9681f5f16026d",
+  "finalPixelChecks": {
+    "style": {
+      "changed": 1187949,
+      "mean": 18.990240997942387
+    },
+    "fog": {
+      "changed": 649843,
+      "mean": 5.068053497942387
+    },
+    "shadowedScattering": {
+      "changed": 13038,
+      "mean": 0.18104501028806586
+    },
+    "nearGeometry": {
+      "changed": 0,
+      "mean": 0
+    }
+  },
+  "syntaxChecks": {
+    "status": "passed",
+    "files": 10
+  },
+  "regressionScope": "Six regression suites passed after feature integration. The final yellow-only fog palette adjustment was then rechecked with the complete 22-check render-options suite and refreshed real-game captures. No gameplay code changed in that adjustment.",
+  "testHarnessCorrection": "Viewport verification now waits for the native resize event using timer polling because gameplay requestAnimationFrame is intentionally frozen for pixel comparisons.",
+  "preservedWarehouseArtwork": {
+    "file": "assets/ui-art/armory-basin-v2.webp",
+    "sha256": "26e0ddb29ea91fcac05576671d68a506b5b22f43091cccf14e1eaf306e262032"
+  },
+  "limits": [
+    "No dedicated GPU frame-time benchmark or target-FPS claim.",
+    "Low-capability WebGL fallback branches have not been independently hardware-tested.",
+    "Single-scattering approximation; no temporal accumulation, multiple scattering or dynamic-light volumes.",
+    "Fog is visual only and does not change AI visibility or projectile rules.",
+    "No mobile testing; no historical release ZIP rebuilt."
+  ]
+}

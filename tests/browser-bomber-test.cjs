@@ -53,7 +53,7 @@ const OUT=path.join(__dirname,'bomber-results');fs.mkdirSync(OUT,{recursive:true
   check('视野撕裂缓冲随窗口尺寸调整 '+JSON.stringify(resized),resized.width===1000&&resized.height===700);
   await page.setViewportSize({width:1440,height:900});
   const left=await page.evaluate(()=>{const d=FishGame.__debug;d.getPlayer().pos.set(0,0,36);const hp=d.getPlayer().hp;stepBomber(.5);d.renderFrame();return {hp,after:d.getPlayer().hp,screen:d.getBomberFxStats().screen};});
-  check('离开后停止伤害，短促撕裂消退后恢复直接渲染',left.hp===left.after&&left.screen.remaining===0);
+  check('离开后停止伤害，短促撕裂消退后恢复常规画面',left.hp===left.after&&left.screen.remaining===0);
   const low=await page.evaluate(()=>{const d=FishGame.__debug;prepareBomber();d.setParticles(false);boom();d.getPlayer().pos.set(0,0,24);stepBomber(1);d.renderFrame();return {hp:d.getPlayer().hp,fx:d.getBomberFxStats()};});
   check('关闭装饰粒子仍保留污染范围标记、真实伤害与受击撕裂',low.hp===98&&low.fx.world.clouds===0&&low.fx.world.fields===1&&low.fx.screen.remaining>0);
   const stress=await page.evaluate(()=>{const d=FishGame.__debug;prepareBomber();for(let i=0;i<20;i++)boom();stepBomber(.1);const peak=d.getBomberFxStats(),zones=d.getRadiation().zones.length;stepBomber(15.1);return {peak,zones,end:d.getBomberFxStats()};});report.stress=stress;
@@ -62,6 +62,8 @@ const OUT=path.join(__dirname,'bomber-results');fs.mkdirSync(OUT,{recursive:true
   check('辐射能致死并进入正常结算，死亡后清除减速区和画面撕裂',fatal.hp===0&&fatal.state==='gameover'&&fatal.zones===0&&fatal.fx.world.clouds===0&&fatal.fx.screen.remaining===0);
   const cycles=await page.evaluate(()=>{const d=FishGame.__debug,result=[];for(let i=0;i<3;i++){d.restart(true);d.enterGameWorld();d.enterFallback();prepareBomber();boom();d.getPlayer().pos.set(0,0,24);stepBomber(1);d.renderFrame();d.restart(true);d.renderFrame();const s=d.getSceneStats();result.push({geometries:s.geometries,textures:s.textures,fx:d.getBomberFxStats()});}return result;});report.resourceCycles=cycles;
   check('重复进入、引爆、受伤、退出三次，几何和纹理数量不累积',cycles[1].geometries===cycles[2].geometries&&cycles[1].textures===cycles[2].textures&&cycles.every(c=>!c.fx.world&&!c.fx.screen));
+  // Debug startPvp bypasses the UI loader; load both team rigs before using it.
+  await page.evaluate(()=>FishCharacters.load(null,['deepseek','claude_fake']));
   const switched=await page.evaluate(()=>{const d=FishGame.__debug;d.enterGameWorld();d.enterFallback();prepareBomber();boom();d.startPvp({teamSize:6});d.enterFallback();d.getPvpTactics().step=()=>{};stepBomber(4);const before=d.getPlayer().hp;const fake=d.spawnEnemy('bomber',d.getPlayer().pos.x,d.getPlayer().pos.z);d.setState('playing');d.explodeBomber(fake);d.setState('paused');return {before,after:d.getPlayer().hp,zones:d.getRadiation().zones.length,fx:d.getBomberFxStats(),mode:d.getSceneStats().worldMode};});
   check('切换 FPS 清理辐射及 GPU 缓冲，FPS 不触发自爆污染',switched.mode==='pvp'&&switched.zones===0&&switched.before===switched.after&&!switched.fx.world&&!switched.fx.screen);
   const cleanup=await page.evaluate(()=>{const d=FishGame.__debug;d.restart(true);return {zones:d.getRadiation().zones.length,fx:d.getBomberFxStats()};});

@@ -1,0 +1,252 @@
+{
+  "checks": [
+    "file:// 第 1 次载入完整家场景与独立骨架",
+    "四段本地方向对白均能解码，不依赖网络或真人录音",
+    "剧情呼喊走 HRTF 空间声、带距离衰减和墙体遮挡",
+    "暂停同时冻结剧情语音",
+    "第 1 次离开回收 NPC、碰撞、语音和 HUD",
+    "file:// 第 2 次载入完整家场景与独立骨架",
+    "第 2 次离开回收 NPC、碰撞、语音和 HUD",
+    "file:// 第 3 次载入完整家场景与独立骨架",
+    "第 3 次离开回收 NPC、碰撞、语音和 HUD",
+    "连续三次进出材质、几何与纹理数量稳定",
+    "本地直开与反复卸载无 JavaScript 异常"
+  ],
+  "errors": [],
+  "cycles": [
+    {
+      "instances": 0,
+      "materials": 9,
+      "scene": {
+        "children": 2,
+        "meshes": 92,
+        "envBuilt": false,
+        "envObjects": 0,
+        "worldMode": null,
+        "mapName": "沙海哨站",
+        "arena": 45,
+        "modelParts": null,
+        "obstacles": 0,
+        "wallMeshes": 0,
+        "enemies": 0,
+        "trackedEnemies": 0,
+        "renderCalls": 3,
+        "triangles": 2,
+        "geometries": 5,
+        "textures": 5
+      },
+      "voice": {
+        "played": 1,
+        "paused": false,
+        "decoded": 1,
+        "voices": []
+      },
+      "bodyClass": false
+    },
+    {
+      "instances": 0,
+      "materials": 9,
+      "scene": {
+        "children": 2,
+        "meshes": 92,
+        "envBuilt": false,
+        "envObjects": 0,
+        "worldMode": null,
+        "mapName": "沙海哨站",
+        "arena": 45,
+        "modelParts": null,
+        "obstacles": 0,
+        "wallMeshes": 0,
+        "enemies": 0,
+        "trackedEnemies": 0,
+        "renderCalls": 3,
+        "triangles": 2,
+        "geometries": 5,
+        "textures": 5
+      },
+      "voice": {
+        "played": 1,
+        "paused": false,
+        "decoded": 1,
+        "voices": []
+      },
+      "bodyClass": false
+    },
+    {
+      "instances": 0,
+      "materials": 9,
+      "scene": {
+        "children": 2,
+        "meshes": 92,
+        "envBuilt": false,
+        "envObjects": 0,
+        "worldMode": null,
+        "mapName": "沙海哨站",
+        "arena": 45,
+        "modelParts": null,
+        "obstacles": 0,
+        "wallMeshes": 0,
+        "enemies": 0,
+        "trackedEnemies": 0,
+        "renderCalls": 3,
+        "triangles": 2,
+        "geometries": 5,
+        "textures": 5
+      },
+      "voice": {
+        "played": 1,
+        "paused": false,
+        "decoded": 1,
+        "voices": []
+      },
+      "bodyClass": false
+    }
+  ],
+  "四段本地方向对白均能解码，不依赖网络或真人录音": [
+    {
+      "key": "story-call",
+      "seconds": 3.0388125,
+      "channels": 1
+    },
+    {
+      "key": "story-rice",
+      "seconds": 1.8289791666666666,
+      "channels": 1
+    },
+    {
+      "key": "story-caught",
+      "seconds": 3.0736041666666667,
+      "channels": 1
+    },
+    {
+      "key": "story-caught-three",
+      "seconds": 6.037729166666667,
+      "channels": 1
+    }
+  ],
+  "剧情呼喊走 HRTF 空间声、带距离衰减和墙体遮挡": {
+    "played": 1,
+    "paused": false,
+    "decoded": 1,
+    "voices": [
+      {
+        "id": 1,
+        "file": "story-call",
+        "variant": 0,
+        "local": false,
+        "distance": 11.965163014589654,
+        "level": 0.23046206858264526,
+        "blocked": false,
+        "cutoff": 6824.877177957448,
+        "playing": true,
+        "offset": 0,
+        "panning": "HRTF"
+      }
+    ]
+  },
+  "第 1 次离开回收 NPC、碰撞、语音和 HUD": {
+    "instances": 0,
+    "materials": 9,
+    "scene": {
+      "children": 2,
+      "meshes": 92,
+      "envBuilt": false,
+      "envObjects": 0,
+      "worldMode": null,
+      "mapName": "沙海哨站",
+      "arena": 45,
+      "modelParts": null,
+      "obstacles": 0,
+      "wallMeshes": 0,
+      "enemies": 0,
+      "trackedEnemies": 0,
+      "renderCalls": 3,
+      "triangles": 2,
+      "geometries": 5,
+      "textures": 5
+    },
+    "voice": {
+      "played": 1,
+      "paused": false,
+      "decoded": 1,
+      "voices": []
+    },
+    "bodyClass": false
+  },
+  "第 2 次离开回收 NPC、碰撞、语音和 HUD": {
+    "instances": 0,
+    "materials": 9,
+    "scene": {
+      "children": 2,
+      "meshes": 92,
+      "envBuilt": false,
+      "envObjects": 0,
+      "worldMode": null,
+      "mapName": "沙海哨站",
+      "arena": 45,
+      "modelParts": null,
+      "obstacles": 0,
+      "wallMeshes": 0,
+      "enemies": 0,
+      "trackedEnemies": 0,
+      "renderCalls": 3,
+      "triangles": 2,
+      "geometries": 5,
+      "textures": 5
+    },
+    "voice": {
+      "played": 1,
+      "paused": false,
+      "decoded": 1,
+      "voices": []
+    },
+    "bodyClass": false
+  },
+  "第 3 次离开回收 NPC、碰撞、语音和 HUD": {
+    "instances": 0,
+    "materials": 9,
+    "scene": {
+      "children": 2,
+      "meshes": 92,
+      "envBuilt": false,
+      "envObjects": 0,
+      "worldMode": null,
+      "mapName": "沙海哨站",
+      "arena": 45,
+      "modelParts": null,
+      "obstacles": 0,
+      "wallMeshes": 0,
+      "enemies": 0,
+      "trackedEnemies": 0,
+      "renderCalls": 3,
+      "triangles": 2,
+      "geometries": 5,
+      "textures": 5
+    },
+    "voice": {
+      "played": 1,
+      "paused": false,
+      "decoded": 1,
+      "voices": []
+    },
+    "bodyClass": false
+  },
+  "连续三次进出材质、几何与纹理数量稳定": [
+    {
+      "materials": 9,
+      "g": 5,
+      "t": 5
+    },
+    {
+      "materials": 9,
+      "g": 5,
+      "t": 5
+    },
+    {
+      "materials": 9,
+      "g": 5,
+      "t": 5
+    }
+  ],
+  "本地直开与反复卸载无 JavaScript 异常": []
+}

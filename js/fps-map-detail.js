@@ -79,7 +79,7 @@
       var nx=face[0],nz=face[1],len=face[2],depth=face[3],tx=nz,tz=-nx,turn=Math.atan2(nx,nz);
       function box(mat,u,y,out,a,hh,dd,rz){b.box(mat,x+tx*u+nx*(depth+out),y,z+tz*u+nz*(depth+out),a,hh,dd,turn,rz||0);}
       function at(u,y,out){return new T.Vector3(x+tx*u+nx*(depth+out),y,z+tz*u+nz*(depth+out));}
-      function visible(u,y){var p=at(u,y,.12);return !map.solids.some(function(s){return s!==o&&s.kind!=='arch'&&p.x>s.min.x+.01&&p.x<s.max.x-.01&&p.y>s.min.y&&p.y<s.max.y&&p.z>s.min.z+.01&&p.z<s.max.z-.01;});}
+      function visible(u,y){if(nz===1&&y<(o.plainSouthBelow||0))return false;var p=at(u,y,.12);p.y+=o.min.y;return !map.solids.some(function(s){return s!==o&&s.kind!=='arch'&&p.x>s.min.x+.01&&p.x<s.max.x-.01&&p.y>s.min.y&&p.y<s.max.y&&p.z>s.min.z+.01&&p.z<s.max.z-.01;});}
       // Eave corbels and a shadow reveal make the silhouette and wall depth read.
       for(var cor=-len/2+.6;cor<len/2-.4;cor+=1.15)if(visible(cor,h-.6))box('wood',cor,h-.57,.22,.16,.22,.67);
       var columns=Math.max(1,Math.floor((len-2)/3.2)),spacing=(len-2)/columns;
@@ -181,32 +181,34 @@
   }
   function street(b,map){
     var T=root.THREE;
-    map.props.forEach(function(p){if(p.type==='cart')cart(b,p);else{barrel(b,p.x-.35,0,p.z,.8);barrel(b,p.x+.4,0,p.z+.38,.75);pot(b,p.x+.15,.91,p.z+.05,.38,true);}});
-    [-1,1].forEach(function(f){
-      awning(b,-50,5.1,46*f,8,4.6,0);
-      // Covered B route: ribbed timber ceiling, real hanging lantern frames.
-      for(var k=0;k<5;k++){
-        var zz=(21+k*4.5)*f;
-        b.box('wood',50,3.23,zz,13.7,.25,.25);
-        for(var slat=0;slat<6;slat++)b.box('wood',44.2+slat*2.3,3.36,zz, .15,.08,4.4);
-        [44.05,55.95].forEach(function(x){lantern(b,x,2.64,zz,.57);});
-      }
-      [-1,1].forEach(function(side){
-        var x=side<0?-39:38,zz=7*f;
-        b.box('wood',x,.6,zz,1.1,1.2,4.2);b.box('wood',x,1.23,zz,1.35,.1,4.4);
-        for(var leg=-1;leg<=1;leg+=2)b.box('wood',x,1.95,zz+leg*2.15,.11,1.5,.11);
-        awning(b,x,2.75,zz,2.3,4.8,0);
-        for(var q=-1;q<=1;q++)pot(b,x,1.28,zz+q*1.2,.58,q===1);
-        b.box('tile',x+(side<0?-.57:.57),.92,zz,.055,.28,3.9);
-      });
-      // A court and B court use different colors/props but mirrored cover.
-      map.crates.filter(function(c){return c.z*f>0&&c.h>2;}).forEach(function(c,i){
-        var top=c.y+c.h/2+.03;
-        b.box('cloth',c.x,top+.07,c.z,c.w*.72,.13,c.d*.8);
-        pot(b,c.x-c.w*.25,top+.14,c.z-c.d*.22,.5,i%2===0);
-        b.box('iron',c.x+c.w*.18,top+.24,c.z+.25,.72,.34,.5);
-      });
+    map.props.forEach(function(p){b.offsetY=p.y||0;if(p.type==='cart')cart(b,p);else{barrel(b,p.x-.35,0,p.z,.8);barrel(b,p.x+.4,0,p.z+.38,.75);pot(b,p.x+.15,.91,p.z+.05,.38,true);}b.offsetY=0;});
+    map.awnings.forEach(function(a){
+      awning(b,a.x,a.y,a.z,a.w,a.d,a.turn);[-1,1].forEach(function(x){[-1,1].forEach(function(z){b.box('wood',a.x+x*a.w/2,(a.y+a.floor)/2,a.z+z*a.d/2,.15,a.y-a.floor,.15);});});
+      lantern(b,a.x-a.w/2+.45,a.y-.9,a.z,.62);
     });
+    // The upper tunnel has ribbed vaults, timber ceiling beams and skylight gaps.
+    [-16,-5,6,17,27].forEach(function(z){
+      b.box('wood',-54,7.10,z,12,.25,.3);
+      [-1,1].forEach(function(side){b.box('cream',-54+side*5.8,5.1,z,.4,3.8,.55);b.box('cream',-54+side*5.65,6.65,z,.7,.35,.8);lantern(b,-54+side*5.45,5.8,z,.62);});
+      for(var slat=0;slat<6;slat++)b.box('wood',-59+slat*2,7.17,z,.12,.12,7.7);
+      var rib=geo('tunnel-vault-rib',function(){var sh=new T.Shape();for(var i=0;i<=24;i++){var t=i*PI/24,x=Math.cos(t)*5.65,y=Math.sin(t)*1.02;if(i)sh.lineTo(x,y);else sh.moveTo(x,y);}for(var j=24;j>=0;j--){var t2=j*PI/24;sh.lineTo(Math.cos(t2)*5.65,Math.sin(t2)*1.02-.20);}sh.closePath();return new T.ExtrudeGeometry(sh,{depth:.28,bevelEnabled:false});});
+      b.add(rib,'cream',-54,6.13,z-.14);
+    });
+    // Lower tunnel stays visibly lower, with a low lintel and recessed lamps.
+    for(var x=-34;x<=-18;x+=8){b.box('wood',x,3.56,5,.22,.2,8.4);lantern(b,x,2.6,1.75,.5);}
+    // The catwalk is a usable bridge. Side fascia and supports remain outside
+    // the walkable opening; there is no decorative floor stacked on its deck.
+    b.box('tile',9.5,2.96,-18.025,10.8,.20,.05);b.box('tile',23,2.96,-9.975,21.6,.20,.05);
+    [14,23,32].forEach(function(x){[-17.3,-10.7].forEach(function(z){b.box('stone',x,1.38,z,.7,2.76,.7);b.box('cream',x,2.66,z,.95,.22,.95);});});
+    // High points use intact coping and wear at the step noses, not coplanar skins.
+    map.surfaces.filter(function(s){return s.kind==='ramp'&&/石阶/.test(s.name);}).forEach(function(s){
+      for(var i=0;i<s.steps;i++){var t=(i+.5)/s.steps,x=(s.x0+s.x1)/2,z=(s.z0+s.z1)/2;if(s.axis==='z')z=s.z0+(s.z1-s.z0)*t;else x=s.x0+(s.x1-s.x0)*t;
+        var y=root.FishFpsLayout.height(s,x,z);b.box('cream',x,y+.012,z,s.axis==='z'?s.x1-s.x0-.05:.055,.024,s.axis==='x'?s.z1-s.z0-.05:.055);
+      }
+    });
+    map.crates.forEach(function(c,i){if(c.h<1.8)return;var top=c.y+c.h/2+.03;b.box('cloth',c.x,top+.07,c.z,c.w*.72,.13,c.d*.8);pot(b,c.x-c.w*.25,top+.14,c.z-c.d*.22,.5,i%2===0);b.box('iron',c.x+c.w*.18,top+.24,c.z+.25,.72,.34,.5);});
+    // Drain slots and individually modelled ceramic piles mark the districts.
+    [[-19,48,0],[50,35,1.8],[-62,-45,2.8],[40,-49,5.4]].forEach(function(p,i){pot(b,p[0],p[2]+.03,p[1],.85,i%2===0);pot(b,p[0]+.8,p[2]+.03,p[1]+.4,.55,true);});
     // A layered city outside the playable walls, with towers and teal landmarks.
     for(var k=0;k<16;k++){
       var angle=k*PI/8,dist=100+(k%3)*7,xx=Math.cos(angle)*dist,zz=Math.sin(angle)*dist,hh=9+k%4*3;
@@ -220,10 +222,10 @@
     // Articulated perimeter: buttresses, capstones, spaced merlons. Inside faces
     // are offset by their actual thickness, not coplanar overlays.
     [-1,1].forEach(function(f){
-      b.box('cream',0,7.36,76*f,153.45,.32,1.45);b.box('cream',76*f,7.36,0,1.45,.32,150.55);
+      b.box('cream',0,9.36,76*f,153.45,.32,1.45);b.box('cream',75*f,9.36,0,1.85,.32,150.55);
       for(var p=-72;p<=72;p+=8){
-      b.box('stone',p,3.2,75.28*f,.65,6.4,.40);b.box('stone',75.28*f,3.2,p,.40,6.4,.65);
-      [-2,0,2].forEach(function(u){b.box('cream',p+u,7.8,76*f,1,.55,1.2);b.box('cream',76*f,7.8,p+u,1.2,.55,1);});
+      b.box('stone',p,4.2,75.28*f,.65,8.4,.40);b.box('stone',74.13*f,4.2,p,.40,8.4,.65);
+      [-2,0,2].forEach(function(u){b.box('cream',p+u,9.8,76*f,1,.55,1.2);b.box('cream',75*f,9.8,p+u,1.2,.55,1);});
     }});
   }
   function gate(b,leaf,top,point){
@@ -231,7 +233,7 @@
     for(var i=24;i>=0;i--){var u=leaf.width*i/24;shape.lineTo(leaf.side*u,top(leaf,u));}shape.closePath();
     var g=new T.ExtrudeGeometry(shape,{depth:leaf.thickness,bevelEnabled:true,bevelThickness:.015,bevelSize:.015,bevelSegments:1,curveSegments:12});g.translate(0,0,-leaf.thickness/2);g.userData.temporary=true;
     var uv=g.attributes.uv;for(var n=0;n<uv.count;n++)uv.setXY(n,uv.getX(n)/2,uv.getY(n)/2);
-    b.add(g,'wood',leaf.x,0,leaf.z,1,1,1,0,leaf.angle);
+    b.add(g,'wood',leaf.x,leaf.y||0,leaf.z,1,1,1,0,leaf.angle);
     function localBox(mat,u,y,d,w,h,depth){var p=point(leaf,u,y,d);b.box(mat,p.x,p.y,p.z,w,h,depth,leaf.angle);}
     function vector(u,y,d){var p=point(leaf,u,y,d);return new T.Vector3(p.x,p.y,p.z);}
     [-1,1].forEach(function(face){
@@ -249,7 +251,7 @@
       for(var rail=0;rail<18;rail++){var a=leaf.width*rail/18,bb=leaf.width*(rail+1)/18;b.beam('wood',vector(a,top(leaf,a)-.08,front+face*.04),vector(bb,top(leaf,bb)-.08,front+face*.04),.085);}
       var hp=point(leaf,leaf.width-.57,1.55,front+face*.15);b.add(ring(),'iron',hp.x,hp.y,hp.z,.18,.22,.18,0,leaf.angle);
     });
-    [.80,2.18,2.95].forEach(function(y){b.add(cylinder(),'iron',leaf.x,y,leaf.z,.095,.40,.095);});
+    [.80,2.18,2.95].forEach(function(y){b.add(cylinder(),'iron',leaf.x,(leaf.y||0)+y,leaf.z,.095,.40,.095);});
   }
   root.FishFpsDetail={texture:texture,building:building,street:street,lantern:lantern,pot:pot,gate:gate};
 })(typeof window!=='undefined'?window:globalThis);

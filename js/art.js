@@ -7,7 +7,7 @@ var cache = Object.create(null), anisotropy = 4;
 function seeded(seed) {
   return function () { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
 }
-function shared(value) { value.userData.artShared = true; return value; }
+function shared(value) { value.userData.artShared = true; if(window.FishRenderStyle)FishRenderStyle.material(value);return value; }
 function canvas(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
 function texture(key, paint, repeat, data) {
   if (cache[key]) return cache[key];

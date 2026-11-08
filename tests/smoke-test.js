@@ -112,14 +112,19 @@ globalThis.Image = class Image {
 // ---------------- 加载游戏 ----------------
 const THREE = require(path.join(GAME_DIR, 'lib', 'three.min.js'));
 globalThis.THREE = THREE;
+// Rendering is verified in real Edge tests; this DOM/GL mock cannot render skinning.
+const MockRenderer=THREE.WebGLRenderer;
+THREE.WebGLRenderer=function(options){const r=new MockRenderer(options);r.render=function(){};r.compile=function(){};return r;};
+['render-shaders.js','render-style.js','volumetric-fog.js','render-pipeline.js','anime-fx.js'].forEach(file=>(0,eval)(fs.readFileSync(path.join(GAME_DIR,'js',file),'utf8')));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'assets', 'fish-texture.js'), 'utf8'));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'art.js'), 'utf8'));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'scene-detail.js'), 'utf8'));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'combat-art.js'), 'utf8'));
 ['radiation.js','bomber-fx.js'].forEach(file=>(0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', file), 'utf8')));
-(0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'fps-ai.js'), 'utf8'));
+['weapon-rules.js','sniper-cycle.js','player-physics.js','actor-collision.js','fps-locomotion.js','fps-layout.js','fps-height-nav.js','fps-ai.js'].forEach(file=>(0,eval)(fs.readFileSync(path.join(GAME_DIR,'js',file),'utf8')));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'fps-art.js'), 'utf8'));
-['player-physics.js','grenade-physics.js','map-surfaces.js','fps-map-detail.js','fps-map.js'].forEach(file=>(0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', file), 'utf8')));
+['player-physics.js','grenade-physics.js','tactical-grenades.js','map-surfaces.js','fps-map-detail.js','fps-map.js'].forEach(file=>(0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', file), 'utf8')));
+['lib/three-addons-r159.js','lib/cannon-es-0.20.0.js','assets/characters/runtime/manifest.js','assets/equipment/iron-rice-bowl/manifest.js','js/equipment.js','js/helmet.js','js/character-hitboxes.js','js/characters.js','js/ragdolls.js'].forEach(file=>(0,eval)(fs.readFileSync(path.join(GAME_DIR,file),'utf8')));
 (0, eval)(fs.readFileSync(path.join(GAME_DIR, 'js', 'game.js'), 'utf8'));
 const dbg = window.FishGame.__debug;
 
@@ -143,6 +148,19 @@ const cheatSeq = ['KeyW', 'KeyW', 'KeyS', 'KeyS', 'KeyA', 'KeyA', 'KeyD', 'KeyD'
 
 // ---------------- 测试 ----------------
 (async function main() {
+// Real runtime models and lossless animation pool; omit only bitmap materials in this GL mock.
+(0,eval)(fs.readFileSync(path.join(GAME_DIR,'assets/characters/runtime/motion-data.js'),'utf8'));
+FishCharacters.parseMotionData(window.FISH_MOTION_DATA);delete window.FISH_MOTION_DATA;
+for(const id of ['deepseek','claude_fake']){
+ (0,eval)(fs.readFileSync(path.join(GAME_DIR,'assets/characters/runtime/'+id+'-model.js'),'utf8'));
+ const originalGlb=Buffer.from(window.FISH_MODEL_DATA[id],'base64');delete window.FISH_MODEL_DATA[id];
+ const jsonLength=originalGlb.readUInt32LE(12),fixtureJson=JSON.parse(originalGlb.subarray(20,20+jsonLength));
+ fixtureJson.materials=fixtureJson.materials.map(()=>({pbrMetallicRoughness:{baseColorFactor:[1,1,1,1]}}));
+ const jsonText=Buffer.from(JSON.stringify(fixtureJson)),jsonPadded=Buffer.alloc(Math.ceil(jsonText.length/4)*4,32);jsonText.copy(jsonPadded);
+ const binaryChunk=originalGlb.subarray(20+jsonLength),header=Buffer.alloc(20);header.writeUInt32LE(0x46546c67,0);header.writeUInt32LE(2,4);header.writeUInt32LE(20+jsonPadded.length+binaryChunk.length,8);header.writeUInt32LE(jsonPadded.length,12);header.writeUInt32LE(0x4e4f534a,16);
+ const fixture=Buffer.concat([header,jsonPadded,binaryChunk]);await FishCharacters.parse(fixture.buffer.slice(fixture.byteOffset,fixture.byteOffset+fixture.byteLength),id);
+}
+const helmetGlb=fs.readFileSync(path.join(GAME_DIR,'assets/equipment/iron-rice-bowl/Tactical_Helmet_Iron_Rice_Bowl.glb'));await FishHelmet.parse(helmetGlb.buffer.slice(helmetGlb.byteOffset,helmetGlb.byteOffset+helmetGlb.byteLength));
 // game.js 已自动执行 init，此处仅等待贴图回调
 await tick(); // 让 Image onload(setTimeout) 执行，生成肥鱼
 // 地图改为「首次进入游戏时才构建」（主菜单不再加载世界），测试在此显式构建
@@ -180,16 +198,18 @@ for (const fOther of dbg.getEnemies()) {
     fOther.state = 'patrol'; fOther.waitTimer = 999;
   }
 }
-target.mesh.position.set(0, target.baseY + 0.2, -5);
-target.waypoint.set(0, 0, -5);   // 钉死原地（防巡逻移动导致随机射偏）
-target.waitTimer = 999;
+target.mesh.position.set(0, target.baseY, 34);
+target.waypoint.set(0, 0, 34);   // 近处无遮挡，瞄准真实头部而非旧图片中心球。
+target.waitTimer = target.seeCheckTimer = 999;
 advance(0.05);
+target.character.updateCapsules();
+dbg.getCamera().lookAt(target.character.capsules[0].a.clone().lerp(target.character.capsules[0].b,.5));
 dbg.shootOnce();
 if (target.alive) { advance(0.2); dbg.shootOnce(); }  // 保险：静止目标极少情况补射
 check('命中肥鱼得分 +10', dbg.getScore() === 10, String(dbg.getScore()));
-check('肥鱼被击中后死亡（碎裂动画期间仍可见）', target.alive === false, 'alive=' + target.alive);
-advance(0.4);   // 等碎裂动画播完
-check('碎裂动画结束后隐藏', target.mesh.visible === false, 'visible=' + target.mesh.visible);
+check('肥鱼被击中后进入布娃娃，死亡立即停止战斗', target.alive === false&&!!target.ragdoll, 'alive=' + target.alive);
+advance(0.4);
+check('无尽布娃娃未满 5 秒时仍保留', target.mesh.visible === true&&!!target.ragdoll, 'visible=' + target.mesh.visible);
 dbg.shootOnce(); // 冷却中
 check('射速冷却生效(不重复击杀)', dbg.getKills() === 1, String(dbg.getKills()));
 
@@ -294,9 +314,10 @@ if (dbg.getState() !== 'playing') dbg.setState('playing');
 // ---- 手榴弹系统 ----
 dbg.setAmmo(30, 150);
 const nadeBefore = dbg.getNadeCount();
-fakeDocument.fire('keydown', { code: 'KeyG' });
-fakeDocument.fire('keyup', { code: 'KeyG' });
-check('G 键扔出手雷(数量-1)', dbg.getGrenades().length === 1 && dbg.getNadeCount() === nadeBefore - 1,
+fakeDocument.fire('keydown', { code: 'Digit4' });advance(.8);
+dbg.nadeBegin();dbg.nadeRelease();
+advance(1.12);
+check('4 切手雷后左键投出(数量-1)', dbg.getGrenades().length === 1 && dbg.getNadeCount() === nadeBefore - 1,
   'nade=' + dbg.getNadeCount());
 check('手雷 HUD 更新', els['nade-count'].textContent === String(nadeBefore - 1));
 // 瞬移手雷到鱼群上方，3 秒引信到期后爆炸（保持鱼群在爆炸范围）。
@@ -327,8 +348,9 @@ if (dbg.getState() !== 'playing') dbg.setState('playing');
 dbg.clearProjectiles();   // 清除在途弹幕
 advance(0.05);
 dbg.setHp(100);
-fakeDocument.fire('keydown', { code: 'KeyG' });
-fakeDocument.fire('keyup', { code: 'KeyG' });
+fakeDocument.fire('keydown', { code: 'Digit4' });advance(.8);
+dbg.nadeBegin();dbg.nadeRelease();
+advance(1.12);
 const grSelf = dbg.getGrenades()[0];
 grSelf.pos.set(dbg.getPlayer().pos.x, 0.5, dbg.getPlayer().pos.z);
 grSelf.vel.set(0, 0, 0);
@@ -343,6 +365,7 @@ for (let nk2 = 0; nk2 < 30; nk2++) {
 const lost = 100 - dbg.getPlayer().hp;
 check('手雷会伤到自己(5~10伤害)', lost >= 5 && lost <= 10, 'lost=' + lost);
 
+dbg.switchWeapon('pistol');advance(.8);
 // ---- Boss 系统 ----
 for (const fb of dbg.getEnemies()) {
   if (fb.alive) { fb.mesh.position.set(26, fb.baseY, 26); fb.state = 'patrol'; fb.lostTimer = 0; }
@@ -390,7 +413,10 @@ const rwId = rwOps[0].id;
 dbg.chooseReward(0);
 // 每只 Boss 有 rewardsPerBoss 次强化：选完最后一次才恢复游戏
 if (dbg.getState() === 'reward') { dbg.chooseReward(0); }
-check('选择奖励后恢复游戏（本 Boss 的强化次数用尽）', dbg.getState() === 'playing', dbg.getState());
+check('选择奖励后等待鼠标重新锁定，战斗不会抢跑', dbg.getState() === 'paused', dbg.getState());
+fakeDocument.pointerLockElement = canvasEl;
+fakeDocument.fire('pointerlockchange');
+check('奖励选完且鼠标锁定后恢复游戏', dbg.getState() === 'playing', dbg.getState());
 // 每只 Boss 有 2 次强化机会，同一技能可能被连续选中，因此只断言"至少 +1 级"
 check('所选技能已升级', dbg.getUpgrades()[rwId] >= 1, rwId + '=' + dbg.getUpgrades()[rwId]);
 const gr1 = dbg.getGrowth();
@@ -443,7 +469,7 @@ if (dbg.getState() !== 'playing') dbg.setState('playing');
 
 // 重生
 advance(5.0);
-check('肥鱼 4.5 秒后重生', fishes.filter(f => f.alive).length === 6,
+check('下一波补足 6 名存活敌人，旧尸体不计入存活数', fishes.filter(f => f.alive).length === 6,
   String(fishes.filter(f => f.alive).length));
 
 // ---- 连杀评级系统 ----
@@ -460,6 +486,7 @@ advance(0.05);
 const comboFishA = dbg.getEnemies().find(e => e.alive);
 comboFishA.mesh.position.set(0, comboFishA.baseY + 0.2, 35);
 comboFishA.waypoint.set(0, 0, 35); comboFishA.waitTimer = 999;
+comboFishA.character.updateCapsules();dbg.getCamera().lookAt(comboFishA.character.capsules[0].a.clone().lerp(comboFishA.character.capsules[0].b,.5));
 dbg.shootOnce();
 advance(0.2);
 check('连杀：单杀评级 D(1点)', dbg.comboGet().rank === 0 && dbg.comboGet().rankName === 'D', JSON.stringify(dbg.comboGet()));
@@ -468,6 +495,7 @@ check('连杀字母 D 简单弹出(常驻)', els['combo-pop'].textContent.indexO
 const comboFishB = dbg.getEnemies().find(e => e.alive);
 comboFishB.mesh.position.set(0, comboFishB.baseY + 0.2, 35);
 comboFishB.waypoint.set(0, 0, 35); comboFishB.waitTimer = 999;
+comboFishB.character.updateCapsules();dbg.getCamera().lookAt(comboFishB.character.capsules[0].a.clone().lerp(comboFishB.character.capsules[0].b,.5));
 dbg.shootOnce();
 advance(0.2);
 check('连杀：2秒内双杀升级 C(2点)', dbg.comboGet().rank === 1 && dbg.comboGet().score === 2, JSON.stringify(dbg.comboGet()));
@@ -760,13 +788,15 @@ dbg.clearProjectiles();   // 清除在途弹幕（含 19m 远距子弹）
 advance(0.05);
 dbg.resetHurt();
 dbg.setHp(100);
+dbg.setArmor(0);dbg.setDifficulty('normal');dbg.setEnvTheme(0,false);
+dbg.getItems().forEach(it=>it.mesh.position.set(40,.55,-40));
 if (dbg.getState() !== 'playing') dbg.setState('playing');
 const need = 10;
 for (let i = 0; i < need; i++) {
   dbg.damagePlayer(10);
   advance(0.6);
 }
-check('生命归零后游戏结束', dbg.getState() === 'gameover', dbg.getState());
+check('生命归零后游戏结束', dbg.getState() === 'gameover', dbg.getState()+' hp='+dbg.getPlayer().hp+' armor='+dbg.getArmor());
 check('结算界面记录得分', els['final-score'].textContent === String(dbg.getScore()),
   els['final-score'].textContent + ' vs ' + dbg.getScore());
 check('BGM调试信息含战败曲字段', typeof dbg.getBgmInfo().overExists === 'boolean' && typeof dbg.getBgmInfo().overPaused === 'boolean',
@@ -801,7 +831,9 @@ fakeDocument.fire('mousemove', { clientX: 100, clientY: 100 });
 fakeDocument.fire('mousemove', { clientX: 170, clientY: 120 });
 check('降级模式拖动转向', dbg.getPlayer().yaw !== yawBeforeFb, 'yaw 变化');
 const fishFb = dbg.getEnemies().find(x => x.alive);
-fishFb.mesh.position.set(0, fishFb.baseY + 0.2, -5);
+fishFb.mesh.position.set(dbg.getPlayer().pos.x, fishFb.baseY, dbg.getPlayer().pos.z-4);
+fishFb.character.updateCapsules();
+dbg.getCamera().lookAt(fishFb.character.capsules[0].a.clone().lerp(fishFb.character.capsules[0].b,.5));
 const killsBeforeFb = dbg.getKills();
 dbg.shootOnce();
 check('降级模式下仍可射击击杀', dbg.getKills() > killsBeforeFb);
@@ -1024,12 +1056,13 @@ dbg.setState('playing'); advance(1.6);
 check('恢复游戏后换弹完成', dbg.getAmmo().reloading === false && dbg.getAmmo().mag === 7);
 dbg.setState('paused');
 const testFish = dbg.spawnEnemy('normal', 0, 30);
-let fishMaterialDisposed = false, fishShadowDisposed = false;
-testFish.mesh.material.addEventListener('dispose', () => { fishMaterialDisposed = true; });
+let fishSkeletonDisposed = false, fishShadowDisposed = false;
+const dyingSkeleton=testFish.character.meshes[0].skeleton,originalSkeletonDispose=dyingSkeleton.dispose.bind(dyingSkeleton);
+dyingSkeleton.dispose=()=>{fishSkeletonDisposed=true;originalSkeletonDispose();};
 testFish.groundShadow.material.addEventListener('dispose', () => { fishShadowDisposed = true; });
 dbg.getEnemies().forEach(e => { e.alive = false; });
 dbg.startWave(2);
-check('波次切换回收死亡敌人与接地阴影资源', fishMaterialDisposed && fishShadowDisposed);
+check('波次切换回收死亡敌人骨骼与接地阴影，保留共享材质', fishSkeletonDisposed && fishShadowDisposed);
 check('波次切换不积累旧敌人', dbg.getEnemies().length === 6);
 const shadowMesh = dbg.getEnemies()[0].groundShadow;
 dbg.restart(true);
@@ -1080,16 +1113,16 @@ let testShellDisposed=false;
 homing.mesh.children[0].geometry.addEventListener('dispose',()=>testShellDisposed=true);
 dbg.clearProjectiles();check('清场释放测试炮弹的独有几何',testShellDisposed);
 
-fakeDocument.fire('keydown',{code:'Digit2'});
+fakeDocument.fire('keydown',{code:'Digit1'});
 advance(.75); // 收枪、换装、举枪完成后检查步枪姿势。
 const weaponGun=dbg.getGun();
-check('步枪模型与枪口闪光共用同一锚点',weaponGun.rifleGroup.visible&&!weaponGun.pistolGroup.visible&&weaponGun.flashMesh.position.distanceTo(weaponGun.muzzleTip.position)<1e-6);
+check('骨骼步枪模型与枪口闪光共用同一锚点',dbg.getCharacters().view.weaponId==='rifle'&&!weaponGun.rifleGroup.visible&&!weaponGun.pistolGroup.visible&&weaponGun.flashMesh.getWorldPosition(new THREE.Vector3()).distanceTo(weaponGun.muzzleTip.getWorldPosition(new THREE.Vector3()))<1e-6);
 dbg.setAmmo(1,100);dbg.reload();dbg.update(.8);dbg.update(0);
 const frozenReloadPose=weaponGun.group.rotation.z;
 check('步枪换弹时收枪并移动弹匣',frozenReloadPose<-.2&&weaponGun.rifleGroup.magazine.position.y<-.1);
 dbg.setState('paused');dbg.update(.7);
 check('暂停冻结换弹模型姿势',weaponGun.group.rotation.z===frozenReloadPose);
-dbg.setState('playing');fakeDocument.fire('keydown',{code:'Digit1'});
+dbg.setState('playing');fakeDocument.fire('keydown',{code:'Digit2'});
 advance(.6);
 check('切枪取消旧换弹姿势和隐藏枪焰',!dbg.getAmmo().reloading&&weaponGun.rifleGroup.magazine.position.y===-.06&&weaponGun.group.rotation.z===0&&!weaponGun.flashMesh.visible);
 
@@ -1100,7 +1133,7 @@ const alphaBefore=particlePool.alpha[firstLive];
 dbg.setState('paused');dbg.update(.5);
 check('暂停冻结新战斗特效及粒子',dbg.getCombatFxStats().active===fxBeforePause&&particlePool.alpha[firstLive]===alphaBefore);
 dbg.setState('playing');dbg.update(.05);
-check('粒子逐渐变淡且使用圆形着色器',particlePool.alpha[firstLive]<alphaBefore&&particlePool.mesh.material.isShaderMaterial);
+check('粒子逐渐变淡且使用卡通着色器',particlePool.alpha[firstLive]<alphaBefore&&particlePool.mesh.material.isShaderMaterial);
 dbg.setParticles(false);dbg.update(0);
 check('关闭粒子设置清除烟尘弹道和旧粒子',dbg.getCombatFxStats().active===0&&!particlePool.mesh.visible&&particlePool.alpha.every(a=>a===0));
 dbg.setParticles(true);dbg.update(0);

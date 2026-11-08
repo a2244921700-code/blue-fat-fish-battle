@@ -1,0 +1,536 @@
+{
+  "checks": [
+    "角色 / 场景 / 金属材质接入，HDR 描边、体积雾和 FXAA 生效",
+    "描边与抗锯齿仅追加屏幕处理，世界场景每帧绘制一次",
+    "真实像素对比确认轮廓线改变画面，而非仅设置开关",
+    "不写深度的特效完全盖住画面时，背后的建筑线条不穿透显示",
+    "仅保留角色投影时，接收阴影仍改变角色像素：真实自投影有效",
+    "原风格对照可切换，部位碰撞与世界位置不变",
+    "第一人称隐藏身体颜色和深度，但完整人物确实向地面投影",
+    "佩戴头盔后，第一人称地面投影也包含实际头盔轮廓",
+    "桌面窗口缩放同步颜色、深度和体积雾目标",
+    "爆炸、烟团、速度线、枪焰使用卡通着色器",
+    "连续爆炸仍使用 112 个特效对象的有界池",
+    "32 人重复部署，后处理目标离场释放、再次进入正常分配",
+    "预热后重复进场的 GPU 几何、纹理和材质数量稳定",
+    "无尽大蘑菇云继续保留独立合批与长时间演出",
+    "昼夜和天气主题均可绘制，夜间曝光未被强制改成白天",
+    "绿色辐射撕裂共用同一套后处理目标",
+    "file:// 直接启动和桌面高分屏均能进入实际三渲二场景",
+    "第一人称仍只显示双臂，世界角色阴影不改写本地可见规则",
+    "无 JavaScript 异常及 WebGL / GLSL 编译错误"
+  ],
+  "errors": [],
+  "shaderErrors": [],
+  "style": {
+    "materials": {
+      "preset": "anime",
+      "materials": 43,
+      "roles": {
+        "world": 33,
+        "metal": 8,
+        "character": 2
+      }
+    },
+    "pipeline": {
+      "style": "anime",
+      "allocated": true,
+      "width": 1440,
+      "height": 900,
+      "depth": true,
+      "hdr": true,
+      "passes": 4,
+      "frames": 3,
+      "targets": 3,
+      "antialias": "FXAA",
+      "fog": {
+        "active": true,
+        "allocated": true,
+        "width": 720,
+        "height": 450,
+        "steps": 16,
+        "shadowed": true,
+        "density": 0.0068
+      }
+    }
+  },
+  "outline": {
+    "changed": 46015,
+    "mean": 0.7504027777777778
+  },
+  "coveredOutline": {
+    "changed": 0,
+    "mean": 0
+  },
+  "selfShadow": {
+    "changed": 65988,
+    "mean": 0.9715038580246914,
+    "parts": 23,
+    "bias": -0.000035,
+    "enabled": true,
+    "autoUpdate": true,
+    "light": [
+      -65,
+      60,
+      38
+    ],
+    "target": [
+      0,
+      0,
+      0
+    ],
+    "actors": [
+      {
+        "position": [
+          -1.05,
+          1.4,
+          6
+        ],
+        "bounds": [
+          1.515205843875494,
+          2.015641397945758,
+          2.3642740264617172
+        ],
+        "meshes": [
+          {
+            "name": "Mesh_Body",
+            "visible": true,
+            "cast": true,
+            "receive": true,
+            "material": "MeshStandardMaterial"
+          },
+          {
+            "name": "Mesh_HeadHair",
+            "visible": true,
+            "cast": true,
+            "receive": true,
+            "material": "MeshStandardMaterial"
+          },
+          {
+            "name": "Mesh_Arms",
+            "visible": true,
+            "cast": true,
+            "receive": true,
+            "material": "MeshStandardMaterial"
+          }
+        ]
+      },
+      {
+        "position": [
+          1.05,
+          1.4,
+          6
+        ],
+        "bounds": [
+          1.810260517606283,
+          2.0401587849203793,
+          2.349426518139868
+        ],
+        "meshes": [
+          {
+            "name": "Mesh_Body",
+            "visible": true,
+            "cast": true,
+            "receive": true,
+            "material": "MeshStandardMaterial"
+          },
+          {
+            "name": "Mesh_HeadHair",
+            "visible": true,
+            "cast": true,
+            "receive": true,
+            "material": "MeshStandardMaterial"
+          },
+          {
+            "name": "Mesh_Arms",
+            "visible": true,
+            "cast": true,
+            "receive": true,
+            "material": "MeshStandardMaterial"
+          },
+          {
+            "name": "Mesh_Tail",
+            "visible": true,
+            "cast": true,
+            "receive": true,
+            "material": "MeshStandardMaterial"
+          }
+        ]
+      }
+    ]
+  },
+  "preset": {
+    "difference": {
+      "changed": 1263857,
+      "mean": 13.751259002057614
+    },
+    "passes": 1,
+    "hitboxesStable": true
+  },
+  "ownerShadow": {
+    "changed": 483292,
+    "mean": 20.41312757201646,
+    "proxyDraws": 22,
+    "casters": 11,
+    "position": [
+      0,
+      0,
+      12
+    ],
+    "camera": [
+      0,
+      1.7,
+      12
+    ],
+    "hiddenInBeauty": true,
+    "materialsRestored": true
+  },
+  "helmetShadow": {
+    "changed": 53351,
+    "mean": 1.1733060699588478
+  },
+  "fx": {
+    "shapes": [
+      3,
+      1,
+      1,
+      2,
+      2,
+      2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3
+    ],
+    "pool": {
+      "active": 22,
+      "allocated": 22,
+      "capacity": 112
+    },
+    "muzzle": "Anime/CombatFX"
+  },
+  "cycles": [
+    {
+      "released": {
+        "style": "anime",
+        "allocated": false,
+        "width": 0,
+        "height": 0,
+        "depth": true,
+        "hdr": true,
+        "passes": 0,
+        "frames": 692,
+        "targets": 0,
+        "antialias": "FXAA",
+        "fog": {
+          "active": false,
+          "allocated": false,
+          "width": 0,
+          "height": 0,
+          "steps": 16,
+          "shadowed": false,
+          "density": 0.0068
+        }
+      },
+      "actors": 32,
+      "scene": {
+        "children": 69,
+        "meshes": 1058,
+        "envBuilt": true,
+        "envObjects": 3,
+        "worldMode": "pvp",
+        "mapName": "沙海双城",
+        "arena": 76,
+        "modelParts": 23189,
+        "obstacles": 455,
+        "wallMeshes": 360,
+        "enemies": 31,
+        "trackedEnemies": 31,
+        "renderCalls": 685,
+        "triangles": 808525,
+        "geometries": 400,
+        "textures": 58
+      },
+      "style": {
+        "materials": {
+          "preset": "anime",
+          "materials": 43,
+          "roles": {
+            "world": 33,
+            "metal": 8,
+            "character": 2
+          }
+        },
+        "pipeline": {
+          "style": "anime",
+          "allocated": true,
+          "width": 1440,
+          "height": 900,
+          "depth": true,
+          "hdr": true,
+          "passes": 4,
+          "frames": 693,
+          "targets": 3,
+          "antialias": "FXAA",
+          "fog": {
+            "active": true,
+            "allocated": true,
+            "width": 720,
+            "height": 450,
+            "steps": 16,
+            "shadowed": true,
+            "density": 0.0068
+          }
+        }
+      }
+    },
+    {
+      "released": {
+        "style": "anime",
+        "allocated": false,
+        "width": 0,
+        "height": 0,
+        "depth": true,
+        "hdr": true,
+        "passes": 0,
+        "frames": 693,
+        "targets": 0,
+        "antialias": "FXAA",
+        "fog": {
+          "active": false,
+          "allocated": false,
+          "width": 0,
+          "height": 0,
+          "steps": 16,
+          "shadowed": false,
+          "density": 0.0068
+        }
+      },
+      "actors": 32,
+      "scene": {
+        "children": 69,
+        "meshes": 1058,
+        "envBuilt": true,
+        "envObjects": 3,
+        "worldMode": "pvp",
+        "mapName": "沙海双城",
+        "arena": 76,
+        "modelParts": 23189,
+        "obstacles": 455,
+        "wallMeshes": 360,
+        "enemies": 31,
+        "trackedEnemies": 31,
+        "renderCalls": 685,
+        "triangles": 808525,
+        "geometries": 400,
+        "textures": 58
+      },
+      "style": {
+        "materials": {
+          "preset": "anime",
+          "materials": 43,
+          "roles": {
+            "world": 33,
+            "metal": 8,
+            "character": 2
+          }
+        },
+        "pipeline": {
+          "style": "anime",
+          "allocated": true,
+          "width": 1440,
+          "height": 900,
+          "depth": true,
+          "hdr": true,
+          "passes": 4,
+          "frames": 694,
+          "targets": 3,
+          "antialias": "FXAA",
+          "fog": {
+            "active": true,
+            "allocated": true,
+            "width": 720,
+            "height": 450,
+            "steps": 16,
+            "shadowed": true,
+            "density": 0.0068
+          }
+        }
+      }
+    },
+    {
+      "released": {
+        "style": "anime",
+        "allocated": false,
+        "width": 0,
+        "height": 0,
+        "depth": true,
+        "hdr": true,
+        "passes": 0,
+        "frames": 694,
+        "targets": 0,
+        "antialias": "FXAA",
+        "fog": {
+          "active": false,
+          "allocated": false,
+          "width": 0,
+          "height": 0,
+          "steps": 16,
+          "shadowed": false,
+          "density": 0.0068
+        }
+      },
+      "actors": 32,
+      "scene": {
+        "children": 69,
+        "meshes": 1059,
+        "envBuilt": true,
+        "envObjects": 3,
+        "worldMode": "pvp",
+        "mapName": "沙海双城",
+        "arena": 76,
+        "modelParts": 23189,
+        "obstacles": 455,
+        "wallMeshes": 360,
+        "enemies": 31,
+        "trackedEnemies": 31,
+        "renderCalls": 686,
+        "triangles": 810445,
+        "geometries": 400,
+        "textures": 58
+      },
+      "style": {
+        "materials": {
+          "preset": "anime",
+          "materials": 43,
+          "roles": {
+            "world": 33,
+            "metal": 8,
+            "character": 2
+          }
+        },
+        "pipeline": {
+          "style": "anime",
+          "allocated": true,
+          "width": 1440,
+          "height": 900,
+          "depth": true,
+          "hdr": true,
+          "passes": 4,
+          "frames": 695,
+          "targets": 3,
+          "antialias": "FXAA",
+          "fog": {
+            "active": true,
+            "allocated": true,
+            "width": 720,
+            "height": 450,
+            "steps": 16,
+            "shadowed": true,
+            "density": 0.0068
+          }
+        }
+      }
+    }
+  ],
+  "themes": [
+    1.1,
+    1.12,
+    1.12,
+    1.12
+  ],
+  "radiation": {
+    "screen": {
+      "remaining": 0.31500000000000056,
+      "allocated": true,
+      "width": 1440,
+      "height": 900,
+      "sharedPipeline": true
+    },
+    "pipeline": {
+      "style": "anime",
+      "allocated": true,
+      "width": 1440,
+      "height": 900,
+      "depth": true,
+      "hdr": true,
+      "passes": 3,
+      "frames": 801,
+      "targets": 2,
+      "antialias": "FXAA",
+      "fog": {
+        "active": false,
+        "allocated": false,
+        "width": 0,
+        "height": 0,
+        "steps": 16,
+        "shadowed": false,
+        "density": 0.0068
+      }
+    }
+  },
+  "localFile": {
+    "style": {
+      "materials": {
+        "preset": "anime",
+        "materials": 43,
+        "roles": {
+          "world": 33,
+          "metal": 8,
+          "character": 2
+        }
+      },
+      "pipeline": {
+        "style": "anime",
+        "allocated": true,
+        "width": 1920,
+        "height": 1280,
+        "depth": true,
+        "hdr": true,
+        "passes": 4,
+        "frames": 4,
+        "targets": 3,
+        "antialias": "FXAA",
+        "fog": {
+          "active": true,
+          "allocated": true,
+          "width": 960,
+          "height": 640,
+          "steps": 16,
+          "shadowed": true,
+          "density": 0.0068
+        }
+      }
+    },
+    "view": [
+      {
+        "name": "Mesh_Body",
+        "visible": false,
+        "castShadow": false
+      },
+      {
+        "name": "Mesh_HeadHair",
+        "visible": false,
+        "castShadow": false
+      },
+      {
+        "name": "Mesh_Arms",
+        "visible": true,
+        "castShadow": false
+      }
+    ],
+    "flash": "Anime/CombatFX"
+  }
+}

@@ -1,0 +1,339 @@
+{
+  "checks": [
+    "开场对白、完整第三人称、空手与独立剧情 HUD",
+    "梁文峰复用既有资源，只有玩家世界/双臂/NPC三个实例",
+    "开场对白时不误移动",
+    "七段开场可逐句推进到游玩",
+    "走路动作时间连续，不再每帧重置",
+    "后退、左右横移与 Shift 小跑选用对应动作",
+    "蹲下、空中动作、落地恢复正确",
+    "室内跳跃碰顶不会横向闪现",
+    "无武器场景拒绝射击、换弹、切枪与技能界面",
+    "暂停冻结剧情、警戒、巡逻与玩家位置",
+    "90° / 8米视觉区分正面、背面与范围外",
+    "墙体遮挡有效，门洞真实透视",
+    "肩后镜头遇墙缩短，绘制后不污染共享角色材质",
+    "被发现四次都无伤重返卧室，无 game over",
+    "第三次被发现触发专门对白，之后仍可重试",
+    "巡逻走完厨房/客厅循环，不漂浮或卡在家具",
+    "几何腿部由既有走路骨骼驱动",
+    "必须在家长进厨房后穿过走廊，不能提前越过再挂机",
+    "到达玄关才存档，刚穿过客厅门不会提前存档",
+    "不能跳过取饭直接通关",
+    "实际键盘路径到 -3.2,1.5",
+    "实际键盘路径到 -0.3,1.5",
+    "实际键盘路径到 0,-3.3",
+    "实际键盘路径到 0,-6.3",
+    "实际键盘路径到 -5,-6.4",
+    "仅面向近处白饭时显示 F，收起后道具消失",
+    "潜行返回与玄关路径到 -0.5,-6.4",
+    "潜行返回与玄关路径到 0,-3.3",
+    "潜行返回与玄关路径到 2.7,-2.7",
+    "潜行返回与玄关路径到 2.7,3.8",
+    "潜行返回与玄关路径到 6.5,3.8",
+    "潜行返回与玄关路径到 6.5,6",
+    "潜行返回与玄关路径到 0,7.8",
+    "潜行返回与玄关路径到 0,9",
+    "实际行走可零被发现通关，玄关自动持久化",
+    "刷新后章节入口显示从玄关继续",
+    "重新载入从玄关恢复，保留累计用时",
+    "门口互动进入三段离家结尾",
+    "离家结算、开门动画与完成存档",
+    "返回章节清掉 NPC、角色、镜头和剧情 HUD",
+    "剧情退出后无尽仍使用原第一人称战斗流程",
+    "无 JavaScript、GLSL 或缺失场景资源"
+  ],
+  "errors": [],
+  "shaderErrors": [],
+  "missing": [],
+  "开场对白、完整第三人称、空手与独立剧情 HUD": {
+    "story": {
+      "phase": "intro",
+      "stage": 0,
+      "catches": 0,
+      "elapsed": 0,
+      "suspicion": 0,
+      "prompt": null,
+      "dialog": "那天晚上，蓝色大肥鱼吃了三碗白饭。",
+      "guard": {
+        "position": [
+          3.1,
+          0,
+          0.1
+        ],
+        "yaw": 0,
+        "routeIndex": 1,
+        "wait": 7,
+        "clip": "UnarmedIdle",
+        "time": 0.048700000001117585
+      },
+      "bodyMeshes": true
+    },
+    "character": "unarmed",
+    "view": false,
+    "body": true,
+    "gun": false,
+    "instances": 3,
+    "hud": "none"
+  },
+  "走路动作时间连续，不再每帧重置": [
+    {
+      "code": "KeyW",
+      "clip": "UnarmedWalk",
+      "a": 0.4342105263157942,
+      "b": 0.6947368421052708
+    },
+    {
+      "code": "KeyS",
+      "clip": "UnarmedWalkBack",
+      "a": 0.6554166666666739,
+      "b": 1.0486666666666782
+    },
+    {
+      "code": "KeyA",
+      "clip": "UnarmedStrafeLeft",
+      "a": 0.8,
+      "b": 0.17999997615814198
+    },
+    {
+      "code": "KeyD",
+      "clip": "UnarmedStrafeRight",
+      "a": 0.8,
+      "b": 0.17999997615814198
+    },
+    {
+      "clip": "UnarmedRun"
+    }
+  ],
+  "蹲下、空中动作、落地恢复正确": {
+    "crouch": "UnarmedCrouchIdle",
+    "clip": "UnarmedJumpStart",
+    "max": 1.839999999701977,
+    "ground": true,
+    "moved": 0
+  },
+  "无武器场景拒绝射击、换弹、切枪与技能界面": {
+    "before": {
+      "weapon": "unarmed",
+      "ammo": "{\"mag\":7,\"reserve\":42,\"magSize\":7,\"reloading\":false,\"reloadTimer\":0}",
+      "pos": [
+        -4.935999999999997,
+        0,
+        1.5
+      ]
+    },
+    "after": {
+      "weapon": "unarmed",
+      "ammo": "{\"mag\":7,\"reserve\":42,\"magSize\":7,\"reloading\":false,\"reloadTimer\":0}",
+      "state": "playing",
+      "enemies": 0
+    }
+  },
+  "90° / 8米视觉区分正面、背面与范围外": {
+    "front": true,
+    "back": false,
+    "side": false,
+    "far": false,
+    "wall": false,
+    "doorway": true
+  },
+  "肩后镜头遇墙缩短，绘制后不污染共享角色材质": {
+    "distance": 0.43072581136850574,
+    "inside": false,
+    "restored": true,
+    "visible": true
+  },
+  "被发现四次都无伤重返卧室，无 game over": [
+    {
+      "n": 1,
+      "caught": "caught",
+      "count": 1,
+      "line": "跑什么跑，饭要凉了。",
+      "hp": true,
+      "phase": "play",
+      "stage": 0,
+      "pos": [
+        -5.2,
+        0,
+        1.5
+      ]
+    },
+    {
+      "n": 2,
+      "caught": "caught",
+      "count": 2,
+      "line": "跑什么跑，饭要凉了。",
+      "hp": true,
+      "phase": "play",
+      "stage": 0,
+      "pos": [
+        -5.2,
+        0,
+        1.5
+      ]
+    },
+    {
+      "n": 3,
+      "caught": "caught",
+      "count": 3,
+      "line": "第三次了。别再偷偷溜出去了，先把饭吃完。",
+      "hp": true,
+      "phase": "play",
+      "stage": 0,
+      "pos": [
+        -5.2,
+        0,
+        1.5
+      ]
+    },
+    {
+      "n": 4,
+      "caught": "caught",
+      "count": 4,
+      "line": "跑什么跑，饭要凉了。",
+      "hp": true,
+      "phase": "play",
+      "stage": 0,
+      "pos": [
+        -5.2,
+        0,
+        1.5
+      ]
+    }
+  ],
+  "巡逻走完厨房/客厅循环，不漂浮或卡在家具": {
+    "min": 0,
+    "max": 0,
+    "clips": [
+      "UnarmedIdle",
+      "UnarmedWalk"
+    ],
+    "seen": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      0
+    ],
+    "leg": [
+      [
+        -0.46452806963502186,
+        -1.462435308122305e-7,
+        -4.4078097096124674e-8,
+        0.8855584142341714
+      ],
+      [
+        -0.5751267812687956,
+        -1.3470254122215929e-7,
+        -5.5577635127680406e-8,
+        0.8180643073267091
+      ]
+    ]
+  },
+  "必须在家长进厨房后穿过走廊，不能提前越过再挂机": {
+    "early": 2,
+    "stayed": 2,
+    "valid": 3,
+    "notSaved": null,
+    "saved": "foyer"
+  },
+  "仅面向近处白饭时显示 F，收起后道具消失": {
+    "away": true,
+    "on": "rice",
+    "stage": 1,
+    "hidden": true
+  },
+  "实际行走可零被发现通关，玄关自动持久化": {
+    "s": {
+      "phase": "play",
+      "stage": 3,
+      "catches": 0,
+      "elapsed": 32.25333333333278,
+      "suspicion": 0,
+      "prompt": "exit",
+      "dialog": "她终于摸到了玄关。进度已保存。",
+      "guard": {
+        "position": [
+          0.02086240096353209,
+          0,
+          -4.630852693027778
+        ],
+        "yaw": -0.016947928530986315,
+        "routeIndex": 6,
+        "wait": 0,
+        "clip": "UnarmedWalk",
+        "time": 0.06140350877191515
+      },
+      "bodyMeshes": true
+    },
+    "save": {
+      "act1Complete": false,
+      "checkpoint": "foyer",
+      "checkpointTime": 31.13666666666618,
+      "checkpointCatches": 0,
+      "bestTime": null
+    }
+  },
+  "重新载入从玄关恢复，保留累计用时": {
+    "s": {
+      "phase": "play",
+      "stage": 3,
+      "catches": 0,
+      "elapsed": 31.185366666665438,
+      "suspicion": 0,
+      "prompt": "exit",
+      "dialog": "已回到玄关。轻轻打开门，就能离开家。",
+      "guard": {
+        "position": [
+          3.1,
+          0,
+          0.1
+        ],
+        "yaw": 0,
+        "routeIndex": 1,
+        "wait": 6.951300000000746,
+        "clip": "UnarmedIdle",
+        "time": 0.04869999999925494
+      },
+      "bodyMeshes": true
+    },
+    "p": [
+      0,
+      0,
+      7.8
+    ]
+  },
+  "离家结算、开门动画与完成存档": {
+    "state": "storyComplete",
+    "s": {
+      "act1Complete": true,
+      "checkpoint": null,
+      "checkpointTime": 31.13666666666618,
+      "checkpointCatches": 0,
+      "bestTime": 32
+    },
+    "visible": true,
+    "door": -1.2999999999999996
+  },
+  "返回章节清掉 NPC、角色、镜头和剧情 HUD": {
+    "instances": 0,
+    "story": false,
+    "style": false,
+    "meshes": true
+  },
+  "剧情退出后无尽仍使用原第一人称战斗流程": {
+    "weapon": "pistol",
+    "view": true,
+    "gun": true,
+    "story": false,
+    "style": false
+  },
+  "无 JavaScript、GLSL 或缺失场景资源": {
+    "errors": [],
+    "shaders": [],
+    "missing": []
+  }
+}

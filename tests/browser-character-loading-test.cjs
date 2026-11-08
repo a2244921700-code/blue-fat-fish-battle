@@ -1,0 +1,24 @@
+'use strict';
+const assert=require('node:assert/strict'),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+(async()=>{const browser=await chromium.launch({headless:true,channel:'msedge'});try{
+ const page=await browser.newPage(),requested=[],errors=[];page.on('request',r=>requested.push(r.url()));page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(()=>{if(!localStorage.getItem('bff_loadout_v1'))localStorage.setItem('bff_loadout_v1',JSON.stringify({primary:'sniper',goggles:'tactical-goggles'}));});
+ await page.goto(process.env.FISH_TEST_URL||'http://127.0.0.1:8123/');await page.click('#btn-start');await page.click('#btn-mode-endless');await page.click('#btn-map-desert');
+ await page.waitForFunction(()=>document.getElementById('loading-overlay').classList.contains('hidden')&&FishGame.__debug.getCharacters().local,null,{timeout:90000});
+ assert.deepEqual(await page.evaluate(()=>FishCharacters.stats().characters),['deepseek']);assert.equal(await page.evaluate(()=>FishGame.__debug.getCharacters().local.characterId),'deepseek');assert(!requested.some(u=>u.endsWith('/claude_fake-model.js')));console.log('PASS | 首次无尽模式只载入并使用 deepseek 模型');
+ assert(await page.evaluate(()=>{const d=FishGame.__debug;return d.getWeaponSlots().primary==='sniper'&&d.getEquipment().goggles.charges===4&&!d.getScope().eligible;}));console.log('PASS | 首次无尽部署沿用仓库狙击枪与护目镜，但没有对战侦察技能');
+ await page.evaluate(()=>FishGame.__debug.restart(true));await page.click('#btn-start');await page.click('#btn-pvp-mode');
+ await page.waitForFunction(()=>FishGame.__debug.getPvp().active&&document.getElementById('loading-overlay').classList.contains('hidden'),null,{timeout:90000});
+ assert.deepEqual((await page.evaluate(()=>FishCharacters.stats().characters)).sort(),['claude_fake','claude_true','deepseek']);
+ for(const file of ['deepseek-model.js','claude_fake-model.js','claude_true-model.js','motion-data.js'])assert.equal(requested.filter(u=>u.endsWith('/'+file)).length,1,file);
+ assert.deepEqual(await page.evaluate(()=>{const d=FishGame.__debug;return {team:d.getPvp().myTeam,skin:d.getCharacters().local.characterId};}),{team:'blue',skin:'claude_true'});
+ console.log('PASS | 快速出战默认蓝方真Claude，为随机AI补载其他可用角色，共享动作和已有模型不重复请求');assert.equal(errors.length,0,errors.join('\n'));
+ await page.evaluate(()=>FishGame.__debug.restart(true));await page.click('#btn-start');await page.click('#btn-inventory');await page.click('.inv-tab[data-tab="skin"]');await page.click('#inv-item-claude_fake');await page.click('#btn-inv-equip');await page.click('#btn-inv-back');await page.selectOption('#lobby-deploy-team','red');await page.click('#btn-pvp-mode');
+ await page.waitForFunction(()=>FishGame.__debug.getPvp().active&&document.getElementById('loading-overlay').classList.contains('hidden'),null,{timeout:90000});
+ assert.equal(await page.evaluate(()=>FishGame.__debug.getCharacters().local.characterId),'claude_fake');for(const file of ['deepseek-model.js','claude_fake-model.js','claude_true-model.js','motion-data.js'])assert.equal(requested.filter(u=>u.endsWith('/'+file)).length,1,file);
+ console.log('PASS | 红方改选伪Claude时复用已载入模型和动作，不重复请求');assert.equal(errors.length,0,errors.join('\n'));
+ const fresh=await browser.newPage();fresh.on('pageerror',e=>errors.push(e.message));await fresh.addInitScript(()=>localStorage.setItem('bff_loadout_v1',JSON.stringify({skins:{red:'claude_fake',blue:'claude_true'},team:'red'})));
+ await fresh.goto(process.env.FISH_TEST_URL||'http://127.0.0.1:8123/');await fresh.click('#btn-start');await fresh.click('#btn-pvp-mode');await fresh.waitForFunction(()=>FishGame.__debug.getPvp().active&&document.getElementById('loading-overlay').classList.contains('hidden'),null,{timeout:90000});
+ assert.deepEqual((await fresh.evaluate(()=>FishCharacters.stats().characters)).sort(),['claude_fake','claude_true','deepseek']);assert.equal(await fresh.evaluate(()=>FishGame.__debug.getCharacters().local.characterId),'claude_fake');assert.equal(errors.length,0,errors.join('\n'));
+ console.log('PASS | 首次FPS载入三名可选AI角色，玩家仍使用自己装配的伪Claude');console.log('5 character loading checks passed.');
+ }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

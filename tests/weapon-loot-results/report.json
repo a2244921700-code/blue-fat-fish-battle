@@ -1,0 +1,222 @@
+{
+  "checks": [
+    {
+      "name": "FPS 1 主武器、2 副武器、3 近战、4 手雷",
+      "result": {
+        "ok": true,
+        "names": [
+          "pistol",
+          "knife",
+          "rifle",
+          "grenade"
+        ]
+      }
+    },
+    {
+      "name": "切到手雷不启动引信；松开左键当场出手",
+      "result": {
+        "ok": true,
+        "fuse": 2.8,
+        "cooked": {
+          "phase": "cook",
+          "fuse": 2.8,
+          "t": 0.19999999999999998,
+          "animTime": 0.5666666666666667,
+          "armed": true,
+          "released": false,
+          "releasePending": false
+        }
+      }
+    },
+    {
+      "name": "收招期间锁定攻击，结束后再次持雷",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "name": "G 丢枪保存弹匣和备弹、空出槽位并切备用武器",
+      "result": {
+        "ok": true,
+        "weapon": "pistol",
+        "slot": {
+          "primary": null,
+          "secondary": "pistol"
+        },
+        "drop": {
+          "mag": 7,
+          "reserve": 23
+        }
+      }
+    },
+    {
+      "name": "掉枪有重力与转动；落稳后退出物理碰撞",
+      "result": {
+        "ok": true,
+        "moved": 0.1913678878520496,
+        "turned": 0.7033971462571232,
+        "settled": true,
+        "position": [
+          0.40013344622133773,
+          0.06272874618524663,
+          60.710314692086186
+        ]
+      }
+    },
+    {
+      "name": "F 瞄准空槽武器，完整保留弹药并消除地面对象",
+      "result": {
+        "ok": true,
+        "target": true,
+        "player": [
+          0.40013344622133773,
+          0,
+          62.110314692086185
+        ],
+        "camera": [
+          0.40013344622133773,
+          1.7,
+          62.110314692086185
+        ],
+        "dir": [
+          -0.09862223185835198,
+          -0.7327889975390072,
+          -0.673271075027774
+        ],
+        "drop": [
+          0.40013344622133773,
+          0.06272874618524663,
+          60.710314692086186
+        ],
+        "ammo": {
+          "mag": 7,
+          "reserve": 23,
+          "magSize": 30,
+          "reloading": false,
+          "reloadTimer": 0
+        }
+      }
+    },
+    {
+      "name": "同弹药型号补充备弹，不改手中弹匣；备弹满不消耗掉落物",
+      "result": {
+        "ok": true,
+        "after": {
+          "mag": 7,
+          "reserve": 37
+        },
+        "rejected": true
+      }
+    },
+    {
+      "name": "不同弹药型号、隔墙或超过距离时不能拾取",
+      "result": {
+        "ok": true,
+        "incompatible": true,
+        "blocked": true,
+        "far": true
+      }
+    },
+    {
+      "name": "掉落物按 45 秒清理，暂停不计时",
+      "result": {
+        "ok": true,
+        "paused": true
+      }
+    },
+    {
+      "name": "死亡只掉当前枪械，并保留真实剩余弹药",
+      "result": {
+        "ok": true,
+        "drop": {
+          "id": "pistol",
+          "mag": 4,
+          "reserve": 17
+        },
+        "corpse": true
+      }
+    },
+    {
+      "name": "复活恢复初始槽位，不回收仍在有效期的掉枪",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "name": "人机通过看到的地面武器补充同型号弹药",
+      "result": {
+        "ok": true,
+        "reserve": 25,
+        "state": "pickup",
+        "settled": true
+      }
+    },
+    {
+      "name": "人机换偏爱枪前丢旧枪，两把弹药独立保存",
+      "result": {
+        "ok": true,
+        "side": "fishpistol",
+        "old": {
+          "mag": 4,
+          "reserve": 8
+        },
+        "state": "pickup"
+      }
+    },
+    {
+      "name": "有敌人时不绕路捡枪；差枪不触发丢弃换装",
+      "result": {
+        "ok": true,
+        "seen": false,
+        "worse": false
+      }
+    },
+    {
+      "name": "人机能走到远处补给，而非隔空获得弹药",
+      "result": {
+        "ok": true,
+        "travelling": true,
+        "moved": 4.01999993195027,
+        "state": "pickup"
+      }
+    },
+    {
+      "name": "人机死亡掉当前武器，复活恢复原配副武器",
+      "result": {
+        "ok": true,
+        "dead": true,
+        "drop": {
+          "id": "fishpistol",
+          "mag": 3,
+          "reserve": 12
+        }
+      }
+    },
+    {
+      "name": "新回合/比赛清空旧掉落物",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "name": "无尽同样采用 1 主 / 2 副 / 3 近战 / 4 手雷，G 不丢枪",
+      "result": {
+        "ok": true,
+        "ids": [
+          "rifle",
+          "pistol",
+          "knife",
+          "grenade"
+        ]
+      }
+    },
+    {
+      "name": "运行期间无脚本异常",
+      "result": {
+        "ok": true,
+        "errors": []
+      }
+    }
+  ],
+  "errors": []
+}

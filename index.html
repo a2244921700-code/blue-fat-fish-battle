@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>3D射击 · 蓝色肥鱼大作战 V0.6.0</title>
+<title>3D射击 · 蓝色肥鱼大作战 V0.7.0</title>
 <script>
 /* 全局错误条：任何未捕获的运行错误都会显示在屏幕底部，便于排查 */
 window.addEventListener('error', function (e) {
@@ -309,6 +309,23 @@ window.addEventListener('load', function () {
   .set-row input[type=checkbox] { width: 17px; height: 17px; accent-color: #4f9df0; cursor: pointer; }
   .set-val { flex: 0 0 46px; text-align: right; color: #8ef0b0; font-size: 12.5px; }
   .set-note { color: rgba(160,178,200,.8); font-size: 11.5px; margin: 8px 0 12px; }
+  #settings-overlay .settings-panel { width:min(940px,calc(100vw - 64px));max-width:940px;max-height:calc(100vh - 48px);overflow-y:auto;padding:28px 32px;box-sizing:border-box; }
+  .settings-layout { display:grid;grid-template-columns:minmax(280px,.9fr) minmax(380px,1.1fr);gap:28px;text-align:left; }
+  .settings-layout .set-group { margin:0; }
+  .settings-layout h2,.visual-settings legend { font-size:15px;color:#e8c688;font-weight:700;letter-spacing:1px;margin-bottom:15px; }
+  .settings-layout .set-row { margin:13px 0; }
+  .settings-layout select { max-width:230px; }
+  .visual-settings { border:0;border-left:1px solid #344b58;padding:0 0 0 26px;margin:0;min-width:0; }
+  .style-current { border:1px solid #405b68;border-radius:8px;overflow:hidden;background:#142b36;margin:0 0 18px; }
+  .style-current img { display:block;width:100%;aspect-ratio:2.25;object-fit:cover;background:#253e4b; }
+  .style-current strong { display:block;font-size:15px;color:#edf5f7;margin:12px 14px 6px; }
+  .style-current small { display:block;font-size:12px;line-height:1.6;color:#aabec9;margin:0 14px 13px; }
+  .volume-option { display:flex;align-items:center;gap:10px;font-size:14px;color:#e6eef2;cursor:pointer; }
+  .volume-option input { accent-color:#edc57e;width:18px;height:18px; }
+  .volume-description { margin:8px 0 12px 28px;font-size:12px;line-height:1.6;color:#9db5c1; }
+  #set-visual-hint { font-size:12px;line-height:1.7;color:#dac799;border-top:1px solid #344b58;padding-top:13px; }
+  .settings-footer { display:flex;gap:14px;align-items:center;justify-content:center;margin-top:18px; }
+  .settings-footer .big-btn { margin:0;min-width:170px; }
 
   /* ---------- 结算统计 / 历史最佳 ---------- */
   .stat-detail { color: rgba(190,205,225,.88); font-size: 13px; line-height: 1.75; margin-top: 6px; }
@@ -674,11 +691,11 @@ window.addEventListener('load', function () {
     background: #b00020; color: #fff; font-size: 14px; padding: 10px 18px; }
 </style>
 <link rel="stylesheet" href="css/fps.css">
+<link rel="stylesheet" href="css/story.css">
 <link rel="stylesheet" href="css/combat-feedback.css">
 <link rel="stylesheet" href="css/lobby.css">
-<link rel="preload" as="image" href="assets/ui-art/menu-sandwatch.webp">
+<link rel="preload" as="image" href="assets/ui-art/menu-sandwatch-cast.webp">
 <!-- Lumio 平台握手脚本：由平台在部署时注入，不要打进 ZIP -->
-<script src="./lumio-bootstrap.js"></script>
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -691,30 +708,33 @@ window.addEventListener('load', function () {
 </div>
 
 <!-- HUD -->
+<div id="sniper-scope" class="hidden" aria-hidden="true"><div class="scope-lens"><i class="scope-h"></i><i class="scope-v"></i><i class="scope-center"></i><span class="scope-range">.338 · PRECISION</span></div></div>
 <div id="hud">
   <div id="health-wrap">
     <div id="health-label"><span>生命值</span><b id="health-text">100</b></div>
     <div id="health-bar"><div id="health-fill"></div></div>
   </div>
   <div id="armor-wrap"><span class="armor-ico">🛡️</span>护甲<b id="armor-value">0</b><span id="armor-dots"></span></div>
+  <div id="goggles-status" class="hidden" role="status"></div>
+  <div id="helmet-status" class="hidden" aria-live="polite"></div>
   <div id="score-wrap">
     <div id="score-value">0</div>
     <div class="sub">得分 · 击杀 <span id="kills-value">0</span></div>
   </div>
   <div id="weapon-bar">
-    <span class="wslot" data-wkey="1">1 手枪</span>
-    <span class="wslot" data-wkey="2">2 步枪</span>
-    <span class="wslot" data-wkey="3">3 匕首</span>
+    <span class="wslot" data-wkey="1">1 主武器</span>
+    <span class="wslot" data-wkey="2">2 副武器</span>
+    <span class="wslot" data-wkey="3">3 匕首</span><span class="wslot" data-wkey="4">4 手雷</span>
   </div>
 <div id="ammo-wrap"><b id="ammo-mag">7</b><span class="ammo-sep">/</span><span id="ammo-reserve">42</span><span class="ammo-lbl">弹药</span></div>
-  <div id="nade-wrap" title="按住 G 拉环读秒，松开投出；3 秒引信，久握会自伤。移动、跳跃影响投掷。"><span class="nade-ico">💣</span><b id="nade-count">1</b><span class="ammo-lbl">手雷</span></div>
+  <div id="nade-wrap" title="按 4 手持手雷；左键按住预热，松开立即投出。3 秒引信，移动和跳跃影响弹道。"><span class="nade-ico">💣</span><b id="nade-count">1</b><span class="ammo-lbl">手雷</span></div>
   <div id="reload-wrap">
     <div class="reload-label">换弹中...</div>
     <div id="reload-bar"><div id="reload-fill"></div></div>
   </div>
   <div id="hitmarker"></div>
   <div id="weapon-switch" class="hidden" role="status"><span id="weapon-switch-name">换装</span><div class="switch-track"><i id="weapon-switch-fill"></i></div></div>
-  <button id="btn-fullscreen" class="hidden" title="按 F 或点击进入全屏，Esc 可退出">⛶ F 全屏对局</button>
+  <button id="btn-fullscreen" class="hidden" title="按 Alt+Enter 或点击进入全屏，Esc 可退出">⛶ 全屏对局</button>
   <div id="kill-medal" role="status" aria-live="polite" aria-atomic="true" data-tier="single">
     <div class="medal-emblem" aria-hidden="true">
       <svg viewBox="0 0 160 100" focusable="false">
@@ -752,12 +772,13 @@ window.addEventListener('load', function () {
     <div class="ps-team blue"><span class="ps-blue-alive">蓝队 · 敌方</span><span class="ps-caption">剩余额度</span><b class="ps-bots">24</b><div class="ps-meter"><i class="ps-blue-fill"></i></div></div>
   </div>
   <div id="pvp-status"></div>
-  <div id="pvp-radar-key">红 · 队友　 蓝 · 目击情报（3s）</div>
+  <div id="pvp-radar-key">蓝 · 队友　 红 · 目击情报（3s）</div>
   <div id="dialog-box">
     <div class="dialog-speaker"></div>
     <div class="dialog-text"></div>
   </div>
-  <div id="tip-bar">WASD 移动 · <b>1/2/3 切换武器</b> · 左键射击 · <b>右键匕首重击</b> · R 换弹 · G 按住预热 / 松开投雷 · I 技能面板 · 空格跳跃 · Esc 暂停</div>
+  <div id="weapon-pickup" class="hidden" hidden role="status"></div>
+  <div id="tip-bar">WASD 移动 · <b>1 主武器 / 2 副武器 / 3 近战 / 4 手雷</b> · 左键射击 · <b>右键匕首重击</b> · R 换弹 · 手持手雷松开左键投掷 · F 拾取补弹 · G 丢枪 · I 技能面板 · 空格跳跃 · Esc 暂停</div>
   <div id="minimap"><canvas id="minimap-canvas" width="210" height="210"></canvas></div>
 </div>
 
@@ -768,7 +789,7 @@ window.addEventListener('load', function () {
     <button id="btn-tch-fire" class="tch-btn fire">开火</button>
     <button id="btn-tch-jump" class="tch-btn">跳</button>
     <button id="btn-tch-reload" class="tch-btn">R</button>
-    <button id="btn-tch-nade" class="tch-btn" aria-label="按住预热手雷，松开投出">G</button>
+    <button id="btn-tch-nade" class="tch-btn" aria-label="4 切换手雷">4</button><button id="btn-tch-pickup" class="tch-btn tch-loot" aria-label="F 拾取或补弹">F</button><button id="btn-tch-drop" class="tch-btn tch-loot" aria-label="G 丢弃枪械">G</button>
     <button id="btn-tch-skill" class="tch-btn">I</button>
   </div>
   <button id="touch-pause" class="tch-btn">暂停</button>
@@ -779,6 +800,10 @@ window.addEventListener('load', function () {
   <div id="boss-bar"><div id="boss-fill"></div></div>
 </div>
 <div id="pvp-respawn" class="hidden"><span>重新部署</span><b>4</b><span>秒</span><small>返回己方基地</small></div>
+<div id="pvp-death-view" class="hidden" aria-label="阵亡观战">
+  <strong id="death-view-label">自身倒地视角</strong><small id="death-view-hint">移动鼠标环绕自身 · 左键观战队友 · 右键返回自身</small>
+  <div class="death-view-buttons"><button id="btn-spectate-next" type="button">观战队友</button><button id="btn-spectate-self" type="button">返回自身</button><button id="btn-spectate-pause" type="button">暂停</button></div>
+</div>
 <div id="loading-overlay" class="hidden" aria-label="场景载入" aria-busy="true">
   <div class="loading-art" id="loading-art" aria-hidden="true"></div><div class="loading-shade" aria-hidden="true"></div>
   <div class="loading-top"><span class="game-mark">✦ BLUE FISH</span><span id="loading-scene">沙漠城 / 行动准备</span></div>
@@ -790,7 +815,8 @@ window.addEventListener('load', function () {
     <button id="loading-back" class="big-btn ghost hidden">返回主菜单</button>
   </div>
 </div>
-<div id="fallback-hint">浏览器未允许指针锁定，已启用拖动瞄准模式：移动鼠标转向，点击画面射击，Esc 暂停</div>
+<div id="fallback-hint" hidden></div>
+<div id="pointer-overlay" class="overlay hidden"><div class="panel pointer-panel"><span class="pointer-symbol">◉</span><h2>准备进入</h2><p id="pointer-message">点击锁定鼠标，开始控制角色。</p><button id="btn-pointer-enter" class="big-btn">点击进入游戏</button><div class="pointer-options"><button id="btn-pointer-free" class="text-back">使用自由鼠标模式</button><button id="btn-pointer-back" class="text-back">返回大厅</button></div><small>Esc 可随时暂停并释放鼠标</small></div></div>
 <div id="combo-pop" class=""></div>
 <div id="notice-pop" role="status" aria-live="polite"></div>
 <div id="error-bar"></div>
@@ -811,7 +837,7 @@ window.addEventListener('load', function () {
 <!-- 主菜单 -->
 <div id="menu-overlay" class="overlay ui-home" aria-label="游戏开始菜单">
   <div class="home-shell">
-    <header class="home-top"><div class="game-mark"><span class="mark-cross" aria-hidden="true">✦</span> BLUE FISH <span class="edition">V0.6.0</span></div><span class="local-status"><i></i> 本地游戏 · 离线可玩</span></header>
+    <header class="home-top"><div class="game-mark"><span class="mark-cross" aria-hidden="true">✦</span> BLUE FISH <span class="edition">V0.7.0</span></div><span class="local-status"><i></i> 本地游戏 · 离线可玩</span></header>
     <main class="home-content">
       <div class="eyebrow"><span></span> SANDWATCH / 沙海哨站</div>
       <h1>蓝色肥鱼<span>大作战<span class="title-dot">.</span></span></h1>
@@ -837,17 +863,55 @@ window.addEventListener('load', function () {
       <section class="lobby-modes" aria-label="选择游戏模式">
         <div class="eyebrow">PLAY / 选择行动</div>
         <h1>准备好出战了吗？</h1>
-        <article class="featured-mode"><div class="mode-kicker"><span class="status-pill">推荐模式</span><span>01 / TEAM BATTLE</span></div><h2>红蓝歼灭战</h2><p>协同推进，争夺每一条战线。<br>耗尽对手的共享复活额度，赢下回合。</p><div class="mode-specs"><span>6–16 人 / 队</span><span>4 秒复活</span><span>先赢 4 回合</span></div><button class="deploy-btn" id="btn-pvp-mode"><span>快速出战<small>8v8 · 标准难度 · 使用仓库装备</small></span><span class="btn-arrow" aria-hidden="true">↗</span></button><button class="mode-room-link" id="btn-mode-pvp">自定义房间 <span aria-hidden="true">→</span></button></article>
+        <article class="featured-mode"><div class="mode-kicker"><span class="status-pill">推荐模式</span><span>01 / TEAM BATTLE</span></div><h2>红蓝歼灭战</h2><p>协同推进，争夺每一条战线。<br>耗尽对手的共享复活额度，赢下回合。</p><div class="mode-specs"><span>6–16 人 / 队</span><span>4 秒复活</span><span>先赢 4 回合</span></div><label class="deploy-team">出战阵营<select id="lobby-deploy-team" data-deploy-team><option value="blue">蓝方</option><option value="red">红方</option></select></label><button class="deploy-btn" id="btn-pvp-mode"><span>快速出战<small>8v8 · 标准难度 · 使用仓库装备</small></span><span class="btn-arrow" aria-hidden="true">↗</span></button><button class="mode-room-link" id="btn-mode-pvp">自定义房间 <span aria-hidden="true">→</span></button></article>
         <button class="mode-card endless-card" id="btn-mode-endless"><span class="mode-index">02</span><span><b>无尽生存</b><small>波次挑战 · Boss 战 · 局内成长</small></span><span class="mode-arrow" aria-hidden="true">↗</span></button>
-        <button class="mode-card locked" id="btn-mode-campaign" disabled><span class="mode-index">03</span><span><b>剧情模式</b><small>新的冒险，正在筹备</small></span><span class="mode-lock">未开放</span></button>
+        <button class="mode-card" id="btn-mode-campaign"><span class="mode-index">03</span><span><b>剧情模式</b><small>营救克劳德 · 章节 01</small></span></button>
       </section>
       <div class="lobby-stage" aria-hidden="true"><div class="stage-caption"><span>THE OUTPOST</span><b>沙海哨站</b><small>集结完毕，等待你的指令。</small></div></div>
       <aside class="lobby-side">
-        <section class="side-card loadout-card"><div class="side-card-heading"><h2>当前装备</h2><span>LOADOUT</span></div><div class="loadout-portrait"><img id="lobby-hero-img" alt="当前形象"><div><b id="lobby-skin-name">常规鱼</b><small>形象预览</small></div></div><div class="loadout-line"><span>主武器</span><b>突击步枪</b></div><div class="loadout-line"><span>副武器</span><b id="lobby-sidearm">手枪</b></div><div class="loadout-line"><span>近战</span><b>匕首</b></div><button id="btn-inventory" class="outline-btn">打开仓库 <span aria-hidden="true">→</span></button></section>
+        <section class="side-card loadout-card"><div class="side-card-heading"><h2>当前装备</h2><span>LOADOUT</span></div><div class="loadout-portrait"><img id="lobby-hero-img" alt="当前形象"><div><b id="lobby-skin-name">真·Claude娘</b><small>形象预览</small></div></div><div class="loadout-line"><span>主武器</span><b id="lobby-primary">突击步枪</b></div><div class="loadout-line"><span>副武器</span><b id="lobby-sidearm">手枪</b></div><div class="loadout-line"><span>近战</span><b>匕首</b></div><button id="btn-inventory" class="outline-btn">打开仓库 <span aria-hidden="true">→</span></button></section>
         <section class="side-card lobby-record-card"><div class="side-card-heading"><h2>无尽最佳</h2><span>RECORD</span></div><div class="lobby-record-main"><b id="side-best-score">0</b><span>历史最高分</span></div><div class="record-pair"><div><b id="side-best-time">0:00</b><span>最长存活</span></div><div><b id="side-best-combo">—</b><span>最高连杀</span></div></div></section>
       </aside>
     </main>
     <footer class="lobby-footer"><button id="btn-level-back" class="text-back">← 主菜单</button><span>FPS · 沙海双城 / 无尽 · 沙海哨站<span class="footer-divider">/</span>当前对战由你与 AI 队伍参与</span><span class="footer-key"><kbd>Esc</kbd> 返回</span></footer>
+  </div>
+</div>
+
+<!-- 剧情模式 · 章节选择 -->
+<div id="story-hud" hidden>
+  <section class="story-objectives"><span class="story-eyebrow">营救克劳德 · 第一章 / 幕一</span><h2>白饭与消息</h2><p data-story-objective></p>
+    <ol><li data-story-step>收起白饭</li><li data-story-step>回到客厅</li><li data-story-step>等待空隙</li><li data-story-step>悄悄出门</li></ol>
+  </section>
+  <div class="story-alert" data-story-alert hidden><span>他好像看见你了…</span><div><i data-story-alert-fill></i></div></div>
+  <div class="story-prompt" data-story-prompt hidden></div>
+  <div class="story-fade" data-story-fade></div>
+  <section class="story-dialog" data-story-dialog hidden aria-live="polite"><strong data-story-speaker></strong><p data-story-line></p><small data-story-advance> E / Enter 下一句 · 稍候自动继续</small></section>
+  <div class="story-controls">WASD 移动 · 鼠标环顾 · Shift 小跑 · C 蹲下 · 空格跳跃 · F 互动 · Esc 暂停</div>
+</div>
+<div id="story-result" class="overlay hidden"><div class="panel story-result-panel"><span class="story-eyebrow">ACT I / COMPLETED</span><h1>门外的风</h1><p class="story-ending">“但我得去。”</p><p id="story-result-detail"></p><p class="sub-title">第一幕进度已保存。后续幕尚未开放。</p><div class="story-result-actions"><button id="btn-story-finish" class="big-btn">返回章节</button><button id="btn-story-replay" class="big-btn ghost">重玩第一幕</button></div></div></div>
+<div id="story-overlay" class="overlay hidden">
+  <div class="panel panel-wide">
+    <h1>剧情模式</h1>
+    <div class="sub-title">营救克劳德 · 一</div>
+    <div class="map-grid">
+      <button class="map-card" id="btn-story-1">
+        <div class="map-thumb story-home-thumb"><span>ACT I · 家</span><i></i></div>
+        <div class="map-name">白饭与消息</div>
+        <div class="map-desc">肩后视角 · 收好白饭，绕开老爸悄悄出门</div><span class="map-play">进入第一幕 →</span>
+      </button>
+      <div class="map-card locked">
+        <div class="map-thumb">🔒</div>
+        <div class="map-name">外庭防线</div>
+        <div class="map-desc">敬请期待</div>
+      </div>
+      <div class="map-card locked">
+        <div class="map-thumb">🔒</div>
+        <div class="map-name">实验室 · 工厂</div>
+        <div class="map-desc">敬请期待</div>
+      </div>
+    </div>
+    <button id="btn-story-back" class="big-btn ghost">← 返回大厅</button>
+    <button id="btn-story-reset" class="big-btn ghost" hidden>从卧室重新开始</button>
   </div>
 </div>
 
@@ -884,7 +948,7 @@ window.addEventListener('load', function () {
       <div class="st-left">
         <button class="st-back" id="btn-inv-back" aria-label="返回大厅">←</button>
         <div class="st-title">玩家仓库</div>
-        <div class="st-sub">选择装备与形象 · 仅对射击对战生效</div>
+        <div class="st-sub">红蓝双方独立配装 · 无尽模式使用红方配置</div>
       </div>
       <div class="st-right">
         <div class="inv-loadout" id="inv-loadout"></div>
@@ -899,14 +963,18 @@ window.addEventListener('load', function () {
         <button class="inv-tab" data-tab="skin">角色形象</button>
       </div>
 
-      <div class="inv-grid" id="inv-grid"></div>
-
-      <div class="inv-detail" id="inv-detail">
-        <div class="inv-detail-empty">选择左侧物品查看详情</div>
-      </div>
+      <div class="inv-catalog"><div id="inv-filters" class="inv-filters" role="group" aria-label="装备类别"></div><div class="inv-grid" id="inv-grid"></div><div class="inv-detail" id="inv-detail"><div class="inv-detail-empty">选择物品查看详情</div></div></div>
+      <aside class="inv-team-loadouts" id="inv-team-loadouts" aria-label="红蓝双方出战装备"></aside>
     </div>
   </div>
 </div>
+
+<dialog id="inv-slot-dialog" class="inv-slot-dialog" aria-labelledby="inv-slot-title" aria-describedby="inv-slot-note">
+  <div class="inv-picker-head"><div><small id="inv-slot-team"></small><h2 id="inv-slot-title">选择装备</h2></div><button id="inv-slot-close" aria-label="关闭装备选择">×</button></div>
+  <p id="inv-slot-note"></p>
+  <div id="inv-slot-choices" class="inv-slot-choices"></div>
+  <p class="inv-picker-foot">选择即保存 · Esc 返回仓库</p>
+</dialog>
 
 <!-- 射击对战 · 房间列表 -->
 <div id="roomlist-overlay" class="overlay hidden">
@@ -1018,10 +1086,10 @@ window.addEventListener('load', function () {
         <div class="rt-slots" id="room-red-slots"></div>
       </div>
 
-      <div class="room-center">
+      <div class="room-center"><label class="deploy-team">出战阵营<select id="room-deploy-team" data-deploy-team><option value="blue">蓝方</option><option value="red">红方</option></select></label>
         <div class="rc-map">
           <div class="rc-map-thumb" aria-hidden="true"></div>
-          <div class="rc-map-name">沙海双城 · 152m</div>
+          <div class="rc-map-name">沙海双城 · 立体战场</div>
         </div>
         <div class="rc-info">
           <div class="rc-row"><span>模式</span><b>歼灭战 · 回合制</b></div>
@@ -1054,10 +1122,12 @@ window.addEventListener('load', function () {
 
 <!-- 设置（音量 / 灵敏度 / 画质 / 色盲友好） -->
 <div id="settings-overlay" class="overlay hidden">
-  <div class="panel">
+  <div class="panel settings-panel">
     <h1>设置</h1>
-    <div class="sub-title">调整后立即生效，并自动保存到本地</div>
+    <div class="sub-title">声音与操作随时调整 · 体积雾在大厅设置</div>
+    <div class="settings-layout">
     <div class="set-group">
+      <h2>声音与操作</h2>
       <div class="set-row"><label>主背景音乐</label><input type="range" id="set-bgm" min="0" max="100" step="5" value="100"><span class="set-val" id="set-bgm-val">100%</span></div>
       <div class="set-row"><label>Boss 战斗曲</label><input type="range" id="set-boss" min="0" max="100" step="5" value="100"><span class="set-val" id="set-boss-val">100%</span></div>
       <div class="set-row"><label>菜单音乐</label><input type="range" id="set-menu" min="0" max="100" step="5" value="100"><span class="set-val" id="set-menu-val">100%</span></div>
@@ -1073,10 +1143,22 @@ window.addEventListener('load', function () {
       <div class="set-row"><label>粒子特效</label><input type="checkbox" id="set-particles" checked></div>
       <div class="set-row"><label>阴影渲染</label><input type="checkbox" id="set-shadow" checked></div>
       <div class="set-row"><label>色盲友好配色</label><input type="checkbox" id="set-colorblind"></div>
-    </div>
     <div class="set-note">色盲友好配色会把剑气与自爆警告从红/青改为蓝/黄系</div>
+    </div>
+    <fieldset id="set-visual-group" class="visual-settings" aria-describedby="set-visual-hint">
+      <legend>画面效果</legend>
+      <div class="style-current">
+        <img src="assets/ui-art/styles/western.webp" alt="美式卡通风格实机场景" loading="lazy"><strong>美式卡通</strong><small>粗墨线 · 浓郁色彩 · 硬朗明暗</small>
+      </div>
+      <label class="volume-option" for="set-volume-fog"><input type="checkbox" id="set-volume-fog" checked>体积雾 <span>· 对战模式</span></label>
+      <p class="volume-description">低处薄雾与日光光束，拉开远近层次。关闭可减少显卡负担。</p>
+      <p id="set-visual-hint" role="status" aria-live="polite"></p>
+    </fieldset>
+    </div>
+    <div class="settings-footer">
     <button id="btn-settings-close" class="big-btn">关闭</button>
     <button id="btn-wipe-data" class="big-btn ghost danger">清空全部本地数据</button>
+    </div>
   </div>
 </div>
 
@@ -1146,26 +1228,54 @@ window.addEventListener('load', function () {
   </div>
 </div>
 
-<dialog id="controls-dialog" aria-labelledby="controls-title"><div class="help-head"><div><div class="eyebrow">FIELD GUIDE</div><h2 id="controls-title">出战指南</h2></div><button id="btn-help-close" class="outline-btn" aria-label="关闭操作指南">✕</button></div><div class="help-grid"><section><h3>移动与观察</h3><p><kbd>W A S D</kbd> 移动 <kbd>空格</kbd> 跳跃</p><p><kbd>Ctrl</kbd> 蹲下 <kbd>鼠标</kbd> 观察</p><p><kbd>Esc</kbd> 暂停 <kbd>F</kbd> 全屏</p></section><section><h3>武器与战术</h3><p><kbd>左键</kbd> 射击 <kbd>R</kbd> 换弹</p><p><kbd>1 / 2 / 3</kbd> 切换武器 <kbd>G</kbd> 松开投雷 / 按住预热</p><p><kbd>右键</kbd> 匕首重击 <kbd>Tab</kbd> 对战计分板</p></section></div><div class="help-rule"><b>红蓝歼灭战</b><p>你与 AI 队友从红队基地出发。每次阵亡消耗本队 1 次共享复活额度，4 秒后返回基地；一方额度归零结束回合，先赢 4 回合获胜。</p><b>手雷投掷</b><p>轻按 G 并松开快速投出；按住 G 拉环读秒，松开投出。引信共 3 秒，碰墙或落地后反弹，到时爆炸；久握会自伤。前进、后退、侧移与跳跃都会改变弹道，触屏手雷按钮同样支持长按。</p><b>无尽生存</b><p>迎战一波又一波肥鱼，击败 Boss 选择强化。按 I 查看本局技能。自爆鱼爆炸后留下半径 10 米、持续 15 秒的辐射区：每秒 2 点真实伤害、移速减半；离开范围可恢复。多个辐射区的伤害和减速不叠加。</p></div><p class="help-foot">进入对局后自动请求全屏。切换武器动作完成后才能攻击。触屏设备可使用游戏内虚拟摇杆与按钮。</p></dialog>
+<dialog id="controls-dialog" aria-labelledby="controls-title"><div class="help-head"><div><div class="eyebrow">FIELD GUIDE</div><h2 id="controls-title">出战指南</h2></div><button id="btn-help-close" class="outline-btn" aria-label="关闭操作指南">✕</button></div><div class="help-grid"><section><h3>移动与观察</h3><p><kbd>W A S D</kbd> 移动 <kbd>空格</kbd> 跳跃</p><p><kbd>Ctrl</kbd> 蹲下 <kbd>鼠标</kbd> 观察</p><p><kbd>Esc</kbd> 暂停 <kbd>Alt+Enter</kbd> 全屏</p></section><section><h3>武器与战术</h3><p><kbd>左键</kbd> 射击 <kbd>R</kbd> 换弹</p><p><kbd>1 / 2 / 3 / 4</kbd> 主武器 / 副武器 / 近战 / 手雷</p><p><kbd>右键</kbd> 狙击开镜 / 匕首重击 <kbd>Tab</kbd> 对战计分板</p><p><kbd>F</kbd> 拾取 / 补弹 <kbd>G</kbd> 丢弃主副武器</p></section></div><div class="help-rule"><b>红蓝歼灭战</b><p>在大厅选择红方或蓝方，与 AI 队友从对应基地出发。每次阵亡消耗本队 1 次共享复活额度，4 秒后返回基地；一方额度归零结束回合，先赢 4 回合获胜。</p><b>沙海双城 · 高低差路线</b><p>长 A 与小道通往 A 高台，中路连接桥下通路和 B 下洞；B 洞通过楼梯连接上下层。坡道和小台阶可以直接走，跳箱、B 窗与后台需要跳跃。AI 会按路线选择绕行或跳越，并尝试躲开看见的敌方手雷。</p><b>狙击与战术护目镜</b><p>右键按住开镜，松开退出；开镜时降低鼠标灵敏度，静止射击最精准，空中射击散布增大。护目镜与铁饭碗共用头部装备位，不能同时佩戴；护目镜减少 20% 头部伤害，可保护 4 次。真·Claude娘佩戴护目镜并持狙击枪开镜时，按 V 显示敌方穿墙描边 3 秒，冷却 60 秒，阵亡和复活不重置。退出开镜或护目镜损坏立即终止效果。</p><b>手雷投掷</b><p>按 4 切换到手持手雷，单击左键即可投掷；按住左键可提前预热，松开时手雷立即飞出，不必等待收招。按下左键后引信共 3 秒，碰墙或落地后反弹，到时爆炸；久握会自伤。前进、后退、侧移与跳跃都会改变弹道。</p><b>对战武器掉落与拾取</b><p>玩家和 AI 阵亡时掉落当时手持的主武器或副武器，保留弹匣与备弹；按 G 也能主动丢枪。枪械物理落地后固定、不挡人，45 秒后清理。靠近并瞄准，按 F 拾取空槽武器；已有兼容枪械时将地面枪械的弹匣与备弹补入备弹，受容量上限限制，随后地面枪械消失。不同弹药型号不能互补，换枪前先用 G 腾出对应槽。AI 会在安全时补弹，也会按武器能力和固定偏好选择换枪。</p><b>无尽生存</b><p>迎战一波又一波肥鱼，击败 Boss 选择强化。按 I 查看本局技能。自爆鱼爆炸后留下半径 10 米、持续 15 秒的辐射区：每秒 2 点真实伤害、移速减半；离开范围可恢复。多个辐射区的伤害和减速不叠加。</p></div><p class="help-foot">进入对局后自动请求全屏。切换武器动作完成后才能攻击。</p></dialog>
 
 <!-- 依赖（全部本地化，离线可玩） -->
 <script src="lib/three.min.js"></script>
+<script src="js/render-shaders.js"></script>
+<script src="js/render-style.js"></script>
+<script src="js/volumetric-fog.js"></script>
+<script src="js/render-pipeline.js"></script>
+<script src="js/recon-fx.js"></script>
+<script src="js/anime-fx.js"></script>
+<script src="lib/three-addons-r159.js"></script>
+<script src="lib/cannon-es-0.20.0.js"></script>
+<script src="assets/characters/runtime/manifest.js"></script>
+<script src="assets/equipment/iron-rice-bowl/manifest.js"></script>
+<script src="js/equipment.js"></script>
+<script src="js/weapon-rules.js"></script>
+<script src="js/sniper-cycle.js"></script>
+<script src="js/helmet.js"></script>
+<script src="assets/equipment/tactical-goggles/manifest.js"></script>
+<script src="js/goggles.js"></script>
+<script src="js/character-hitboxes.js"></script>
 <!-- 文件名带版本后缀：file:// 下浏览器会缓存本地脚本，改名才能确保读到新内容 -->
 <script src="assets/fish-texture-v2.js"></script>
 <script src="assets/enemy-textures-v2.js"></script>
 <script src="js/art.js"></script>
 <script src="js/scene-detail.js"></script>
+<script src="js/story-home.js"></script>
 <script src="js/combat-art.js"></script>
 <script src="js/radiation.js"></script>
 <script src="js/bomber-fx.js"></script>
-<script src="js/fps-ai.js"></script>
 <script src="js/player-physics.js"></script>
+<script src="js/actor-collision.js"></script>
+<script src="js/fps-locomotion.js"></script>
+<script src="js/fps-layout.js"></script>
+<script src="js/fps-height-nav.js"></script>
+<script src="js/fps-ai.js"></script>
 <script src="js/grenade-physics.js"></script>
+<script src="js/tactical-grenades.js"></script>
 <script src="js/map-surfaces.js"></script>
 <script src="js/fps-map-detail.js"></script>
 <script src="js/fps-map.js"></script>
 <script src="js/fps-art.js"></script>
+<script src="js/characters.js"></script>
+<script src="js/story-act1.js"></script>
+<script src="js/ragdolls.js"></script>
 <script src="js/menu-ui.js"></script>
+<script src="assets/sfx/voice-bank.js"></script>
+<script src="js/spatial-voice.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

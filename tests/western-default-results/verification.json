@@ -1,0 +1,72 @@
+{
+  "verifiedAt": "2026-11-01T23:22:04.5399629+08:00",
+  "status": "passed",
+  "author": "OpenAI Codex",
+  "change": "Fixed western cartoon style; migrated existing anime saves; archived anime reference and technical guide",
+  "checks": {
+    "settingsMigrationAndFog": 22,
+    "sharedRendering": 19,
+    "smoke": 180,
+    "syntax": 11,
+    "standaloneDocumentationExample": "passed"
+  },
+  "reportFiles": [
+    "report.json",
+    "shared-rendering/browser-report.json",
+    "settings.log",
+    "shared-rendering.log",
+    "smoke.log"
+  ],
+  "sourceHashes": [
+    {
+      "file": "D:\\DSH\\Game\\蓝色肥鱼大作战\\index.html",
+      "sha256": "1694466667811925014343bb3cd0e811a430d5182323680f294ac5d300a6b9fb"
+    },
+    {
+      "file": "D:\\DSH\\Game\\蓝色肥鱼大作战\\js\\game.js",
+      "sha256": "4e6dec160d813596b407e3783049dca324ff0928c64c008f5bbea0c586814743"
+    },
+    {
+      "file": "D:\\DSH\\Game\\蓝色肥鱼大作战\\js\\render-style.js",
+      "sha256": "358dd38db485515a1a1494d3423aca03794a4ed643a64d14a76d7053568fb885"
+    },
+    {
+      "file": "D:\\DSH\\Game\\蓝色肥鱼大作战\\tests\\browser-render-options-test.cjs",
+      "sha256": "3b9653c7ff5941b764ee12d23efbcc06454b705695ff83af60d5cbdd2a073244"
+    },
+    {
+      "file": "D:\\DSH\\Game\\蓝色肥鱼大作战\\tests\\browser-anime-style-test.cjs",
+      "sha256": "45a18bce3cf685ecabe2083ed35eb0ceb80d764ffc893bb59f91b64f236a7475"
+    },
+    {
+      "file": "D:\\DSH\\Game\\蓝色肥鱼大作战\\README.md",
+      "sha256": "ea268c8ede00a200f9b02d8bd061cc1de2c2e3bb83e02e13395e34dcb8e4cf90"
+    },
+    {
+      "file": "D:\\DSH\\Game\\蓝色肥鱼大作战\\FPS_开发进度.md",
+      "sha256": "ff8d5aa9282e3b662bf93dfcba4e478e688d31e69b551557c9ccf808e4920879"
+    },
+    {
+      "file": "D:\\DSH\\Game\\蓝色肥鱼大作战\\CODEX_优化与开发建议.md",
+      "sha256": "1d76d750f523b3a5a1456c157b82ceec371c44a958e1f442ea87d5813fe83dc3"
+    },
+    {
+      "file": "D:\\DSH\\Game\\蓝色肥鱼大作战\\渲染与特效开发说明.md",
+      "sha256": "e4b4de3be3d49eefed39b6c0cf2b12da56d0483e556d28eb1faf14fd7acc35f3"
+    },
+    {
+      "file": "D:\\CodexWork\\Three.js二次元三渲二技术与迁移指南.md",
+      "sha256": "9f6927f1cf77815e65172c0dd2663f40ad6e509f1ec61ac615ba27560347ab1b"
+    }
+  ],
+  "referenceRoot": "D:\\CodexWork\\Gamemodules\\ThreeJS_AnimeToon_Reference",
+  "referenceFileCount": 7,
+  "referenceHashesVerified": true,
+  "referenceExample": "D:/CodexWork/Gamemodules/ThreeJS_AnimeToon_Reference/example-verification.json",
+  "warehouseSha256": "26e0ddb29ea91fcac05576671d68a506b5b22f43091cccf14e1eaf306e262032",
+  "limits": [
+    "Desktop-only verification.",
+    "Frozen reference targets Three.js r159, not a version-independent plugin.",
+    "Optional combat-art and bomber-fx reference modules retain game-specific dependencies."
+  ]
+}

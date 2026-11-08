@@ -11,7 +11,7 @@ const OUT=process.env.FISH_COMBAT_OUTPUT||path.join(__dirname,'combat-results');
     page.on('console',m=>{if(m.type()==='error'&&/THREE|WebGL|shader/i.test(m.text()))shaderErrors.push(m.text());});
     await page.goto(process.env.FISH_TEST_URL||'http://127.0.0.1:8123/');
     await page.waitForFunction(()=>window.FishGame&&FishGame.__debug.isFishReady());
-    await page.click('#btn-start');await page.click('#btn-level-desert');
+    await page.click('#btn-start');await page.click('#btn-mode-endless');await page.click('#btn-map-desert');
     await page.waitForFunction(()=>FishGame.__debug.getSceneStats().envBuilt&&document.getElementById('loading-overlay').classList.contains('hidden'));
     await page.evaluate(()=>{const d=FishGame.__debug;d.enterFallback();d.clearCovers();d.setState('paused');});
     await page.addStyleTag({content:'#fallback-hint,#notice-pop {visibility:hidden!important;}'});
@@ -42,10 +42,10 @@ const OUT=process.env.FISH_COMBAT_OUTPUT||path.join(__dirname,'combat-results');
       await page.waitForFunction(()=>!FishGame.__debug.getWeaponSwitch());
       assert.equal(await page.evaluate(()=>{const d=FishGame.__debug;d.setState('paused');return d.getWeapon();}),id,'截图前确认实际切换武器');
     }
-    for(const [key,id,name] of [['Digit1','pistol','01-pistol'],['Digit2','rifle','02-rifle'],['Digit3','knife','03-knife']]){
+    for(const [key,id,name] of [['Digit2','pistol','01-pistol'],['Digit1','rifle','02-rifle'],['Digit3','knife','03-knife']]){
       await selectWeapon(key,id);await render();await page.screenshot({path:path.join(OUT,name+'.png')});
     }
-    await selectWeapon('Digit2','rifle');
+    await selectWeapon('Digit1','rifle');
     const fire=await page.evaluate(()=>{
       const d=FishGame.__debug;d.setState('playing');d.setAmmo(20,100);d.update(.3);d.shootOnce();d.setState('paused');
       const gun=d.getGun();return {flash:gun.flashMesh.visible,active:d.getCombatFxStats().active,mag:d.getAmmo().mag};
@@ -60,7 +60,7 @@ const OUT=process.env.FISH_COMBAT_OUTPUT||path.join(__dirname,'combat-results');
     assert(reload.tilt<-.2&&reload.frozen&&reload.magY<-.1,'换弹模型姿势和弹匣移动，暂停冻结');
     await render();await page.screenshot({path:path.join(OUT,'05-reload.png')});
     await page.evaluate(()=>{const d=FishGame.__debug;d.setAmmo(7,42);d.setState('playing');d.update(0);d.setState('paused');});
-    await selectWeapon('Digit1','pistol');
+    await selectWeapon('Digit2','pistol');
     for(let i=0;i<5;i++) {
       await page.evaluate(i=>{
         const d=FishGame.__debug;d.clearBossNow();d.clearProjectiles();d.spawnBossNow(i);

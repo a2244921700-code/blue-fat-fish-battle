@@ -2,13 +2,13 @@
 (function(root){
   'use strict';
   var art = [
-    {id:'crossfire',src:'assets/ui-art/loading-crossfire.webp',title:'拱门交火'},
-    {id:'rooftops',src:'assets/ui-art/loading-rooftops.webp',title:'屋顶侧翼'},
-    {id:'courtyard',src:'assets/ui-art/loading-courtyard.webp',title:'庭院推进'}
+    {id:'crossfire',src:'assets/ui-art/loading-crossfire-cast.webp',title:'拱门交火'},
+    {id:'rooftops',src:'assets/ui-art/loading-rooftops-cast.webp',title:'屋顶侧翼'},
+    {id:'courtyard',src:'assets/ui-art/loading-courtyard-cast.webp',title:'庭院推进'}
   ];
   var tips = {
-    pvp:['你属于红队。与 AI 队友一起推进，留意交叉火力。','双方在地图两端部署。阵亡消耗本队 1 次额度，4 秒后返回基地。','墙体会遮挡视线与子弹。绕到侧翼，寻找新的射击角度。','切换武器需要完成收枪、举枪动作；利用掩体掩护这个空隙。','先赢 4 回合即可取胜。共享复活额度归零时，本回合立即结束。','按住 Tab 查看对战计分板；短点射有助于控制步枪散布。'],
-    endless:['保持移动，利用拱门和掩体拉开距离。','击败 Boss 后选择强化。按 I 查看本局的技能等级。','步枪适合持续压制；匕首右键可以发动重击。','注意补给位置，换弹和切枪时先寻找掩护。']
+    pvp:['A 高台、长 A、短道桥、中门、B 洞上下层可互相转点。','AI 看见敌方手雷后会尝试撤离；隔墙和背后不会直接识别。','按 4 手持手雷；左键按住预热，松开立即出手。','瞄准近处掉落武器按 F 拾取或补弹；按 G 丢弃主副武器。','地面枪械保留弹匣与备弹；只有相同型号的弹药才能补充。','出战阵营可在大厅选择，角色使用仓库中该阵营的装配。','双方在地图两端部署。阵亡消耗本队 1 次额度，4 秒后返回基地。','墙体会遮挡视线与子弹。AI 会寻找安全投雷机会，别在狭窄处扎堆。','切换武器需要完成收枪、举枪动作；利用掩体掩护这个空隙。','先赢 4 回合即可取胜。共享复活额度归零时，本回合立即结束。','按住 Tab 查看对战计分板；短点射有助于控制步枪散布。'],
+    endless:['1 主武器、2 副武器、3 近战、4 手雷。','手持手雷时左键按住预热，松开立即投出；久握会自伤。','保持移动，利用拱门和掩体拉开距离。','击败 Boss 后选择强化。按 I 查看本局的技能等级。','步枪适合持续压制；匕首右键可以发动重击。','注意补给位置，换弹和切枪时先寻找掩护。']
   };
   var bag=[],last=-1,activeArt=null,artEpoch=0,cache=Object.create(null),rotateTimer=null,navEpoch=0,focusMemory=Object.create(null);
   function nextArt(){
@@ -33,6 +33,7 @@
   }
   function text(id,value){var el=document.getElementById(id);if(el)el.textContent=value;}
   function chooseArt(mode){
+    if(mode==='story'){artEpoch++;activeArt='home';var h=document.getElementById('loading-art');if(h){h.style.backgroundImage='linear-gradient(125deg,#192e3b,#8c7255 64%,#d0ac71)';h.classList.add('ready');}text('loading-scene','家 / 白饭与消息');text('loading-art-count','ACT I');text('loading-tip','WASD 移动 · Shift 小跑 · C 蹲下 · F 互动。墙壁和家具能挡住梁文峰的视线。');return Promise.resolve(true);}
     var selected=nextArt(),epoch=++artEpoch,host=document.getElementById('loading-art');
     activeArt=selected.id;
     if(host){host.classList.remove('ready');host.style.backgroundImage='none';}
@@ -47,7 +48,7 @@
   }
   function beginLoading(mode){
     clearTimeout(rotateTimer);document.body.removeAttribute('data-ui');
-    text('loading-mode',mode==='pvp'?'红蓝歼灭战 / TEAM BATTLE':'无尽生存 / ENDLESS');
+    text('loading-mode',mode==='story'?'剧情模式 / 营救克劳德':mode==='pvp'?'红蓝歼灭战 / TEAM BATTLE':'无尽生存 / ENDLESS');
     var ready=chooseArt(mode);
     function rotate(){
       var overlay=document.getElementById('loading-overlay');
@@ -98,7 +99,9 @@
     var close=document.getElementById('btn-help-close');if(close)close.addEventListener('click',function(){help.close();});
     if(help)help.addEventListener('click',function(e){if(e.target===help){var r=help.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)help.close();}});
     document.addEventListener('keydown',function(e){
-      if(help&&help.open){e.stopPropagation();return;}
+      // Let native modal dialogs own Escape and their focus trap. The parent
+      // inventory must not navigate away while its equipment picker is open.
+      if(document.querySelector('dialog[open]')){e.stopPropagation();return;}
       var host=visibleOverlay();if(!host)return;
       if(e.code==='Escape'){
         var which=host.id.replace('-overlay',''),button=document.getElementById(backIds[which]);

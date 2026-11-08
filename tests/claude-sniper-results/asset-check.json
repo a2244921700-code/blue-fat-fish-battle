@@ -1,0 +1,40 @@
+{
+  "unchangedExistingModels": {
+    "deepseek": true,
+    "claude_fake": true
+  },
+  "warehouseBackgroundSha256": "26e0ddb29ea91fcac05576671d68a506b5b22f43091cccf14e1eaf306e262032",
+  "syntaxChecks": 18,
+  "newModel": {
+    "file": "claude_true-model.js",
+    "source": "TrueClaude_FPS_v001.glb",
+    "sourceSha256": "0acbe07fae3d5727f8989a4fe831ef0b0afee00cd6b8ed5dfda5c689708cd17c",
+    "sourceBytes": 27807436,
+    "modelBytes": 25523840,
+    "modelSha256": "5f8f3529e034c8b667158c979a9d0a938e4c71e5d602e134ef41365b5d9bceee",
+    "bones": 48,
+    "triangles": 9677,
+    "meshes": {
+      "camera_owned_by_game": true,
+      "camera_reference": "Socket_CameraReference",
+      "camera_reference_is_standing_static": true,
+      "camera_crouch_drop_m": 0.105,
+      "local_world_hide_with_viewmodel": [
+        "Mesh_HeadHair",
+        "Mesh_Arms"
+      ],
+      "viewmodel_mesh": "Mesh_Arms",
+      "viewmodel_needs_pelvis_compensation": true,
+      "clone_skeleton_for_independent_instances": true,
+      "standing_camera_reference_height_m": 0.718,
+      "viewmodel_setup": "Clone the complete skeleton with SkeletonUtils.clone, keep only Mesh_Arms visible, and compensate pelvis/body movement in the viewmodel transform. Do not detach a skinned mesh from its skeleton."
+    },
+    "scale": 2
+  },
+  "packing": {
+    "uniqueBytes": 1605308,
+    "unsharedBytes": 6428688,
+    "savedBytes": 4823380,
+    "uniqueArrays": 8402
+  }
+}

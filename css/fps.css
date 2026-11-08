@@ -32,7 +32,7 @@
 .pvp-mode #pvp-radar-key{display:block}
 .pvp-mode #score-wrap,.pvp-mode #armor-wrap,.pvp-mode #wave-wrap,.pvp-mode #combo-wrap,.pvp-mode #env-title,.pvp-mode #btn-tch-skill{display:none!important}
 .pvp-mode #tip-bar{font-size:0}
-.pvp-mode #tip-bar:after{content:'WASD 移动 · Ctrl 蹲下 · 1/2/3 武器 · R 换弹 · G 松开投雷 / 按住预热 · Tab 计分板 · Esc 暂停';font-size:11px}
+.pvp-mode #tip-bar:after{content:'WASD 移动 · Ctrl 蹲下 · 1 主 / 2 副 / 3 近战 / 4 手雷 · 左键松开投雷 · R 换弹 · F 拾取补弹 · G 丢枪 · Tab 计分板 · Esc 暂停';font-size:11px}
 .pvp-mode #weapon-bar .wslot{border-radius:4px;font-size:12px;padding:8px 13px;background:rgba(18,31,43,.9);border-color:#44566a}
 .pvp-mode #weapon-bar .wslot.active{color:#ffcfb8;border-color:#cf9282;box-shadow:inset 0 -2px #e2a28e}
 .pvp-mode #killfeed{top:165px;right:22px;left:auto;bottom:auto;transform:none;text-align:right;width:auto;max-width:300px;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
@@ -41,6 +41,18 @@
 #pvp-respawn{position:fixed;left:50%;bottom:17%;transform:translateX(-50%);z-index:15;min-width:330px;padding:22px 40px;text-align:center;background:rgba(13,23,33,.94);border:1px solid #7b544d;border-top:3px solid #e49280;border-radius:5px;color:#e8ebed;pointer-events:none}
 #pvp-respawn b{font:600 44px Consolas,monospace;color:#ffb09c;padding:0 14px}
 #pvp-respawn small{display:block;color:#aab7c1;margin-top:10px;font-size:12px}
+#pvp-death-view{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);width:max-content;max-width:90vw;box-sizing:border-box;z-index:16;padding:10px 18px;text-align:center;background:rgba(13,23,33,.84);border:1px solid #485d6d;border-radius:5px;color:#e8ebed;pointer-events:none}
+#pvp-death-view.hidden{display:none!important}
+#pvp-death-view strong{font-size:13px;font-weight:600}
+#pvp-death-view small{display:block;margin-top:5px;font-size:11px;line-height:1.6;color:#b4c9d6}
+.death-view-buttons{display:none;gap:8px;justify-content:center;margin-top:8px}
+.death-view-buttons button{pointer-events:auto;padding:7px 14px;min-height:36px;border:1px solid #6f899c;border-radius:4px;background:#263d4e;color:#e7eff4;font-size:12px;cursor:pointer}
+.death-view-buttons button:disabled{opacity:.45;cursor:default}
+.touch-mode .death-view-buttons{display:flex}
+.touch-mode #pvp-respawn{bottom:152px;padding:12px 20px;min-width:0;width:min(330px,90vw)}
+.pvp-dead #touch-ui{display:none!important}
+.touch-mode.pvp-dead #minimap,.touch-mode.pvp-dead #pvp-radar-key,.pvp-dead #health-wrap{display:none!important}
+.pvp-dead #tip-bar,.pvp-dead #fallback-hint{display:none!important}
 .pvp-dead #crosshair,.pvp-dead #hitmarker,.pvp-dead #ammo-wrap,.pvp-dead #weapon-bar,.pvp-dead #nade-wrap{display:none!important}
 .pvp-scoreboard #crosshair,.pvp-scoreboard #hitmarker{visibility:hidden}
 #scoreboard{max-height:70vh;overflow:auto;background:rgba(13,24,35,.96);border:1px solid #43576a;border-radius:6px;min-width:600px}
@@ -50,3 +62,51 @@
 #scoreboard .sb-row.dead{opacity:.55}
 #scoreboard .sb-tip{color:#97aeba;font-size:11px}
 @media(max-width:800px){#pvp-score{width:70vw;top:8px}.ps-team{padding:7px}.ps-center{width:88px}.ps-red-alive,.ps-blue-alive{font-size:9px}#pvp-score .ps-mine,#pvp-score .ps-bots{font-size:27px}.ps-caption{display:none}#pvp-status{top:110px;font-size:9px}#scoreboard{min-width:0;width:88vw}.pvp-mode #killfeed{top:143px}}
+.pvp-dead #helmet-status,#helmet-status.hidden{display:none!important}
+#helmet-status{position:absolute;left:26px;top:132px;max-width:260px;padding:7px 10px;border:1px solid #a6d4df55;border-radius:5px;background:#132a35de;color:#cfe8ec;font-size:11px;letter-spacing:.5px;pointer-events:none}
+.pvp-mode #helmet-status{top:96px}
+@media(pointer:coarse){#helmet-status{left:16px;top:142px;font-size:10px}.pvp-mode #helmet-status{top:108px}}
+
+/* ============================================================
+   剧情模式（story）：叙事 HUD
+   家里不持枪，所以战斗 HUD 全部隐藏，只保留对话框。
+   ============================================================ */
+body.story-mode #hud,
+body.story-mode #minimap,
+body.story-mode #nade-wrap,
+body.story-mode #reload-wrap,
+body.story-mode #tip-bar,
+body.story-mode #crosshair,
+body.story-mode .weapon-bar,
+body.story-mode #hitmarker,
+body.story-mode #killfeed,
+body.story-mode #kill-medal,
+body.story-mode #combo,
+body.story-mode #damage-flash {
+  display: none !important;
+}
+
+/* 剧情模式下对话框稍微做大，更像叙事界面 */
+body.story-mode #dialog-box {
+  bottom: 8vh;
+  width: min(760px, 76vw);
+}
+body.story-mode #dialog-box .dialog-text {
+  font-size: 19px;
+  line-height: 1.7;
+}
+
+/* One head-equipment slot. Recon status is only appended while eligible. */
+#goggles-status{position:fixed;left:26px;top:132px;z-index:32;padding:8px 12px;border:1px solid #dcb77788;border-left:3px solid #eac783;border-radius:4px;background:#14242de8;color:#f5e5c4;font:600 13px/1.4 system-ui;pointer-events:none}
+.pvp-mode #goggles-status{top:96px}
+#goggles-status.hidden,.pvp-dead #goggles-status,.story-mode #goggles-status{display:none!important}
+#sniper-scope{position:fixed;inset:0;z-index:8;display:grid;place-items:center;pointer-events:none;overflow:hidden}
+#sniper-scope.hidden{display:none!important}
+.scope-lens{position:relative;width:88vmin;height:88vmin;border-radius:50%;border:5px solid #10171d;box-shadow:0 0 0 150vmax #080d12, inset 0 0 45px #06121999;background:radial-gradient(circle,transparent 45%,#0e252c24 72%);overflow:hidden}
+.scope-h,.scope-v{position:absolute;display:block;background:#0a161be8;left:50%;top:50%;transform:translate(-50%,-50%)}
+.scope-h{height:1px;width:100%}.scope-v{width:1px;height:100%}
+.scope-h:after,.scope-v:after{content:'';position:absolute;background:repeating-linear-gradient(90deg,transparent 0 29px,#0a161b 29px 30px);width:180px;height:8px;left:50%;top:50%;transform:translate(-50%,-50%)}
+.scope-v:after{transform:translate(-50%,-50%) rotate(90deg)}
+.scope-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:4px;height:4px;background:#e7af55;border:1px solid #1d2026;border-radius:50%}
+.scope-range{position:absolute;bottom:12%;left:0;width:100%;text-align:center;color:#132530;font:600 10px/1 monospace;letter-spacing:.2em}
+.sniper-scoped #crosshair,.sniper-held #crosshair{display:none!important}

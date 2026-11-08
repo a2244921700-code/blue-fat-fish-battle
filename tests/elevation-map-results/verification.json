@@ -1,0 +1,288 @@
+{
+  "generatedAt": "2026-11-01T11:18:29.397Z",
+  "executor": "OpenAI Codex (GPT-6)",
+  "scope": "Four-slot controls, immediate grenade release, weapon drops/resupply, visible-grenade evasion, FPS height-map rebuild and screenshot feedback fixes",
+  "status": "passed",
+  "totalPassed": 513,
+  "suites": [
+    {
+      "suite": "smoke-test",
+      "passed": 179,
+      "log": "smoke-test.log",
+      "recordedAt": "2026-11-01T11:13:34.012Z"
+    },
+    {
+      "suite": "fps-ai-test",
+      "passed": 10,
+      "log": "fps-ai-test.log",
+      "recordedAt": "2026-11-01T11:13:34.112Z"
+    },
+    {
+      "suite": "fps-jump-test",
+      "passed": 11,
+      "log": "fps-jump-test.log",
+      "recordedAt": "2026-11-01T11:13:34.219Z"
+    },
+    {
+      "suite": "player-physics-test",
+      "passed": 11,
+      "log": "player-physics-test.log",
+      "recordedAt": "2026-11-01T11:13:34.309Z"
+    },
+    {
+      "suite": "map-surfaces-test",
+      "passed": 5,
+      "log": "map-surfaces-test.log",
+      "recordedAt": "2026-11-01T11:13:34.440Z"
+    },
+    {
+      "suite": "grenade-awareness-test",
+      "passed": 6,
+      "log": "grenade-awareness-test.log",
+      "recordedAt": "2026-11-01T11:13:34.536Z"
+    },
+    {
+      "suite": "grenade-physics-test",
+      "passed": 10,
+      "log": "grenade-physics-test.log",
+      "recordedAt": "2026-11-01T10:45:51.829Z"
+    },
+    {
+      "suite": "weapon-rules-test",
+      "passed": 8,
+      "log": "weapon-rules-test.log",
+      "recordedAt": "2026-11-01T10:45:52.007Z"
+    },
+    {
+      "suite": "elevation-map-test",
+      "passed": 20,
+      "log": "elevation-map-test.log",
+      "recordedAt": "2026-11-01T11:13:35.474Z"
+    },
+    {
+      "suite": "browser-elevation-map-test",
+      "passed": 13,
+      "log": "browser-elevation-map-test.log",
+      "recordedAt": "2026-11-01T11:17:33.022Z"
+    },
+    {
+      "suite": "browser-fps-test",
+      "passed": 38,
+      "log": "browser-fps-test.log",
+      "recordedAt": "2026-11-01T11:14:44.040Z"
+    },
+    {
+      "suite": "browser-controls-test",
+      "passed": 38,
+      "log": "browser-controls-test.log",
+      "recordedAt": "2026-11-01T10:46:17.465Z"
+    },
+    {
+      "suite": "browser-death-camera-test",
+      "passed": 19,
+      "log": "browser-death-camera-test.log",
+      "recordedAt": "2026-11-01T10:51:09.808Z"
+    },
+    {
+      "suite": "browser-grenade-test",
+      "passed": 15,
+      "log": "browser-grenade-test.log",
+      "recordedAt": "2026-11-01T10:46:45.759Z"
+    },
+    {
+      "suite": "browser-grenade-evasion-test",
+      "passed": 5,
+      "log": "browser-grenade-evasion-test.log",
+      "recordedAt": "2026-11-01T10:46:04.136Z"
+    },
+    {
+      "suite": "browser-tactical-grenade-test",
+      "passed": 15,
+      "log": "browser-tactical-grenade-test.log",
+      "recordedAt": "2026-11-01T10:46:47.355Z"
+    },
+    {
+      "suite": "browser-weapon-loot-test",
+      "passed": 19,
+      "log": "browser-weapon-loot-test.log",
+      "recordedAt": "2026-11-01T10:50:26.030Z"
+    },
+    {
+      "suite": "browser-weapon-ui-test",
+      "passed": 12,
+      "log": "browser-weapon-ui-test.log",
+      "recordedAt": "2026-11-01T10:47:07.367Z"
+    },
+    {
+      "suite": "browser-lobby-test",
+      "passed": 59,
+      "log": "browser-lobby-test.log",
+      "recordedAt": "2026-11-01T10:47:25.957Z"
+    },
+    {
+      "suite": "browser-ragdoll-test",
+      "passed": 20,
+      "log": "browser-ragdoll-test.log",
+      "recordedAt": "2026-11-01T10:47:18.379Z"
+    }
+  ],
+  "logic": {
+    "checks": 20,
+    "colliders": 455,
+    "surfaces": 41,
+    "nav": {
+      "requests": 17,
+      "failed": 0,
+      "expanded": 6322,
+      "jumpLinks": 8,
+      "rejectedJumpLinks": 0,
+      "layers": 318
+    }
+  },
+  "browser": {
+    "checks": 13,
+    "errors": [],
+    "visual": {
+      "children": 86,
+      "meshes": 1182,
+      "envBuilt": true,
+      "envObjects": 3,
+      "worldMode": "pvp",
+      "mapName": "沙海双城",
+      "arena": 76,
+      "modelParts": 23189,
+      "obstacles": 455,
+      "wallMeshes": 360,
+      "enemies": 30,
+      "trackedEnemies": 31,
+      "renderCalls": 395,
+      "triangles": 583522,
+      "geometries": 394,
+      "textures": 19
+    },
+    "battle": {
+      "states": [
+        "advance",
+        "react",
+        "engage",
+        "grenade",
+        "grenade-alert",
+        "search",
+        "grenade-evade",
+        "reload",
+        "cover"
+      ],
+      "heights": [
+        0,
+        0.1,
+        0.2,
+        0.3,
+        0.4,
+        0.5,
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1,
+        1.1,
+        1.2,
+        1.3,
+        1.4,
+        1.5,
+        1.6,
+        1.7,
+        1.8,
+        1.9,
+        2,
+        2.1,
+        2.2,
+        2.3,
+        2.4,
+        2.5,
+        2.6,
+        2.7,
+        2.8,
+        2.9,
+        3,
+        3.1,
+        3.2,
+        3.3,
+        3.4,
+        3.5,
+        3.6,
+        3.7,
+        3.9,
+        4,
+        4.1,
+        4.2,
+        4.3,
+        4.4,
+        4.5,
+        4.6,
+        4.7,
+        4.8,
+        4.9,
+        5,
+        5.1,
+        5.2,
+        5.3,
+        5.4
+      ],
+      "invalid": 0,
+      "maxY": 5.4,
+      "maxDrops": 16,
+      "pvp": {
+        "round": 1
+      },
+      "ai": {
+        "shots": 380,
+        "blockedShots": 475,
+        "replans": 1483,
+        "hearings": 37,
+        "jumps": 0,
+        "landings": 0,
+        "obstacleJumps": 0,
+        "evadeJumps": 0,
+        "rejectedJumps": 0,
+        "grenades": 11,
+        "pickups": 0,
+        "grenadeEvades": 21
+      },
+      "nav": {
+        "requests": 1597,
+        "failed": 0,
+        "expanded": 855,
+        "jumpLinks": 8,
+        "rejectedJumpLinks": 0,
+        "layers": 318
+      }
+    }
+  },
+  "preserved": {
+    "endlessStaticCollidersMatchBaseline": true,
+    "warehouseBackgroundSha256": "26e0ddb29ea91fcac05576671d68a506b5b22f43091cccf14e1eaf306e262032",
+    "noNewModelTextureOrAudioFiles": true,
+    "distZipRebuilt": false
+  },
+  "sourceSha256": {
+    "js/fps-layout.js": "7b7e03c496b1227192b1f475b59934407fb234eb99b7b439c3a711b7c70ae58c",
+    "js/fps-height-nav.js": "8e07c19bd3f1476dd8f389fdffeca2d592ec1d501afd8d3e7aa4d9c63b13020b",
+    "js/fps-map.js": "6e02fd59f504aa99a75216160ecc64b2382f52684ba8717cb0087a01b6a1be67",
+    "js/fps-map-detail.js": "7768067bebed94452ea7fcaf367ecca821075cc3f7190c42d1a7c0fefc193279",
+    "js/fps-art.js": "b18019a355ab2c2d96171b2bf0edb258b88a853ed9370504ed2f83838e145ef6",
+    "js/fps-ai.js": "e9725dc6afe73fdb45ba43d3c2058caefa459a454726bc7ed8d79254e84a0377",
+    "js/player-physics.js": "1b0e6439051b56aff239ce86bb6b9bc5f52333e1e1e99b696dcd0679ac345d0b",
+    "js/tactical-grenades.js": "f05ebe3acfe828c6c87027a1ebd93906f61b57805d29dc6a56c2361ad42007f2",
+    "js/weapon-rules.js": "0728ea2d7577bc96574a02d2232e790a3c0b1a19da93c077878f0001d0ed13ae",
+    "js/ragdolls.js": "76541d8c947dcb3a8f49edfd81585556efa02b9965704a2967fd376c551b08c0",
+    "js/characters.js": "9bb168f66156629c0feb4eef9fb693a050e716a80f01192382aa9314742d474e",
+    "js/game.js": "a959182585ae82e86b3b68c30afd5715768ed1de079637f2b63a132e1f926075",
+    "js/menu-ui.js": "95051308e1340ebda9f40c33cef5103bba81bb6ff54b46c2d21cb4863231c5a2"
+  },
+  "notes": [
+    "Tests use local Edge/WebGL and Node; they do not guarantee 16v16 balance or target-machine frame time.",
+    "Five route families are physically traversed both directions at 30/60/144 FPS.",
+    "Seven world-space debug signs are hidden in normal play; developer mode toggles visibility.",
+    "Architecture screenshots hide HUD, actors and temporary drops; only the overview extends its camera far plane and reduces fog."
+  ]
+}

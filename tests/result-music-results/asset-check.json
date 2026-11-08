@@ -1,0 +1,16 @@
+[
+  {
+    "source": "D:/DSH/素材库/通用素材/音乐/《中国人能飞，边飞边发mj》bgm.mp3",
+    "destination": "assets/music/pvp-victory-red.mp3",
+    "bytes": 900438,
+    "sha256": "3e82c13f4de240b25c8b4906dfd642a8fb86c4f6ca909c8372859157743e1522",
+    "identical": true
+  },
+  {
+    "source": "D:/DSH/素材库/通用素材/音乐/Y.M.C.A. - Village People（15秒起）.mp3",
+    "destination": "assets/music/pvp-victory-blue.mp3",
+    "bytes": 1615019,
+    "sha256": "51bfcd674f480c355eab0a07d1c93ddfe0105adfc014d6e357a89f971d9a6c66",
+    "identical": true
+  }
+]

@@ -70,6 +70,6 @@
     }
     result.expired=g.fuse<=1e-8;return result;
   }
-  var api={radius:RADIUS,fuse:FUSE,gravity:GRAVITY,launchVelocity:launchVelocity,sweep:sweep,step:step};
+  var api={radius:RADIUS,fuse:FUSE,gravity:GRAVITY,blastScale:1.5,blastRadius:7.5,launchVelocity:launchVelocity,sweep:sweep,step:step};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;root.FishGrenadePhysics=api;
 })(typeof window!=='undefined'?window:globalThis);

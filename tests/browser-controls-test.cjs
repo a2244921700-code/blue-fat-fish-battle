@@ -83,7 +83,7 @@ const OUT=path.join(__dirname,'controls-results');fs.mkdirSync(OUT,{recursive:tr
   check('阵亡取消切枪并清空连杀，死亡期间禁止换装',!died.sw&&!died.switchDead&&died.m.streak===0&&died.hp===0);
   await page.evaluate(()=>step(4.1));
   check('复活恢复主武器，没有遗留动作锁',await page.evaluate(()=>FishGame.__debug.getWeapon()==='rifle'&&!FishGame.__debug.getWeaponSwitch()));
-  await page.evaluate(()=>{const d=FishGame.__debug;d.setState('playing');d.switchWeapon('pistol');d.pvpSetTickets(24,1);d.pvpKillBot();d.setState('paused');});
+  await page.evaluate(()=>{const d=FishGame.__debug;d.setState('playing');d.switchWeapon('pistol');d.pvpSetTickets(d.getPvp().myTeam==='red'?24:1,d.getPvp().myTeam==='red'?1:24);d.pvpKillBot();d.setState('paused');});
   check('最后一杀保留徽章，回合结束取消切枪',await page.evaluate(()=>FishGame.__debug.getPvp().roundState==='over'&&FishGame.__debug.getKillMedal().chain===1&&!FishGame.__debug.getWeaponSwitch()));
   await page.evaluate(()=>step(3.1));
   check('新回合清空生存连杀并恢复默认武器',await page.evaluate(()=>FishGame.__debug.getKillMedal().streak===0&&FishGame.__debug.getWeapon()==='rifle'));
@@ -101,7 +101,7 @@ const OUT=path.join(__dirname,'controls-results');fs.mkdirSync(OUT,{recursive:tr
   await denied.evaluate(()=>FishGame.__debug.enterFallback());
   check('全屏被拒绝时窗口模式照常载入',await denied.evaluate(()=>!document.fullscreenElement&&FishGame.__debug.getState()==='playing'));
   check('被拒绝后有可见的手动全屏入口',await denied.locator('#btn-fullscreen').isVisible());
-  await denied.keyboard.press('KeyF');
+  await denied.keyboard.press('KeyV');
   check('手动入口可以重新发起全屏请求',await denied.evaluate(()=>fullscreenAttempts===2));
   await denied.screenshot({path:path.join(OUT,'06-window-fallback.png')});
   // 真实全屏 + 可控的权限拒绝，验证键盘锁异常不会中止载入。

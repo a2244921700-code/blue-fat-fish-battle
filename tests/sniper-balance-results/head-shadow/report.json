@@ -1,0 +1,282 @@
+{
+  "checks": [
+    "deepseek：30/60/144 FPS 站立与走动、抬头与低头均不累积旋转",
+    "deepseek：五类武器重复零时长更新头部不转动，回正无残留",
+    "deepseek：换弹、投雷、近战恢复动作原始姿势",
+    "deepseek：反复AI瞄准无漂移，尸体保留最终姿势，重置恢复",
+    "claude_fake：30/60/144 FPS 站立与走动、抬头与低头均不累积旋转",
+    "claude_fake：五类武器重复零时长更新头部不转动，回正无残留",
+    "claude_fake：换弹、投雷、近战恢复动作原始姿势",
+    "claude_fake：反复AI瞄准无漂移，尸体保留最终姿势，重置恢复",
+    "claude_true：30/60/144 FPS 站立与走动、抬头与低头均不累积旋转",
+    "claude_true：五类武器重复零时长更新头部不转动，回正无残留",
+    "claude_true：换弹、投雷、近战恢复动作原始姿势",
+    "claude_true：反复AI瞄准无漂移，尸体保留最终姿势，重置恢复",
+    "实际第一人称重复同步后头部和头盔影子保持稳定",
+    "完整人物继续向地面投影，隐藏身体颜色/深度且绘制后恢复材质",
+    "鼠标方向变化只带动同量世界转向，转回后无残留",
+    "无脚本或着色器错误"
+  ],
+  "errors": [],
+  "poses": [
+    {
+      "character": "deepseek",
+      "frameRates": [
+        {
+          "fps": 30,
+          "pitch": -0.7,
+          "speed": 0,
+          "drift": 0
+        },
+        {
+          "fps": 30,
+          "pitch": -0.7,
+          "speed": 2.4,
+          "drift": 0
+        },
+        {
+          "fps": 30,
+          "pitch": 0.65,
+          "speed": 0,
+          "drift": 2.9802322387695312e-8
+        },
+        {
+          "fps": 30,
+          "pitch": 0.65,
+          "speed": 2.4,
+          "drift": 0
+        },
+        {
+          "fps": 60,
+          "pitch": -0.7,
+          "speed": 0,
+          "drift": 0
+        },
+        {
+          "fps": 60,
+          "pitch": -0.7,
+          "speed": 2.4,
+          "drift": 0
+        },
+        {
+          "fps": 60,
+          "pitch": 0.65,
+          "speed": 0,
+          "drift": 2.9802322387695312e-8
+        },
+        {
+          "fps": 60,
+          "pitch": 0.65,
+          "speed": 2.4,
+          "drift": 0
+        },
+        {
+          "fps": 144,
+          "pitch": -0.7,
+          "speed": 0,
+          "drift": 0
+        },
+        {
+          "fps": 144,
+          "pitch": -0.7,
+          "speed": 2.4,
+          "drift": 0
+        },
+        {
+          "fps": 144,
+          "pitch": 0.65,
+          "speed": 0,
+          "drift": 2.9802322387695312e-8
+        },
+        {
+          "fps": 144,
+          "pitch": 0.65,
+          "speed": 2.4,
+          "drift": 0
+        }
+      ],
+      "frozenTime": 0,
+      "neutral": 0,
+      "transitions": 5.16191365590357e-8,
+      "repeatAim": 0,
+      "corpse": 0,
+      "reset": 0
+    },
+    {
+      "character": "claude_fake",
+      "frameRates": [
+        {
+          "fps": 30,
+          "pitch": -0.7,
+          "speed": 0,
+          "drift": 0
+        },
+        {
+          "fps": 30,
+          "pitch": -0.7,
+          "speed": 2.4,
+          "drift": 0
+        },
+        {
+          "fps": 30,
+          "pitch": 0.65,
+          "speed": 0,
+          "drift": 2.9802322387695312e-8
+        },
+        {
+          "fps": 30,
+          "pitch": 0.65,
+          "speed": 2.4,
+          "drift": 2.9802322387695312e-8
+        },
+        {
+          "fps": 60,
+          "pitch": -0.7,
+          "speed": 0,
+          "drift": 0
+        },
+        {
+          "fps": 60,
+          "pitch": -0.7,
+          "speed": 2.4,
+          "drift": 0
+        },
+        {
+          "fps": 60,
+          "pitch": 0.65,
+          "speed": 0,
+          "drift": 2.9802322387695312e-8
+        },
+        {
+          "fps": 60,
+          "pitch": 0.65,
+          "speed": 2.4,
+          "drift": 2.9802322387695312e-8
+        },
+        {
+          "fps": 144,
+          "pitch": -0.7,
+          "speed": 0,
+          "drift": 0
+        },
+        {
+          "fps": 144,
+          "pitch": -0.7,
+          "speed": 2.4,
+          "drift": 0
+        },
+        {
+          "fps": 144,
+          "pitch": 0.65,
+          "speed": 0,
+          "drift": 2.9802322387695312e-8
+        },
+        {
+          "fps": 144,
+          "pitch": 0.65,
+          "speed": 2.4,
+          "drift": 2.9802322387695312e-8
+        }
+      ],
+      "frozenTime": 0,
+      "neutral": 0,
+      "transitions": 5.16191365590357e-8,
+      "repeatAim": 0,
+      "corpse": 0,
+      "reset": 0
+    },
+    {
+      "character": "claude_true",
+      "frameRates": [
+        {
+          "fps": 30,
+          "pitch": -0.7,
+          "speed": 0,
+          "drift": 0
+        },
+        {
+          "fps": 30,
+          "pitch": -0.7,
+          "speed": 2.4,
+          "drift": 0
+        },
+        {
+          "fps": 30,
+          "pitch": 0.65,
+          "speed": 0,
+          "drift": 2.9802322387695312e-8
+        },
+        {
+          "fps": 30,
+          "pitch": 0.65,
+          "speed": 2.4,
+          "drift": 0
+        },
+        {
+          "fps": 60,
+          "pitch": -0.7,
+          "speed": 0,
+          "drift": 0
+        },
+        {
+          "fps": 60,
+          "pitch": -0.7,
+          "speed": 2.4,
+          "drift": 0
+        },
+        {
+          "fps": 60,
+          "pitch": 0.65,
+          "speed": 0,
+          "drift": 2.9802322387695312e-8
+        },
+        {
+          "fps": 60,
+          "pitch": 0.65,
+          "speed": 2.4,
+          "drift": 0
+        },
+        {
+          "fps": 144,
+          "pitch": -0.7,
+          "speed": 0,
+          "drift": 0
+        },
+        {
+          "fps": 144,
+          "pitch": -0.7,
+          "speed": 2.4,
+          "drift": 0
+        },
+        {
+          "fps": 144,
+          "pitch": 0.65,
+          "speed": 0,
+          "drift": 2.9802322387695312e-8
+        },
+        {
+          "fps": 144,
+          "pitch": 0.65,
+          "speed": 2.4,
+          "drift": 0
+        }
+      ],
+      "frozenTime": 0,
+      "neutral": 0,
+      "transitions": 5.16191365590357e-8,
+      "repeatAim": 0,
+      "corpse": 0,
+      "reset": 0
+    }
+  ],
+  "render": {
+    "stablePixels": 0,
+    "shadowPixels": 402865,
+    "headDrift": 0,
+    "helmetDrift": 0,
+    "hiddenBody": true,
+    "materialsRestored": true,
+    "yawResponse": 0.6000000001886516,
+    "yawReturn": 0
+  }
+}

@@ -35,8 +35,27 @@
     // a sweep so thin ceilings and fast falls cannot be crossed between frames.
     var steps=Math.max(1,Math.ceil(dt/(1/60)-1e-8)),h=dt/steps,landSpeed=0,ceiling=false;
     for(var n=0;n<steps;n++){
-      axis(p,dx/steps,'x','z',obs,r,height,opts.limit);
-      axis(p,dz/steps,'z','x',obs,r,height,opts.limit);
+      var grounded=body.onGround&&body.velY<=0,stepHeight=grounded?(opts.stepHeight||0):0;
+      // Only grounded actors may climb a low riser. Trial sweeps at the new
+      // height must clear both the ceiling and the complete horizontal move.
+      // A jumping actor never gets projected onto an overhead box.
+      function walk(amount,key,other){
+        var start=p[key],oldY=p.y;axis(p,amount,key,other,obs,r,height,opts.limit);
+        if(!stepHeight||Math.abs(p[key]-start-amount)<EPS)return;
+        var blocked=p[key],target=start+amount,top=oldY;
+        for(var k=0;k<obs.length;k++){
+          var o=obs[k];if(p[other]<=o.min[other]-r+EPS||p[other]>=o.max[other]+r-EPS||Math.max(start,target)<=o.min[key]-r+EPS||Math.min(start,target)>=o.max[key]+r-EPS)continue;
+          if(o.max.y>oldY+EPS&&o.max.y<=oldY+stepHeight+EPS)top=Math.max(top,o.max.y);
+        }
+        if(top===oldY)return;
+        p[key]=start;
+        if(heightLimit(p,obs,r,height+top-oldY)<height+top-oldY-EPS){p[key]=blocked;return;}
+        p.y=top;axis(p,amount,key,other,obs,r,height,opts.limit);
+        if(Math.abs(p[key]-start-amount)>EPS){p[key]=blocked;p.y=oldY;}
+      }
+      walk(dx/steps,'x','z');walk(dz/steps,'z','x');
+      // Follow small descending steps without an alternating walk/fall pose.
+      if(stepHeight){var support=0;for(var si=0;si<obs.length;si++){var so=obs[si];if(overlapsXZ(p,so,r)&&so.max.y<=p.y+EPS)support=Math.max(support,so.max.y);}if(p.y-support<=stepHeight+EPS)p.y=support;}
       var prev=p.y;body.velY+=opts.gravity*h;var next=prev+body.velY*h;
       if(body.velY>0){
         var top=next+height;

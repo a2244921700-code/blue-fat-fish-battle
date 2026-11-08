@@ -1,0 +1,15 @@
+{
+  "scenario": "60 FPS, visible enemy ahead, empty 30-round rifle, 1.8s reload, real cover behind, 3s simulation",
+  "before": {
+    "firstLost": 0.26666666666666666,
+    "firstShot": 2.7333333333333285,
+    "reloadEnd": 1.8333333333333317,
+    "maxFacingError": 179.2198964020363
+  },
+  "after": {
+    "firstLost": null,
+    "firstShot": 1.8333333333333317,
+    "reloadEnd": 1.8333333333333317,
+    "maxFacingError": 0.11035377753220443
+  }
+}

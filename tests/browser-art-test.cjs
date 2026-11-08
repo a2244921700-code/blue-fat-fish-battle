@@ -52,13 +52,13 @@ fs.mkdirSync(OUT, { recursive: true });
     await page.waitForTimeout(250);
     const moved = await page.evaluate(() => { const d=FishGame.__debug; d.releaseKeys(); return d.getPlayer().pos.z; });
     assert(moved < 40, 'W 键必须移动玩家');
-    await page.keyboard.press('Digit2');
+    await page.keyboard.press('Digit1');
     await page.waitForFunction(()=>!FishGame.__debug.getWeaponSwitch());
     assert.equal(await page.evaluate(() => FishGame.__debug.getWeapon()), 'rifle');
     await page.keyboard.press('Digit3');
     await page.waitForFunction(()=>!FishGame.__debug.getWeaponSwitch());
     assert.equal(await page.evaluate(() => FishGame.__debug.getWeapon()), 'knife');
-    await page.keyboard.press('Digit1');
+    await page.keyboard.press('Digit2');
     await page.waitForFunction(()=>!FishGame.__debug.getWeaponSwitch());
     const reload = await page.evaluate(() => {
       const d=FishGame.__debug; d.setAmmo(1,42); d.reload(); d.setState('paused');

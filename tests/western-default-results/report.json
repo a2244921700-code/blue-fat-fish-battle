@@ -1,0 +1,374 @@
+{
+  "checks": [
+    "旧二次元存档迁移为美式卡通，保留音量、最高记录和关闭雾效",
+    "主菜单没有画风切换，体积雾入口仍限定在大厅",
+    "大厅显示美式卡通当前画面，只有 FPS 体积雾可调整",
+    "选择自动保存，原有设置没有被覆盖",
+    "刷新后保持固定美式卡通和关闭雾效",
+    "保存的美式卡通进入实战，复用场景深度和阳光阴影进行 16 步体积积分",
+    "雾效采用半分辨率缓冲，不额外绘制世界场景",
+    "正式运行库已停用二次元预设，人物、特效和碰撞保持美式卡通状态",
+    "体积雾实际改变远处场景像素，形成空气透视",
+    "仅改变雾内阳光遮挡时画面产生差异，体积光读取真实阴影",
+    "近处深度截止，第一人称武器距离不会被远处雾染白",
+    "桌面窗口缩放同步主画面及半分辨率雾缓冲",
+    "对局暂停设置没有画风切换，体积雾仍锁定",
+    "即使强行派发控件事件，也不能在场景内修改或写入存档",
+    "返回大厅后重新开放雾效设置，画风继续固定",
+    "关闭雾效后不分配雾缓冲、不执行体积积分，32 人保持美式卡通",
+    "反复进出保持美式卡通，离场释放所有画面缓冲，预热后资源数稳定",
+    "无尽保留所选画风，但不加载 FPS 体积雾",
+    "大厅实机预览正常载入，桌面设置面板没有横向溢出",
+    "1024 像素宽的桌面窗口仍可操作全部设置",
+    "全新存档 file:// 与 DPR 2 默认启用美式卡通和体积雾",
+    "无脚本异常或 WebGL / GLSL 编译错误"
+  ],
+  "errors": [],
+  "shaderErrors": [],
+  "migration": {
+    "save": {
+      "bestScore": 4321,
+      "bestTime": 0,
+      "bestCombo": -1,
+      "bestWave": 0,
+      "bestStage": 1,
+      "bestBoss": 0,
+      "unlockedLevel": false,
+      "tutorialShown": false,
+      "stats": {
+        "totalKills": 0,
+        "totalBoss": 0,
+        "totalGames": 0
+      },
+      "v": 4,
+      "settings": {
+        "bgm": 0.35,
+        "boss": 1,
+        "menu": 1,
+        "sfx": 1,
+        "sens": 1,
+        "particles": true,
+        "shadow": true,
+        "colorblind": false,
+        "renderStyle": "western",
+        "volumetricFog": false,
+        "difficulty": "normal"
+      },
+      "achievements": {}
+    },
+    "prefs": {
+      "style": "western",
+      "styleEditable": false,
+      "volumetricFog": false,
+      "editable": false
+    }
+  },
+  "initial": {
+    "draws": 1,
+    "style": {
+      "materials": {
+        "preset": "western",
+        "materials": 43,
+        "roles": {
+          "world": 33,
+          "metal": 8,
+          "character": 2
+        }
+      },
+      "pipeline": {
+        "style": "western",
+        "allocated": true,
+        "width": 1440,
+        "height": 900,
+        "depth": true,
+        "hdr": true,
+        "passes": 4,
+        "frames": 14,
+        "targets": 3,
+        "antialias": "FXAA",
+        "fog": {
+          "active": true,
+          "allocated": true,
+          "width": 720,
+          "height": 450,
+          "steps": 16,
+          "shadowed": true,
+          "density": 0.0068
+        }
+      }
+    }
+  },
+  "styles": {
+    "rejected": true,
+    "preset": "western",
+    "fx": 1,
+    "stable": true
+  },
+  "fog": {
+    "changed": 732654,
+    "mean": 7.241420524691358
+  },
+  "scatteringShadows": {
+    "changed": 19005,
+    "mean": 0.22526697530864198
+  },
+  "near": {
+    "changed": 0,
+    "mean": 0
+  },
+  "off": {
+    "style": {
+      "materials": {
+        "preset": "western",
+        "materials": 43,
+        "roles": {
+          "world": 33,
+          "metal": 8,
+          "character": 2
+        }
+      },
+      "pipeline": {
+        "style": "western",
+        "allocated": true,
+        "width": 1440,
+        "height": 900,
+        "depth": true,
+        "hdr": true,
+        "passes": 3,
+        "frames": 257,
+        "targets": 2,
+        "antialias": "FXAA",
+        "fog": {
+          "active": false,
+          "allocated": false,
+          "width": 0,
+          "height": 0,
+          "steps": 16,
+          "shadowed": false,
+          "density": 0.0068
+        }
+      }
+    },
+    "actors": 32
+  },
+  "cycles": [
+    {
+      "released": {
+        "style": "western",
+        "allocated": false,
+        "width": 0,
+        "height": 0,
+        "depth": true,
+        "hdr": true,
+        "passes": 0,
+        "frames": 257,
+        "targets": 0,
+        "antialias": "FXAA",
+        "fog": {
+          "active": false,
+          "allocated": false,
+          "width": 0,
+          "height": 0,
+          "steps": 16,
+          "shadowed": false,
+          "density": 0.0068
+        }
+      },
+      "scene": {
+        "children": 69,
+        "meshes": 1057,
+        "envBuilt": true,
+        "envObjects": 3,
+        "worldMode": "pvp",
+        "mapName": "沙海双城",
+        "arena": 76,
+        "modelParts": 23189,
+        "obstacles": 455,
+        "wallMeshes": 360,
+        "enemies": 31,
+        "trackedEnemies": 31,
+        "renderCalls": 674,
+        "triangles": 801833,
+        "geometries": 414,
+        "textures": 57
+      },
+      "pipeline": {
+        "style": "western",
+        "allocated": true,
+        "width": 1440,
+        "height": 900,
+        "depth": true,
+        "hdr": true,
+        "passes": 4,
+        "frames": 258,
+        "targets": 3,
+        "antialias": "FXAA",
+        "fog": {
+          "active": true,
+          "allocated": true,
+          "width": 720,
+          "height": 450,
+          "steps": 16,
+          "shadowed": true,
+          "density": 0.0068
+        }
+      }
+    },
+    {
+      "released": {
+        "style": "western",
+        "allocated": false,
+        "width": 0,
+        "height": 0,
+        "depth": true,
+        "hdr": true,
+        "passes": 0,
+        "frames": 258,
+        "targets": 0,
+        "antialias": "FXAA",
+        "fog": {
+          "active": false,
+          "allocated": false,
+          "width": 0,
+          "height": 0,
+          "steps": 16,
+          "shadowed": false,
+          "density": 0.0068
+        }
+      },
+      "scene": {
+        "children": 69,
+        "meshes": 1060,
+        "envBuilt": true,
+        "envObjects": 3,
+        "worldMode": "pvp",
+        "mapName": "沙海双城",
+        "arena": 76,
+        "modelParts": 23189,
+        "obstacles": 455,
+        "wallMeshes": 360,
+        "enemies": 31,
+        "trackedEnemies": 31,
+        "renderCalls": 676,
+        "triangles": 805673,
+        "geometries": 414,
+        "textures": 57
+      },
+      "pipeline": {
+        "style": "western",
+        "allocated": true,
+        "width": 1440,
+        "height": 900,
+        "depth": true,
+        "hdr": true,
+        "passes": 4,
+        "frames": 259,
+        "targets": 3,
+        "antialias": "FXAA",
+        "fog": {
+          "active": true,
+          "allocated": true,
+          "width": 720,
+          "height": 450,
+          "steps": 16,
+          "shadowed": true,
+          "density": 0.0068
+        }
+      }
+    },
+    {
+      "released": {
+        "style": "western",
+        "allocated": false,
+        "width": 0,
+        "height": 0,
+        "depth": true,
+        "hdr": true,
+        "passes": 0,
+        "frames": 259,
+        "targets": 0,
+        "antialias": "FXAA",
+        "fog": {
+          "active": false,
+          "allocated": false,
+          "width": 0,
+          "height": 0,
+          "steps": 16,
+          "shadowed": false,
+          "density": 0.0068
+        }
+      },
+      "scene": {
+        "children": 69,
+        "meshes": 1056,
+        "envBuilt": true,
+        "envObjects": 3,
+        "worldMode": "pvp",
+        "mapName": "沙海双城",
+        "arena": 76,
+        "modelParts": 23189,
+        "obstacles": 455,
+        "wallMeshes": 360,
+        "enemies": 31,
+        "trackedEnemies": 31,
+        "renderCalls": 674,
+        "triangles": 801833,
+        "geometries": 414,
+        "textures": 57
+      },
+      "pipeline": {
+        "style": "western",
+        "allocated": true,
+        "width": 1440,
+        "height": 900,
+        "depth": true,
+        "hdr": true,
+        "passes": 4,
+        "frames": 260,
+        "targets": 3,
+        "antialias": "FXAA",
+        "fog": {
+          "active": true,
+          "allocated": true,
+          "width": 720,
+          "height": 450,
+          "steps": 16,
+          "shadowed": true,
+          "density": 0.0068
+        }
+      }
+    }
+  ],
+  "file": {
+    "materials": {
+      "preset": "western",
+      "materials": 43,
+      "roles": {
+        "world": 33,
+        "metal": 8,
+        "character": 2
+      }
+    },
+    "pipeline": {
+      "style": "western",
+      "allocated": true,
+      "width": 1920,
+      "height": 1280,
+      "depth": true,
+      "hdr": true,
+      "passes": 4,
+      "frames": 4,
+      "targets": 3,
+      "antialias": "FXAA",
+      "fog": {
+        "active": true,
+        "allocated": true,
+        "width": 960,
+        "height": 640,
+        "steps": 16,
+        "shadowed": true,
+        "density": 0.0068
+      }
+    }
+  }
+}

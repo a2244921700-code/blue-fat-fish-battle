@@ -1,0 +1,109 @@
+{
+  "date": "2026-11-01 21:49:49 +08:00",
+  "executor": "OpenAI Codex (GPT-6)",
+  "platform": "Desktop Edge / WebGL, Node core smoke",
+  "suites": [
+    {
+      "suite": "browser-anime-style-test.cjs",
+      "log": "tests/anime-style-results/browser-anime-style-test.cjs.log",
+      "passed": true,
+      "namedChecks": 19
+    },
+    {
+      "suite": "browser-bomber-test.cjs",
+      "log": "tests/anime-style-results/browser-bomber-test.cjs.log",
+      "passed": true,
+      "namedChecks": 18
+    },
+    {
+      "suite": "browser-combat-test.cjs",
+      "log": "tests/anime-style-results/browser-combat-test.cjs.log",
+      "passed": true,
+      "namedChecks": 0
+    },
+    {
+      "suite": "browser-character-test.cjs",
+      "log": "tests/anime-style-results/browser-character-test.cjs.log",
+      "passed": true,
+      "namedChecks": 27
+    },
+    {
+      "suite": "browser-retreat-test.cjs",
+      "log": "tests/anime-style-results/browser-retreat-test.cjs.log",
+      "passed": true,
+      "namedChecks": 9
+    },
+    {
+      "suite": "browser-death-camera-test.cjs",
+      "log": "tests/anime-style-results/browser-death-camera-test.cjs.log",
+      "passed": true,
+      "namedChecks": 15
+    },
+    {
+      "suite": "smoke-test.js",
+      "log": "tests/anime-style-results/smoke-test.js.log",
+      "passed": true,
+      "namedChecks": 180
+    }
+  ],
+  "hashes": [
+    {
+      "path": "index.html",
+      "sha256": "bcb84d88659a31003acfc83ca621fa4b555e15f3858291c584679b8258239937"
+    },
+    {
+      "path": "js/render-shaders.js",
+      "sha256": "f85a02ad57f52dc2f0e8cab9a6eb19bb10c724febe3f5f617ac0f2ac398371cc"
+    },
+    {
+      "path": "js/render-style.js",
+      "sha256": "31b84507333372eda2514e0ea04065ea85fb90da501f4c4d3c073ec8e4f695a7"
+    },
+    {
+      "path": "js/render-pipeline.js",
+      "sha256": "e713b380a60db3e23930510a2df1220a6e865af012b919e879503c63669b21ae"
+    },
+    {
+      "path": "js/anime-fx.js",
+      "sha256": "4202542859fb68e5ffca994331f3c0660a8ef27f4704777fbd678e1b51393d4a"
+    },
+    {
+      "path": "js/game.js",
+      "sha256": "2ad65e08187afdd4056df61b6ff77dd0001d323b873379436046f3c7a2ecc023"
+    },
+    {
+      "path": "js/art.js",
+      "sha256": "d634971f16f20fb4b427ff141a8aedb8f56e5b0dabca7503d8e4288b1dba77de"
+    },
+    {
+      "path": "js/fps-art.js",
+      "sha256": "93f8e260b76c45831a53a875794621b554c414bee088aa4022e07b185ece02f5"
+    },
+    {
+      "path": "js/fps-map.js",
+      "sha256": "9a87c39877c16bd3d7d82ff3c319067c1095cc3b0877f2c213266d7fc9cbbe4e"
+    },
+    {
+      "path": "js/characters.js",
+      "sha256": "5291e26b81f541135ea2eff38403ef7e306f2df51e63ed3f9f0fd66288aed2ec"
+    },
+    {
+      "path": "js/helmet.js",
+      "sha256": "4882289fd6bb9e5b83f96d88e135d9e349683c02bf63527e684a5ed82ec049f3"
+    },
+    {
+      "path": "js/combat-art.js",
+      "sha256": "8913912b85b0fd08581f6b711da0d1ba65c04f1f592dc1e841a983eb29e3b71b"
+    },
+    {
+      "path": "js/bomber-fx.js",
+      "sha256": "65145c5dad027fe73360f66419295ed286ff262f249f1dcf5cfb88bf18b59539"
+    }
+  ],
+  "warehouseImageSha256": "26e0ddb29ea91fcac05576671d68a506b5b22f43091cccf14e1eaf306e262032",
+  "limitations": [
+    "No dedicated low-capability WebGL hardware validation",
+    "No GPU frame-time benchmark",
+    "Historical distribution ZIP not rebuilt"
+  ]
+}

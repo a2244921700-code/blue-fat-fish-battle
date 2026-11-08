@@ -26,9 +26,9 @@ function world(scene){
       geometry.setAttribute('aSeed',new T.InstancedBufferAttribute(new Float32Array(parts.map(function(p){return p.seed;})),1));
       shockGeo=new T.RingGeometry(.965,1,64);
     }
-    var material=new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uAge:{value:0},uFade:{value:1}},
+    var material=new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uAge:{value:0},uFade:{value:1},uWestern:window.FishRenderStyle?FishRenderStyle.fxUniforms.western:{value:0}},
       vertexShader:'attribute float aSeed;varying vec2 vUv;varying vec3 vRight;varying vec3 vUp;varying vec3 vFront;varying float vHeight;varying float vSeed;\nvoid main(){vec4 local=instanceMatrix*vec4(0.,0.,0.,1.);vec4 mv=modelViewMatrix*local;mv.xy+=position.xy*vec2(length(instanceMatrix[0].xyz),length(instanceMatrix[1].xyz));vUv=uv;vHeight=local.y;vSeed=aSeed;vRight=vec3(viewMatrix[0][0],viewMatrix[1][0],viewMatrix[2][0]);vUp=vec3(viewMatrix[0][1],viewMatrix[1][1],viewMatrix[2][1]);vFront=vec3(viewMatrix[0][2],viewMatrix[1][2],viewMatrix[2][2]);gl_Position=projectionMatrix*mv;}',
-      fragmentShader:noiseGLSL+'\nuniform float uAge;uniform float uFade;varying vec2 vUv;varying vec3 vRight;varying vec3 vUp;varying vec3 vFront;varying float vHeight;varying float vSeed;\nvoid main(){vec2 q=vUv*2.-1.;float r=length(q);if(r>1.)discard;float z=sqrt(max(0.,1.-r*r));vec3 p=vec3(q,z);float n=noise3(p*3.8+vec3(vSeed,uAge*.22,0.))*.65+noise3(p*9.-uAge*.13)*.25+noise3(p*18.+vSeed)*.1;vec3 normal=normalize(vRight*q.x+vUp*q.y+vFront*z);float light=clamp(dot(normal,normalize(vec3(-.6,.85,.4)))*.55+.45,0.,1.);vec3 ash=mix(vec3(.055,.065,.055),vec3(.47,.43,.33),light);ash*=.55+n*.85;float heat=(1.-smoothstep(.3,3.,uAge))*(.6+.4*(1.-smoothstep(3.,16.,vHeight)));if(vSeed>165.)heat*=.25;vec3 flame=mix(vec3(.8,.09,.008),vec3(2.4,1.05,.12),light*.55+n*.45);float edge=1.-smoothstep(.52,.99,r+(n-.5)*.18);gl_FragColor=vec4(mix(ash,flame,heat),uFade*edge*(.54+n*.36));\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}'
+      fragmentShader:noiseGLSL+FishShaders.mushroomFragment
     });
     var mesh=new T.InstancedMesh(geometry,material,parts.length);mesh.name='自爆蘑菇云';mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
     // 云的实例范围随演出变化，不能沿用第一帧小火球的包围球。
@@ -76,70 +76,21 @@ function world(scene){
   };
 }
 function screen(renderer){
-  var target=null,quad=null,scene=null,camera=null,remaining=0,time=0,size=new T.Vector2();
-  function init(){
-    // r159 离屏输出为线性且不做 tone mapping，末道统一调色，避免二次曝光。
-    var hdr=renderer.capabilities.isWebGL2&&renderer.extensions.has('EXT_color_buffer_float');
-    target=new T.WebGLRenderTarget(1,1,{type:hdr?T.HalfFloatType:T.UnsignedByteType,depthBuffer:true,stencilBuffer:false});
-    target.samples=renderer.capabilities.isWebGL2?2:0;
-    var material=new T.ShaderMaterial({depthTest:false,depthWrite:false,uniforms:{tScene:{value:target.texture},uTime:{value:0},uStrength:{value:0}},
-      vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
-      fragmentShader:`
-uniform sampler2D tScene;
-uniform float uTime;
-uniform float uStrength;
-varying vec2 vUv;
-float stripeHash(float v){return fract(sin(v)*43758.5);}
-void main(){
-  float frame=floor(uTime*18.);
-  float row=floor(vUv.y*27.);
-  float seed=stripeHash(row*31.7+frame*13.9);
-  float band=step(.74,seed);
-  float shift=(sin(frame*4.1+row)*band*.019+sin(vUv.y*96.+uTime*27.)*.0015)*uStrength;
-  vec2 uv=clamp(vUv+vec2(shift,0.),vec2(.002),vec2(.998));
-  float chroma=.003*uStrength*(.3+band);
-  vec3 c=texture2D(tScene,uv).rgb;
-  c.r=texture2D(tScene,clamp(uv+vec2(chroma,0.),vec2(.002),vec2(.998))).r;
-  c.b=texture2D(tScene,clamp(uv-vec2(chroma,0.),vec2(.002),vec2(.998))).b;
-
-  // 绿色与撕裂共用行号、遮罩及偏移；深浅和透明度分别采样，避免整屏同色覆盖。
-  float shade=stripeHash(row*17.3+frame*2.1+9.7);
-  float opacity=stripeHash(row*8.9+frame*5.7+3.4);
-  float rowY=fract(vUv.y*27.);
-  float feather=smoothstep(0.,.09,rowY)*(1.-smoothstep(.91,1.,rowY));
-  float opacityPatch=.62+.38*stripeHash(floor(uv.x*5.+seed*9.)+row*4.7+frame*.7);
-  vec3 green=mix(vec3(.006,.06,.012),vec3(.09,.58,.065),shade);
-  float alpha=band*feather*(.22+.48*opacity)*opacityPatch*uStrength;
-  // 色带上沿带一条更亮的细绿线，随同一撕裂条纹短促闪动。
-  float seam=band*smoothstep(.91,.95,rowY)*(1.-smoothstep(.98,1.,rowY));
-
-  float scan=sin(vUv.y*1500.+uTime*31.)*.025*uStrength;
-  float edge=smoothstep(.2,.72,length(vUv-.5));
-  c*=1.-edge*.12*uStrength;
-  c+=scan;
-  gl_FragColor=vec4(max(c,vec3(0.)),1.);
-  #include <tonemapping_fragment>
-  // 在场景色调映射后混合，强日照/火球不会把绿色和透明度变化冲淡。
-  gl_FragColor.rgb=mix(gl_FragColor.rgb,green,alpha);
-  gl_FragColor.rgb+=vec3(.025,.13,.018)*seam*(.4+.6*shade)*uStrength;
-  #include <colorspace_fragment>
-}`
-    });
-    scene=new T.Scene();camera=new T.Camera();quad=new T.Mesh(new T.PlaneGeometry(2,2),material);quad.frustumCulled=false;scene.add(quad);
-  }
+  // The shared render pipeline owns the framebuffer and final color conversion.
+  // This controller owns only the damage pulse and its battle-time clock.
+  var remaining=0,time=0,shared=null,fallback=null;
   return {
     pulse:function(){remaining=.34;},
     update:function(dt,playing){if(!playing){remaining=0;return;}time+=dt;remaining=Math.max(0,remaining-dt);},
+    frame:function(){return {time:time,strength:Math.min(1,remaining/.12)};},
+    rendered:function(stats){shared=stats;},
     render:function(worldScene,worldCamera){
-      if(remaining<=0){renderer.render(worldScene,worldCamera);return;}
-      if(!target)init();renderer.getDrawingBufferSize(size);if(target.width!==size.x||target.height!==size.y)target.setSize(size.x,size.y);
-      quad.material.uniforms.uTime.value=time;quad.material.uniforms.uStrength.value=Math.min(1,remaining/.12);
-      var previous=renderer.getRenderTarget();
-      try{renderer.setRenderTarget(target);renderer.render(worldScene,worldCamera);renderer.setRenderTarget(previous);renderer.render(scene,camera);}finally{renderer.setRenderTarget(previous);}
+      if(!fallback)fallback=FishRenderPipeline.create(renderer);
+      fallback.render(worldScene,worldCamera,this.frame());shared=fallback.stats();
     },
     clear:function(){remaining=0;time=0;},
-    dispose:function(){this.clear();if(target)target.dispose();if(quad){quad.geometry.dispose();quad.material.dispose();}target=quad=scene=camera=null;},
-    stats:function(){return {remaining:remaining,allocated:!!target,width:target?target.width:0,height:target?target.height:0};}
+    dispose:function(){this.clear();if(fallback)fallback.dispose();fallback=null;shared=null;},
+    stats:function(){return {remaining:remaining,allocated:!!(shared&&shared.allocated),width:shared?shared.width:0,height:shared?shared.height:0,sharedPipeline:true};}
   };
 }
 window.FishBomberFX={world:world,screen:screen};

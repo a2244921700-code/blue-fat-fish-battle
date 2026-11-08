@@ -1,0 +1,382 @@
+{
+  "checks": [
+    "FPS为随机AI准备全部三名已开放角色",
+    "deepseek第一人称枪械位于右下方、仅显示双臂且普通准星隐藏",
+    "claude_fake第一人称枪械位于右下方、仅显示双臂且普通准星隐藏",
+    "claude_true第一人称枪械位于右下方、仅显示双臂且普通准星隐藏",
+    "三名角色持枪基准差小于2厘米，世界模型比例不变",
+    "切到副武器后恢复普通准星",
+    "狙击右键开镜保留镜内刻度，普通准星仍隐藏",
+    "实际AI随机选本阵营角色，红方同时出现两种已开放角色",
+    "red方超过半数AI实际装备角色推荐组合",
+    "blue方超过半数AI实际装备角色推荐组合",
+    "AI护目镜实际挂到Head，所有AI头部装备互斥",
+    "实际地图AI执行狙击瞄准/射击和侦察子树",
+    "AI在侦察后执行观察或转移状态",
+    "AI死亡结束技能，不清空冷却时间",
+    "AI复活恢复护目镜模型与耐久，侦察仍沿用原冷却截止时间",
+    "AI护目镜四次头部减伤后损坏并移除模型",
+    "无脚本与着色器错误"
+  ],
+  "errors": [],
+  "poses": {
+    "deepseek": {
+      "position": [
+        0.2500000460614012,
+        -0.21999997677848993,
+        -0.7099999890667164
+      ],
+      "visible": [
+        "Mesh_Arms"
+      ],
+      "parent": "Socket_Weapon",
+      "bodyScale": [
+        2,
+        2,
+        2
+      ],
+      "crosshair": "none"
+    },
+    "claude_fake": {
+      "position": [
+        0.25000000794262617,
+        -0.21999999445449592,
+        -0.709999991960828
+      ],
+      "visible": [
+        "Mesh_Arms"
+      ],
+      "parent": "Socket_Weapon",
+      "bodyScale": [
+        2,
+        2,
+        2
+      ],
+      "crosshair": "none"
+    },
+    "claude_true": {
+      "position": [
+        0.25000006066791547,
+        -0.22000001509030653,
+        -0.70999997931861
+      ],
+      "visible": [
+        "Mesh_Arms"
+      ],
+      "parent": "Socket_Weapon",
+      "bodyScale": [
+        2,
+        2,
+        2
+      ],
+      "crosshair": "none"
+    }
+  },
+  "kits": [
+    {
+      "team": "red",
+      "skin": "deepseek",
+      "primary": "sniper",
+      "helmet": null,
+      "goggles": null,
+      "goggleModel": false,
+      "goggleParent": null
+    },
+    {
+      "team": "red",
+      "skin": "deepseek",
+      "primary": "rifle",
+      "helmet": "iron-rice-bowl",
+      "goggles": null,
+      "goggleModel": false,
+      "goggleParent": null
+    },
+    {
+      "team": "red",
+      "skin": "deepseek",
+      "primary": "rifle",
+      "helmet": "iron-rice-bowl",
+      "goggles": null,
+      "goggleModel": false,
+      "goggleParent": null
+    },
+    {
+      "team": "red",
+      "skin": "deepseek",
+      "primary": "rifle",
+      "helmet": "iron-rice-bowl",
+      "goggles": null,
+      "goggleModel": false,
+      "goggleParent": null
+    },
+    {
+      "team": "red",
+      "skin": "deepseek",
+      "primary": "rifle",
+      "helmet": null,
+      "goggles": null,
+      "goggleModel": false,
+      "goggleParent": null
+    },
+    {
+      "team": "red",
+      "skin": "deepseek",
+      "primary": "rifle",
+      "helmet": "iron-rice-bowl",
+      "goggles": null,
+      "goggleModel": false,
+      "goggleParent": null
+    },
+    {
+      "team": "red",
+      "skin": "claude_fake",
+      "primary": "rifle",
+      "helmet": null,
+      "goggles": null,
+      "goggleModel": false,
+      "goggleParent": null
+    },
+    {
+      "team": "blue",
+      "skin": "claude_true",
+      "primary": "rifle",
+      "helmet": "iron-rice-bowl",
+      "goggles": null,
+      "goggleModel": false,
+      "goggleParent": null
+    },
+    {
+      "team": "blue",
+      "skin": "claude_true",
+      "primary": "rifle",
+      "helmet": "iron-rice-bowl",
+      "goggles": null,
+      "goggleModel": false,
+      "goggleParent": null
+    },
+    {
+      "team": "blue",
+      "skin": "claude_true",
+      "primary": "sniper",
+      "helmet": null,
+      "goggles": "tactical-goggles",
+      "goggleModel": true,
+      "goggleParent": "Head"
+    },
+    {
+      "team": "blue",
+      "skin": "claude_true",
+      "primary": "sniper",
+      "helmet": null,
+      "goggles": "tactical-goggles",
+      "goggleModel": true,
+      "goggleParent": "Head"
+    },
+    {
+      "team": "blue",
+      "skin": "claude_true",
+      "primary": "sniper",
+      "helmet": null,
+      "goggles": "tactical-goggles",
+      "goggleModel": true,
+      "goggleParent": "Head"
+    },
+    {
+      "team": "blue",
+      "skin": "claude_true",
+      "primary": "sniper",
+      "helmet": null,
+      "goggles": "tactical-goggles",
+      "goggleModel": true,
+      "goggleParent": "Head"
+    },
+    {
+      "team": "blue",
+      "skin": "claude_true",
+      "primary": "sniper",
+      "helmet": null,
+      "goggles": "tactical-goggles",
+      "goggleModel": true,
+      "goggleParent": "Head"
+    },
+    {
+      "team": "blue",
+      "skin": "claude_true",
+      "primary": "rifle",
+      "helmet": "iron-rice-bowl",
+      "goggles": null,
+      "goggleModel": false,
+      "goggleParent": null
+    }
+  ],
+  "simulation": {
+    "stats": {
+      "shots": 21,
+      "blockedShots": 0,
+      "replans": 95,
+      "hearings": 0,
+      "jumps": 0,
+      "landings": 0,
+      "obstacleJumps": 0,
+      "evadeJumps": 0,
+      "rejectedJumps": 0,
+      "grenades": 0,
+      "pickups": 0,
+      "sniperShots": 9,
+      "reconUses": 5,
+      "reconScans": 100,
+      "sniperRepositions": 38
+    },
+    "bots": [
+      {
+        "id": "red-1",
+        "skin": "deepseek",
+        "weapon": "sniper",
+        "state": "advance",
+        "ready": 0,
+        "active": 0,
+        "contacts": 0
+      },
+      {
+        "id": "red-2",
+        "skin": "deepseek",
+        "weapon": "rifle",
+        "state": "advance",
+        "ready": 0,
+        "active": 0,
+        "contacts": 0
+      },
+      {
+        "id": "red-3",
+        "skin": "deepseek",
+        "weapon": "rifle",
+        "state": "advance",
+        "ready": 0,
+        "active": 0,
+        "contacts": 0
+      },
+      {
+        "id": "red-4",
+        "skin": "deepseek",
+        "weapon": "rifle",
+        "state": "advance",
+        "ready": 0,
+        "active": 0,
+        "contacts": 0
+      },
+      {
+        "id": "red-5",
+        "skin": "deepseek",
+        "weapon": "rifle",
+        "state": "advance",
+        "ready": 0,
+        "active": 0,
+        "contacts": 0
+      },
+      {
+        "id": "red-6",
+        "skin": "deepseek",
+        "weapon": "rifle",
+        "state": "engage",
+        "ready": 0,
+        "active": 0,
+        "contacts": 0
+      },
+      {
+        "id": "red-7",
+        "skin": "claude_fake",
+        "weapon": "rifle",
+        "state": "advance",
+        "ready": 0,
+        "active": 0,
+        "contacts": 0
+      },
+      {
+        "id": "blue-0",
+        "skin": "claude_true",
+        "weapon": "rifle",
+        "state": "advance",
+        "ready": 0,
+        "active": 0,
+        "contacts": 0
+      },
+      {
+        "id": "blue-1",
+        "skin": "claude_true",
+        "weapon": "rifle",
+        "state": "engage",
+        "ready": 0,
+        "active": 0,
+        "contacts": 0
+      },
+      {
+        "id": "blue-2",
+        "skin": "claude_true",
+        "weapon": "sniper",
+        "state": "advance",
+        "ready": 69.65,
+        "active": 0,
+        "contacts": 8
+      },
+      {
+        "id": "blue-3",
+        "skin": "claude_true",
+        "weapon": "sniper",
+        "state": "advance",
+        "ready": 70.30000000000001,
+        "active": 0,
+        "contacts": 8
+      },
+      {
+        "id": "blue-4",
+        "skin": "claude_true",
+        "weapon": "sniper",
+        "state": "advance",
+        "ready": 71.00000000000003,
+        "active": 0,
+        "contacts": 8
+      },
+      {
+        "id": "blue-5",
+        "skin": "claude_true",
+        "weapon": "sniper",
+        "state": "advance",
+        "ready": 71.70000000000003,
+        "active": 0,
+        "contacts": 8
+      },
+      {
+        "id": "blue-6",
+        "skin": "claude_true",
+        "weapon": "sniper",
+        "state": "sniper-aim",
+        "ready": 72.40000000000003,
+        "active": 0,
+        "contacts": 8
+      },
+      {
+        "id": "blue-7",
+        "skin": "claude_true",
+        "weapon": "rifle",
+        "state": "advance",
+        "ready": 0,
+        "active": 0,
+        "contacts": 0
+      }
+    ],
+    "states": [
+      "advance",
+      "recon-survey",
+      "recon-reposition",
+      "recon-watch",
+      "sniper-reposition",
+      "sniper-aim",
+      "sniper-fire",
+      "sniper-cycle",
+      "search",
+      "sniper-watch",
+      "react",
+      "engage"
+    ]
+  }
+}

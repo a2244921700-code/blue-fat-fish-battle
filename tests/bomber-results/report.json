@@ -9,8 +9,8 @@
     "实际移动距离减半，走出 10 米后立即恢复且不再掉血",
     "暂停冻结辐射寿命、接触计时和蘑菇云演出",
     "受辐射伤害触发实际画面的撕裂后处理，按屏幕尺寸分配",
-    "视野撕裂缓冲随窗口尺寸调整 {\"remaining\":0.3300000000000007,\"allocated\":true,\"width\":1000,\"height\":700}",
-    "离开后停止伤害，短促撕裂消退后恢复直接渲染",
+    "视野撕裂缓冲随窗口尺寸调整 {\"remaining\":0.3300000000000007,\"allocated\":true,\"width\":1000,\"height\":700,\"sharedPipeline\":true}",
+    "离开后停止伤害，短促撕裂消退后恢复常规画面",
     "关闭装饰粒子仍保留污染范围标记、真实伤害与受击撕裂",
     "连续 20 次自爆云团不超过 6 组，所有污染区各自到期清理",
     "辐射能致死并进入正常结算，死亡后清除减速区和画面撕裂",
@@ -55,7 +55,8 @@
         "remaining": 0.33,
         "allocated": false,
         "width": 0,
-        "height": 0
+        "height": 0,
+        "sharedPipeline": true
       }
     }
   },
@@ -82,7 +83,8 @@
       "remaining": 0.3300000000000007,
       "allocated": true,
       "width": 1440,
-      "height": 900
+      "height": 900,
+      "sharedPipeline": true
     }
   },
   "stress": {
@@ -107,7 +109,8 @@
         "remaining": 0,
         "allocated": true,
         "width": 1440,
-        "height": 900
+        "height": 900,
+        "sharedPipeline": true
       }
     },
     "zones": 20,
@@ -125,30 +128,31 @@
         "remaining": 0,
         "allocated": true,
         "width": 1440,
-        "height": 900
+        "height": 900,
+        "sharedPipeline": true
       }
     }
   },
   "resourceCycles": [
     {
-      "geometries": 36,
-      "textures": 20,
+      "geometries": 30,
+      "textures": 24,
       "fx": {
         "world": null,
         "screen": null
       }
     },
     {
-      "geometries": 36,
-      "textures": 20,
+      "geometries": 30,
+      "textures": 24,
       "fx": {
         "world": null,
         "screen": null
       }
     },
     {
-      "geometries": 36,
-      "textures": 20,
+      "geometries": 30,
+      "textures": 24,
       "fx": {
         "world": null,
         "screen": null

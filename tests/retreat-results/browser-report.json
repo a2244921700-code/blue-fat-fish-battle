@@ -1,0 +1,86 @@
+{
+  "checks": [
+    {
+      "name": "30 FPS 实机：倒退动作、朝向和真实命中一致",
+      "ok": true,
+      "clips": [
+        "RifleWalkBack"
+      ],
+      "shots": 4,
+      "damage": 77.39999999999964,
+      "maxAngle": 0,
+      "minMuzzleDot": 0.9999999998830588,
+      "z": -66.01999999999992
+    },
+    {
+      "name": "60 FPS 实机：倒退动作、朝向和真实命中一致",
+      "ok": true,
+      "clips": [
+        "RifleWalkBack"
+      ],
+      "shots": 4,
+      "damage": 72,
+      "maxAngle": 0,
+      "minMuzzleDot": 0.9999999998365408,
+      "z": -66.02000000000018
+    },
+    {
+      "name": "144 FPS 实机：倒退动作、朝向和真实命中一致",
+      "ok": true,
+      "clips": [
+        "RifleWalkBack"
+      ],
+      "shots": 5,
+      "damage": 90,
+      "maxAngle": 0,
+      "minMuzzleDot": 0.9999999998022616,
+      "z": -66.02465277777821
+    },
+    {
+      "name": "红方伪·Claude娘同样使用倒退动作并保持射击",
+      "ok": true,
+      "character": "claude_fake",
+      "shots": 3,
+      "damage": 108
+    },
+    {
+      "name": "实机换弹下半身倒退，上半身换弹；结束后无额外转身或锁定等待",
+      "ok": true,
+      "clips": [
+        "RifleWalkBackLowerOnly",
+        "RifleWalkBack"
+      ],
+      "reloadFrames": 71,
+      "delay": 0,
+      "shots": 3,
+      "bad": []
+    },
+    {
+      "name": "实机侧移撤向掩体时播放侧移动作，枪口持续指向敌人",
+      "ok": true,
+      "clips": [
+        "RifleStrafeLeft"
+      ],
+      "x": 11.350000000000044,
+      "shots": 3
+    },
+    {
+      "name": "两套角色的步枪、手枪、蹲姿与双向侧移动作按相对方向选择",
+      "ok": true,
+      "combinations": 40
+    },
+    {
+      "name": "手雷上下身分层也支持后退；空中继续使用跳跃动作",
+      "ok": true,
+      "back": true,
+      "airborne": true,
+      "clip": "RifleJumpLoop"
+    },
+    {
+      "name": "桌面 Edge / WebGL 无脚本和着色器异常",
+      "ok": true,
+      "errors": []
+    }
+  ],
+  "errors": []
+}

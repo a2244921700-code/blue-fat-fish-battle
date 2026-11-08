@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-31",
+  "helmet": "fa1629116647c795c96fdf522d0027236b6c6e8f6f78b4a4ca3cc16210f4fcf5",
+  "armoryUnchanged": true,
+  "referenceImages": [
+    {
+      "file": "claude_fake.png",
+      "original": "Claude娘（伪）_Q版全身正面_01_BV1bPno6bE9D.png",
+      "same": true
+    },
+    {
+      "file": "claude_true.jpg",
+      "original": "Claude娘_Q版全身正面_03_BV1q5Y46WEpJ.jpg",
+      "same": true
+    },
+    {
+      "file": "gpt.jpg",
+      "original": "GPT娘_Q版全身正面_04_BV1zXHe6nESu.jpg",
+      "same": true
+    },
+    {
+      "file": "kimi.jpg",
+      "original": "Kimi娘_Q版全身正面_03_BV1zXHe6nESu.jpg",
+      "same": true
+    },
+    {
+      "file": "grok.jpg",
+      "original": "Grok娘_Q版全身正面_06_白底_BV1DHeJ6bESB.jpg",
+      "same": true
+    },
+    {
+      "file": "gemini.jpg",
+      "original": "Gemini娘_Q版全身正面_04_BV1zXHe6nESu.jpg",
+      "same": true
+    }
+  ],
+  "artwork": [
+    {
+      "file": "menu-sandwatch-cast.webp",
+      "bytes": 189318,
+      "sourceIdentical": true
+    },
+    {
+      "file": "lobby-outpost-cast.webp",
+      "bytes": 235752,
+      "sourceIdentical": true
+    },
+    {
+      "file": "loading-crossfire-cast.webp",
+      "bytes": 210468,
+      "sourceIdentical": true
+    },
+    {
+      "file": "loading-rooftops-cast.webp",
+      "bytes": 170634,
+      "sourceIdentical": true
+    },
+    {
+      "file": "loading-courtyard-cast.webp",
+      "bytes": 207644,
+      "sourceIdentical": true
+    }
+  ]
+}

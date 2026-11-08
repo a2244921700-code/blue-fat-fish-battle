@@ -1,0 +1,83 @@
+{
+  "checks": [
+    "无尽低头视角只绘制第一人称双臂，不绘制自己的世界身体",
+    "完整身体和武器只在该相机绘制期间隐藏，绘制后立即恢复",
+    "本地相机隐藏身体后，头部胶囊仍可命中且为 1.75 倍",
+    "独立旁观相机能绘制玩家完整头部、身体和双臂",
+    "切刀与蹲下后仍不显示自己的躯干和裙摆",
+    "FPS 同样只显示自己的双臂，地图生成跳越连接",
+    "AI 在实际地图由行为树起跳，世界高度不再被动画更新重置",
+    "起跳动作和受击胶囊随真实离地高度移动",
+    "空中不能绕过行为树直接开火",
+    "暂停冻结 AI 跳跃位置和物理计时",
+    "空中阵亡由布娃娃接管并保留跳跃速度",
+    "复活清除跳跃和尸体状态，回基地地面",
+    "自己的尸体仍为完整模型，复活后恢复仅双臂的第一人称",
+    "回合结算期间继续完成跳跃落地，不把角色悬在半空",
+    "退出场景回收角色和物理实例",
+    "实际渲染与跳跃没有脚本或着色器错误"
+  ],
+  "errors": [],
+  "owner": {
+    "draws": {
+      "world": [],
+      "arms": [
+        "Mesh_Arms"
+      ]
+    },
+    "visible": true,
+    "complete": true,
+    "weapon": true
+  },
+  "observer": {
+    "world": [
+      "Mesh_Body",
+      "Mesh_Arms",
+      "Mesh_HeadHair"
+    ],
+    "arms": []
+  },
+  "pvp": {
+    "world": [],
+    "arms": [
+      "Mesh_Arms"
+    ],
+    "links": 134
+  },
+  "jump": {
+    "y": 2.086458333333333,
+    "clip": "RifleJumpStart",
+    "head": 1.9469728867865341,
+    "headBefore": 1.2686109680364515,
+    "state": "jump",
+    "velocity": 7.449999999999996,
+    "stats": {
+      "shots": 0,
+      "blockedShots": 0,
+      "replans": 1,
+      "hearings": 0,
+      "jumps": 1,
+      "landings": 0,
+      "obstacleJumps": 1,
+      "evadeJumps": 0,
+      "rejectedJumps": 0,
+      "grenades": 0
+    }
+  },
+  "airDeath": {
+    "alive": false,
+    "rag": true,
+    "vy": 7.449999999999996,
+    "beforeHead": 1.7419839460613917,
+    "jump": false,
+    "bodyVy": 7.799999999999996,
+    "head": 1.7419839460613917
+  },
+  "roundEnd": {
+    "started": true,
+    "airborne": true,
+    "phase": "over",
+    "landed": true,
+    "y": 1.4
+  }
+}

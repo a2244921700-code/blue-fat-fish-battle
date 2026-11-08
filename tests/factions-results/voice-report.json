@@ -1,0 +1,178 @@
+{
+  "checks": [
+    "本地文件模式可解码原始语音并输出真实音频采样",
+    "HRTF 左右方位确实改变双声道输出",
+    "远处语音明显衰减，不再等响贴耳播放",
+    "隔墙后的语音降低音量并滤去高频",
+    "自己的语音使用较低音量与轻微早期反射",
+    "AI 语音使用实机头部坐标与距离",
+    "实机地图碰撞体会压低并滤闷 AI 语音",
+    "AI 死亡立即停止该角色正在播放的语音",
+    "第一条投雷语音能够播放，声音在角色前下方",
+    "暂停停止语音采样并保留播放进度",
+    "继续游戏恢复同一条语音，不重复随机选择",
+    "第二条投雷语音随机分支可用，同一角色不会叠播",
+    "角色死亡立即结束自己的语音",
+    "返回菜单清空语音声源",
+    "音频解码、空间节点与暂停恢复没有脚本异常"
+  ],
+  "errors": [],
+  "pcm": {
+    "left": {
+      "rms": [
+        0.1468411801708111,
+        0.0574857900249809
+      ],
+      "before": {
+        "played": 1,
+        "paused": false,
+        "decoded": 1,
+        "voices": [
+          {
+            "id": 1,
+            "file": "sfx_throw_voice_1.mp3",
+            "variant": 0,
+            "local": false,
+            "distance": 5,
+            "level": 0.485981308411215,
+            "blocked": false,
+            "cutoff": 7800,
+            "playing": true,
+            "offset": 0,
+            "panning": "HRTF"
+          }
+        ]
+      }
+    },
+    "right": {
+      "rms": [
+        0.05811516568284012,
+        0.14784879488401348
+      ],
+      "before": {
+        "played": 1,
+        "paused": false,
+        "decoded": 1,
+        "voices": [
+          {
+            "id": 1,
+            "file": "sfx_throw_voice_1.mp3",
+            "variant": 0,
+            "local": false,
+            "distance": 5,
+            "level": 0.485981308411215,
+            "blocked": false,
+            "cutoff": 7800,
+            "playing": true,
+            "offset": 0,
+            "panning": "HRTF"
+          }
+        ]
+      }
+    },
+    "near": {
+      "rms": [
+        0.12107097984262277,
+        0.12107097984262277
+      ],
+      "before": {
+        "played": 1,
+        "paused": false,
+        "decoded": 1,
+        "voices": [
+          {
+            "id": 1,
+            "file": "sfx_throw_voice_1.mp3",
+            "variant": 0,
+            "local": false,
+            "distance": 4,
+            "level": 0.65,
+            "blocked": false,
+            "cutoff": 7940,
+            "playing": true,
+            "offset": 0,
+            "panning": "HRTF"
+          }
+        ]
+      }
+    },
+    "far": {
+      "rms": [
+        0.013696113443366738,
+        0.013696113443366738
+      ],
+      "before": {
+        "played": 1,
+        "paused": false,
+        "decoded": 1,
+        "voices": [
+          {
+            "id": 1,
+            "file": "sfx_throw_voice_1.mp3",
+            "variant": 0,
+            "local": false,
+            "distance": 28,
+            "level": 0.07142857142857142,
+            "blocked": false,
+            "cutoff": 4580,
+            "playing": true,
+            "offset": 0,
+            "panning": "HRTF"
+          }
+        ]
+      }
+    },
+    "wall": {
+      "rms": [
+        0.041142614847996556,
+        0.041142614847996556
+      ],
+      "before": {
+        "played": 1,
+        "paused": false,
+        "decoded": 1,
+        "voices": [
+          {
+            "id": 1,
+            "file": "sfx_throw_voice_1.mp3",
+            "variant": 0,
+            "local": false,
+            "distance": 4,
+            "level": 0.24700000000000003,
+            "blocked": true,
+            "cutoff": 1100,
+            "playing": true,
+            "offset": 0,
+            "panning": "HRTF"
+          }
+        ]
+      }
+    },
+    "self": {
+      "rms": [
+        0.05631289715759696,
+        0.05631289715759696
+      ],
+      "before": {
+        "played": 1,
+        "paused": false,
+        "decoded": 1,
+        "voices": [
+          {
+            "id": 1,
+            "file": "sfx_throw_voice_1.mp3",
+            "variant": 0,
+            "local": true,
+            "distance": 0.85,
+            "level": 0.29900000000000004,
+            "blocked": false,
+            "cutoff": 6200,
+            "playing": true,
+            "offset": 0,
+            "panning": "HRTF"
+          }
+        ]
+      }
+    }
+  }
+}

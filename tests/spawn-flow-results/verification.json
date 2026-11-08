@@ -1,0 +1,88 @@
+{
+  "date": "2026-11-01",
+  "executor": "OpenAI Codex (GPT-6)",
+  "status": "passed",
+  "scope": "Shared waypoint deadlock, occupied deployment slots, simultaneous respawns and round-transition collision snapshots",
+  "suites": [
+    {
+      "name": "fps-spawn-flow-test.cjs",
+      "passed": 9,
+      "log": "fps-spawn-flow-test.cjs.log",
+      "modifiedAt": "2026-11-01T11:41:14.475Z"
+    },
+    {
+      "name": "browser-spawn-flow-test.cjs",
+      "passed": 12,
+      "log": "browser-spawn-flow-test.cjs.log",
+      "modifiedAt": "2026-11-01T11:42:58.161Z"
+    },
+    {
+      "name": "fps-ai-test.cjs",
+      "passed": 10,
+      "log": "fps-ai-test.cjs.log",
+      "modifiedAt": "2026-11-01T11:41:14.567Z"
+    },
+    {
+      "name": "fps-jump-test.cjs",
+      "passed": 11,
+      "log": "fps-jump-test.cjs.log",
+      "modifiedAt": "2026-11-01T11:41:14.657Z"
+    },
+    {
+      "name": "elevation-map-test.cjs",
+      "passed": 20,
+      "log": "elevation-map-test.cjs.log",
+      "modifiedAt": "2026-11-01T11:41:15.522Z"
+    },
+    {
+      "name": "equipment-test.cjs",
+      "passed": 14,
+      "log": "equipment-test.cjs.log",
+      "modifiedAt": "2026-11-01T11:34:11.585Z"
+    },
+    {
+      "name": "player-physics-test.cjs",
+      "passed": 11,
+      "log": "player-physics-test.cjs.log",
+      "modifiedAt": "2026-11-01T11:34:11.637Z"
+    },
+    {
+      "name": "smoke-test.js",
+      "passed": 180,
+      "log": "smoke-test.js.log",
+      "modifiedAt": "2026-11-01T11:41:18.889Z"
+    },
+    {
+      "name": "browser-fps-test.cjs",
+      "passed": 38,
+      "log": "browser-fps-test.cjs.log",
+      "modifiedAt": "2026-11-01T11:39:45.642Z"
+    },
+    {
+      "name": "browser-weapon-loot-test.cjs",
+      "passed": 19,
+      "log": "browser-weapon-loot-test.cjs.log",
+      "modifiedAt": "2026-11-01T11:40:02.237Z"
+    },
+    {
+      "name": "browser-death-camera-test.cjs",
+      "passed": 19,
+      "log": "browser-death-camera-test.cjs.log",
+      "modifiedAt": "2026-11-01T11:40:18.856Z"
+    }
+  ],
+  "totalPassed": 343,
+  "logicChecks": 9,
+  "browserChecks": 12,
+  "sourceSha256": {
+    "js/fps-ai.js": "3771f3e809328e054ffda8f5b34fdcea4db87e23d1593207ff155f275ad09483",
+    "js/game.js": "8a6a990604419a9623e7c43246087c6c3df93111be71285b66626f2db2acde0b"
+  },
+  "warehouseBackgroundSha256": "26e0ddb29ea91fcac05576671d68a506b5b22f43091cccf14e1eaf306e262032",
+  "notes": [
+    "The isolated group-flow tests disable combat to measure each bot leaving its own deployment area.",
+    "Browser tests retain actual character collisions, animations, respawn timers, ragdolls and weapon drops.",
+    "Combat, weapon pickup and death-camera regressions ran separately.",
+    "No character collisions were disabled and no teleport fallback was introduced."
+  ]
+}

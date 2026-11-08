@@ -1,0 +1,97 @@
+{
+  "date": "2026-10-31",
+  "tool": "Built-in image_gen.imagegen",
+  "armory": "unchanged",
+  "assets": [
+    {
+      "id": "menu-sandwatch",
+      "source": "C:/Users/22449/.codex/generated_images/01a15e92-da3d-7870-8af8-df29490cb913/exec-7400ad88-079c-4ac2-87d5-72c0120c4459.png",
+      "original": "originals/menu-sandwatch-cast.png",
+      "runtime": "menu-sandwatch-cast.webp",
+      "prompt": "Use case: precise-object-edit / compositing. Edit only supporting characters in the FIRST attached image, an existing 16:9 promotional illustration for a friendly stylized Three.js FPS game. Keep the image's exact aspect ratio, camera, layout, cropping, environmental architecture, background, sky, sunlight, shadows, props, weapons, action trajectories, and color grading. Keep the existing LARGE BLUE-HAIRED DEEPSEEK WHALE MAID protagonist visually dominant and unchanged in appearance, position, scale, pose, facial expression and costume. Do not turn this into a lineup or reference sheet. Use other inputs solely as identities for the specified supporting characters: transfer their recognizable hair, eye colors, ears/horns and clothing motifs into the original scene's polished chibi illustration style and lighting. Adapt their poses to hold the weapons correctly in the existing action. Tasteful modest chibi costumes. The source reference portraits' plain/purple backgrounds, watermarks, text and magical effects must NOT appear in the edited scene. No new typography or HUD. Preserve existing scenery and primary character as closely as possible; perform a local edit around secondary characters only. Asset: main-menu hero. REPLACE the small pale-haired teammate under the arch at x42%,y71% with GPT from input2: white/lavender hair, white dragon horns, purple eyes, white outfit with violet details, tiny dragon wings/tail. REPLACE the small blond teammate behind the protagonist at x91%,y62% with Grok from input3: golden twin tails, blue eyes, small crown, dark gothic dress with burgundy accents and bat motifs. Keep both original sizes, distant focus and gun poses. Leave the left 35% entirely quiet and character-free for menu text. Do not add people.",
+      "references": [
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/originals/menu-sandwatch.png",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/gpt.jpg",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/grok.jpg"
+      ]
+    },
+    {
+      "id": "lobby-outpost",
+      "source": "C:/Users/22449/.codex/generated_images/01a15e92-da3d-7870-8af8-df29490cb913/exec-1be3479b-2203-442b-ba04-7ea08c1dbc7d.png",
+      "original": "originals/lobby-outpost-cast.png",
+      "runtime": "lobby-outpost-cast.webp",
+      "prompt": "Use case: precise-object-edit / compositing. Edit only supporting characters in the FIRST attached image, an existing 16:9 promotional illustration for a friendly stylized Three.js FPS game. Keep the image's exact aspect ratio, camera, layout, cropping, environmental architecture, background, sky, sunlight, shadows, props, weapons, action trajectories, and color grading. Keep the existing LARGE BLUE-HAIRED DEEPSEEK WHALE MAID protagonist visually dominant and unchanged in appearance, position, scale, pose, facial expression and costume. Do not turn this into a lineup or reference sheet. Use other inputs solely as identities for the specified supporting characters: transfer their recognizable hair, eye colors, ears/horns and clothing motifs into the original scene's polished chibi illustration style and lighting. Adapt their poses to hold the weapons correctly in the existing action. Tasteful modest chibi costumes. The source reference portraits' plain/purple backgrounds, watermarks, text and magical effects must NOT appear in the edited scene. No new typography or HUD. Preserve existing scenery and primary character as closely as possible; perform a local edit around secondary characters only. Asset: lobby outpost balcony. REPLACE the single small blond teammate behind crates at x89%,y66% with true Claude from input2: orange long flowing hair, orange flower ornament, warm orange eyes, white/black/orange flower outfit. Keep her original kneeling rifle pose and size. ADD one small Kimi teammate from input3 on the midground balcony at x36%,y69%, behind the low sandstone parapet: white/silver long hair, lavender eyes, navy-and-white music-themed dress, K hairbow. She checks a compact rifle at waist level. Make her naturally small in perspective, not covering the scenic central archway or protagonist. Keep the large Deepseek and all architectural lines intact; leftmost 25% remains useful for UI.",
+      "references": [
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/originals/lobby-outpost.png",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/claude_true.jpg",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/kimi.jpg"
+      ]
+    },
+    {
+      "id": "loading-crossfire",
+      "source": "C:/Users/22449/.codex/generated_images/01a15e92-da3d-7870-8af8-df29490cb913/exec-172e695e-aed3-4bbb-a603-d250405c5944.png",
+      "original": "originals/loading-crossfire-cast.png",
+      "runtime": "loading-crossfire-cast.webp",
+      "prompt": "Use case: precise-object-edit / compositing. Edit only supporting characters in the FIRST attached image, an existing 16:9 promotional illustration for a friendly stylized Three.js FPS game. Keep the image's exact aspect ratio, camera, layout, cropping, environmental architecture, background, sky, sunlight, shadows, props, weapons, action trajectories, and color grading. Keep the existing LARGE BLUE-HAIRED DEEPSEEK WHALE MAID protagonist visually dominant and unchanged in appearance, position, scale, pose, facial expression and costume. Do not turn this into a lineup or reference sheet. Use other inputs solely as identities for the specified supporting characters: transfer their recognizable hair, eye colors, ears/horns and clothing motifs into the original scene's polished chibi illustration style and lighting. Adapt their poses to hold the weapons correctly in the existing action. Tasteful modest chibi costumes. The source reference portraits' plain/purple backgrounds, watermarks, text and magical effects must NOT appear in the edited scene. No new typography or HUD. Preserve existing scenery and primary character as closely as possible; perform a local edit around secondary characters only. Asset: loading archway crossfire. Keep central rushing blue Deepseek at x43%,y48% exactly as the original. Replace four existing secondary figures while preserving their exact locations/scales and shooting poses: foreground far-left girl x11%,y48% becomes fake Claude input2 (orange fox ears and orange-white fox tail, orange hair/eyes, brown-and-white maid costume, orange radial emblem); behind her at x21%,y32% becomes Kimi input3 (silver-white hair, violet eyes, navy music dress, K bow); distant high right balcony x95%,y40% becomes GPT input4 (white hair, dragon horns, violet/white costume); distant lower right x88%,y61% becomes Grok input5 (blond twin tails, small crown, blue eyes, dark burgundy gothic costume). Retain original red armbands on left team and blue armbands on right team. No extra people. Preserve the low camera and bright bullet streaks.",
+      "references": [
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/originals/loading-crossfire.png",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/claude_fake.png",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/kimi.jpg",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/gpt.jpg",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/grok.jpg"
+      ]
+    },
+    {
+      "id": "loading-rooftops",
+      "source": "C:/Users/22449/.codex/generated_images/01a15e92-da3d-7870-8af8-df29490cb913/exec-f850645d-ee89-4a8c-882b-292d22f7fe56.png",
+      "original": "originals/loading-rooftops-cast.png",
+      "runtime": "loading-rooftops-cast.webp",
+      "prompt": "Use case: precise-object-edit / compositing. Edit only supporting characters in the FIRST attached image, an existing 16:9 promotional illustration for a friendly stylized Three.js FPS game. Keep the image's exact aspect ratio, camera, layout, cropping, environmental architecture, background, sky, sunlight, shadows, props, weapons, action trajectories, and color grading. Keep the existing LARGE BLUE-HAIRED DEEPSEEK WHALE MAID protagonist visually dominant and unchanged in appearance, position, scale, pose, facial expression and costume. Do not turn this into a lineup or reference sheet. Use other inputs solely as identities for the specified supporting characters: transfer their recognizable hair, eye colors, ears/horns and clothing motifs into the original scene's polished chibi illustration style and lighting. Adapt their poses to hold the weapons correctly in the existing action. Tasteful modest chibi costumes. The source reference portraits' plain/purple backgrounds, watermarks, text and magical effects must NOT appear in the edited scene. No new typography or HUD. Preserve existing scenery and primary character as closely as possible; perform a local edit around secondary characters only. Asset: loading rooftop flank at sunset. Keep the huge Deepseek aiming rifle at left unchanged. Replace the lower right foreground teammate seen from behind with Gemini input2: blue-violet gradient long hair, cat ears, star hairclip and navy/violet star costume, preserving same crouching pointing pose, backpack, blue armband, occlusion by wall and scale; show her from the same rear three-quarter angle. Replace the two tiny red-team opponents on distant center-right bridge: left becomes true Claude input3 (orange hair and flower ornament); right becomes Grok input4 (blond twin tails/crown, dark costume). Preserve tiny perspective scale, red team identifier and shooting positions. No new characters. Entire sun, skyline, palm trees, dome, boxes and rooftop geometry stay unchanged.",
+      "references": [
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/originals/loading-rooftops.png",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/gemini.jpg",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/claude_true.jpg",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/grok.jpg"
+      ]
+    },
+    {
+      "id": "loading-courtyard",
+      "source": "C:/Users/22449/.codex/generated_images/01a15e92-da3d-7870-8af8-df29490cb913/exec-bcf64e4a-8575-43eb-8fb2-729bae631a56.png",
+      "original": "originals/loading-courtyard-cast.png",
+      "runtime": "loading-courtyard-cast.webp",
+      "references": [
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/originals/loading-courtyard.png",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/claude_true.jpg",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/gpt.jpg",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/kimi.jpg",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/gemini.jpg",
+        "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/grok.jpg"
+      ],
+      "initialAttempt": {
+        "status": "rejected: tool accepts at most 5 reference paths",
+        "prompt": "Use case: precise-object-edit / compositing. Edit only supporting characters in the FIRST attached image, an existing 16:9 promotional illustration for a friendly stylized Three.js FPS game. Keep the image's exact aspect ratio, camera, layout, cropping, environmental architecture, background, sky, sunlight, shadows, props, weapons, action trajectories, and color grading. Keep the existing LARGE BLUE-HAIRED DEEPSEEK WHALE MAID protagonist visually dominant and unchanged in appearance, position, scale, pose, facial expression and costume. Do not turn this into a lineup or reference sheet. Use other inputs solely as identities for the specified supporting characters: transfer their recognizable hair, eye colors, ears/horns and clothing motifs into the original scene's polished chibi illustration style and lighting. Adapt their poses to hold the weapons correctly in the existing action. Tasteful modest chibi costumes. The source reference portraits' plain/purple backgrounds, watermarks, text and magical effects must NOT appear in the edited scene. No new typography or HUD. Preserve existing scenery and primary character as closely as possible; perform a local edit around secondary characters only. Asset: loading courtyard advance. Keep the large central blue Deepseek rushing with a rifle completely unchanged. Replace all five supporting figures in their existing exact places: large crouching pale-haired girl at left x20%,y59% becomes true Claude input2 (orange hair, flower ornament, white/black/orange floral dress) holding the same carbine; tiny high-left background person x18%,y39% becomes GPT input3 (white dragon hair/horns); tiny background center-left person x28%,y44% becomes Kimi input4 (silver hair, music-themed navy costume); tiny person x38%,y40% behind main heroine becomes Gemini input5 (violet-blue hair, cat ears, star clip); distant far-right opponent x86%,y69% becomes Grok input6 (blond twin tails, crown, burgundy gothic costume). Keep red/blue team armbands appropriate to their existing side. Preserve original muzzle flashes, trajectories, stone arches, jars, crates, dust and lighting. No added figures."
+      },
+      "passes": [
+        {
+          "prompt": "Use case: precise-object-edit / compositing. Edit only supporting characters in the FIRST attached image, an existing 16:9 promotional illustration for a friendly stylized Three.js FPS game. Keep the image's exact aspect ratio, camera, layout, cropping, environmental architecture, background, sky, sunlight, shadows, props, weapons, action trajectories, and color grading. Keep the existing LARGE BLUE-HAIRED DEEPSEEK WHALE MAID protagonist visually dominant and unchanged in appearance, position, scale, pose, facial expression and costume. Do not turn this into a lineup or reference sheet. Use other inputs solely as identities for the specified supporting characters: transfer their recognizable hair, eye colors, ears/horns and clothing motifs into the original scene's polished chibi illustration style and lighting. Adapt their poses to hold the weapons correctly in the existing action. Tasteful modest chibi costumes. The source reference portraits' plain/purple backgrounds, watermarks, text and magical effects must NOT appear in the edited scene. No new typography or HUD. Preserve existing scenery and primary character as closely as possible; perform a local edit around secondary characters only. Asset: loading courtyard advance. Keep the large central blue Deepseek rushing with a rifle completely unchanged. First edit pass: replace only FOUR supporting figures in their existing exact places: large crouching pale-haired girl at left x20%,y59% becomes true Claude input2 (orange hair, flower ornament, white/black/orange floral dress) holding the same carbine; tiny high-left background person x18%,y39% becomes GPT input3 (white dragon hair/horns); tiny background center-left person x28%,y44% becomes Kimi input4 (silver hair, music-themed navy costume); tiny person x38%,y40% behind main heroine becomes Gemini input5 (violet-blue hair, cat ears, star clip); leave the distant far-right opponent x86%,y69% UNCHANGED in this pass. Keep red/blue team armbands appropriate to their existing side. Preserve original muzzle flashes, trajectories, stone arches, jars, crates, dust and lighting. No added figures.",
+          "references": [
+            "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/originals/loading-courtyard.png",
+            "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/claude_true.jpg",
+            "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/gpt.jpg",
+            "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/kimi.jpg",
+            "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/gemini.jpg"
+          ],
+          "output": "C:/Users/22449/.codex/generated_images/01a15e92-da3d-7870-8af8-df29490cb913/exec-111d8c32-4e0c-4b85-9d71-7818c3c05b78.png"
+        },
+        {
+          "prompt": "Use case: precise-object-edit. This is the FINAL single-character refinement of image 1, a 16:9 friendly chibi FPS loading illustration. Change ONLY the tiny distant red-team opponent at far right (center x86%, y69%), behind the small crate beneath the arch: replace that remaining generic red-helmet soldier with Grok from input2, the blonde twin-tailed girl with blue eyes, small ornate crown, black bat bows and dark burgundy gothic dress. Retain the existing very small scale and background depth of field, partial crate occlusion, compact rifle held pointing left, red team armband, muzzle light, and exact body location. Keep the entire rest of image1 unchanged: big blue Deepseek at center must remain dominant, orange true Claude at left, the three tiny GPT/Kimi/Gemini figures at upper left, their guns/poses, every building edge, palm, sky, lamp, pottery, crate, dust, gunfire, lighting, framing and colors. No extra characters, no typography, no watermark, no background from the reference portrait. This is a tiny local character replacement, not a new composition.",
+          "references": [
+            "C:/Users/22449/.codex/generated_images/01a15e92-da3d-7870-8af8-df29490cb913/exec-111d8c32-4e0c-4b85-9d71-7818c3c05b78.png",
+            "D:/DSH/Game/蓝色肥鱼大作战/assets/ui-art/character-previews/grok.jpg"
+          ],
+          "output": "C:/Users/22449/.codex/generated_images/01a15e92-da3d-7870-8af8-df29490cb913/exec-bcf64e4a-8575-43eb-8fb2-729bae631a56.png"
+        }
+      ]
+    }
+  ]
+}

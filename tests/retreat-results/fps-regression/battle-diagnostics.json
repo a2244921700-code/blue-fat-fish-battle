@@ -1,0 +1,730 @@
+{
+  "ms": 10191.59999999404,
+  "ai": {
+    "shots": 570,
+    "blockedShots": 379,
+    "replans": 732,
+    "hearings": 49,
+    "jumps": 10,
+    "landings": 4,
+    "obstacleJumps": 2,
+    "evadeJumps": 8,
+    "rejectedJumps": 2,
+    "grenades": 19,
+    "pickups": 0,
+    "grenadeEvades": 54
+  },
+  "nav": {
+    "requests": 1060,
+    "failed": 0,
+    "expanded": 595,
+    "jumpLinks": 8,
+    "rejectedJumpLinks": 0,
+    "layers": 318
+  },
+  "failures": [],
+  "expectedJumpRejections": 0,
+  "pvp": {
+    "mode": "pvp",
+    "active": true,
+    "over": false,
+    "roundState": "live",
+    "prepareT": 0,
+    "roundNum": 1,
+    "myRounds": 0,
+    "botRounds": 0,
+    "winRounds": 4,
+    "maxRounds": 7,
+    "bots": 29,
+    "botTotal": 31,
+    "weapon": "rifle",
+    "mySkin": "claude_fake",
+    "myTeam": "red",
+    "teamSkins": {
+      "red": "claude_fake",
+      "blue": "deepseek"
+    },
+    "myWeapon": "pistol"
+  },
+  "s": {
+    "tickets": {
+      "red": 36,
+      "blue": 32
+    },
+    "limit": 48,
+    "teamSize": 16,
+    "respawn": 0,
+    "protection": 0,
+    "roundTime": 56.9499999999989,
+    "clock": 59.99999999999873,
+    "actors": [
+      {
+        "id": "red-1",
+        "team": "red",
+        "x": -5.257631200616043,
+        "z": 28.71519816316152,
+        "alive": true,
+        "hp": 100,
+        "state": "search",
+        "respawn": 0,
+        "kills": 3,
+        "deaths": 1,
+        "shots": 0,
+        "mag": 30,
+        "memory": {
+          "position": {
+            "x": -5.65200415629032,
+            "y": 0.7761412457279269,
+            "z": -6.047759591752368
+          },
+          "time": 56.04999999999895,
+          "kind": "visual"
+        }
+      },
+      {
+        "id": "red-2",
+        "team": "red",
+        "x": 1.0724785714468188,
+        "z": 64.78050000004718,
+        "alive": true,
+        "hp": 100,
+        "state": "advance",
+        "respawn": 0,
+        "kills": 0,
+        "deaths": 1,
+        "shots": 0,
+        "mag": 30,
+        "memory": null
+      },
+      {
+        "id": "red-3",
+        "team": "red",
+        "x": -9.747652928604786,
+        "z": 23.113576399742726,
+        "alive": true,
+        "hp": 100,
+        "state": "search",
+        "respawn": 0,
+        "kills": 3,
+        "deaths": 1,
+        "shots": 2,
+        "mag": 28,
+        "memory": {
+          "position": {
+            "x": -5.65200415629032,
+            "y": 0.7761412457279269,
+            "z": -6.047759591752368
+          },
+          "time": 56.04999999999895,
+          "kind": "visual"
+        }
+      },
+      {
+        "id": "red-4",
+        "team": "red",
+        "x": -17.78469661396469,
+        "z": 2.7408777324119105,
+        "alive": true,
+        "hp": 38.91622569964478,
+        "state": "search",
+        "respawn": 0,
+        "kills": 0,
+        "deaths": 0,
+        "shots": 5,
+        "mag": 25,
+        "memory": {
+          "position": {
+            "x": -6,
+            "y": 1.5,
+            "z": -6
+          },
+          "time": 55.999999999998956,
+          "kind": "sound"
+        }
+      },
+      {
+        "id": "red-5",
+        "team": "red",
+        "x": 32.94173109856606,
+        "z": 38.89533186843273,
+        "alive": true,
+        "hp": 100,
+        "state": "advance",
+        "respawn": 0,
+        "kills": 1,
+        "deaths": 1,
+        "shots": 0,
+        "mag": 30,
+        "memory": null
+      },
+      {
+        "id": "red-6",
+        "team": "red",
+        "x": -5.040645516039954,
+        "z": 23.555468610055282,
+        "alive": true,
+        "hp": 100,
+        "state": "search",
+        "respawn": 0,
+        "kills": 1,
+        "deaths": 1,
+        "shots": 8,
+        "mag": 22,
+        "memory": {
+          "position": {
+            "x": -5.65200415629032,
+            "y": 0.7761412457279269,
+            "z": -6.047759591752368
+          },
+          "time": 56.04999999999895,
+          "kind": "visual"
+        }
+      },
+      {
+        "id": "red-7",
+        "team": "red",
+        "x": -40.59652714530349,
+        "z": -35.262137797223545,
+        "alive": true,
+        "hp": 76.00062619281732,
+        "state": "search",
+        "respawn": 0,
+        "kills": 0,
+        "deaths": 0,
+        "shots": 3,
+        "mag": 27,
+        "memory": {
+          "position": {
+            "x": -26,
+            "y": 1.5,
+            "z": -38
+          },
+          "time": 56.29999999999894,
+          "kind": "sound"
+        }
+      },
+      {
+        "id": "red-8",
+        "team": "red",
+        "x": -8.764933023816416,
+        "z": 22.671968056308355,
+        "alive": true,
+        "hp": 100,
+        "state": "search",
+        "respawn": 0,
+        "kills": 2,
+        "deaths": 1,
+        "shots": 5,
+        "mag": 25,
+        "memory": {
+          "position": {
+            "x": -5.490606819140313,
+            "y": 0.7873267550855119,
+            "z": -6.0029583689913
+          },
+          "time": 55.999999999998956,
+          "kind": "visual"
+        }
+      },
+      {
+        "id": "red-9",
+        "team": "red",
+        "x": -17.273710507179207,
+        "z": 4.974263441488328,
+        "alive": true,
+        "hp": 100,
+        "state": "search",
+        "respawn": 0,
+        "kills": 0,
+        "deaths": 0,
+        "shots": 3,
+        "mag": 27,
+        "memory": {
+          "position": {
+            "x": -6,
+            "y": 3,
+            "z": 18
+          },
+          "time": 55.849999999998964,
+          "kind": "sound"
+        }
+      },
+      {
+        "id": "red-10",
+        "team": "red",
+        "x": 58.472219195142074,
+        "z": 35.21998085876174,
+        "alive": true,
+        "hp": 100,
+        "state": "advance",
+        "respawn": 0,
+        "kills": 0,
+        "deaths": 1,
+        "shots": 0,
+        "mag": 30,
+        "memory": null
+      },
+      {
+        "id": "red-11",
+        "team": "red",
+        "x": -4.3701524220790215,
+        "z": 28.127420586517346,
+        "alive": true,
+        "hp": 100,
+        "state": "search",
+        "respawn": 0,
+        "kills": 1,
+        "deaths": 2,
+        "shots": 0,
+        "mag": 30,
+        "memory": {
+          "position": {
+            "x": -5.490606819140313,
+            "y": 0.7873267550855119,
+            "z": -6.0029583689913
+          },
+          "time": 55.999999999998956,
+          "kind": "visual"
+        }
+      },
+      {
+        "id": "red-12",
+        "team": "red",
+        "x": -47.52262499999999,
+        "z": -31,
+        "alive": true,
+        "hp": 55.75720899207887,
+        "state": "search",
+        "respawn": 0,
+        "kills": 2,
+        "deaths": 0,
+        "shots": 10,
+        "mag": 20,
+        "memory": {
+          "position": {
+            "x": -26,
+            "y": 1.5,
+            "z": -38
+          },
+          "time": 56.29999999999894,
+          "kind": "sound"
+        }
+      },
+      {
+        "id": "red-13",
+        "team": "red",
+        "x": -7.1698002649204335,
+        "z": 34.64295277597599,
+        "alive": true,
+        "hp": 100,
+        "state": "search",
+        "respawn": 0,
+        "kills": 1,
+        "deaths": 2,
+        "shots": 0,
+        "mag": 30,
+        "memory": {
+          "position": {
+            "x": -6,
+            "y": 3,
+            "z": 18
+          },
+          "time": 55.849999999998964,
+          "kind": "sound"
+        }
+      },
+      {
+        "id": "red-14",
+        "team": "red",
+        "x": -22.562237639093592,
+        "z": 6.253545041987334,
+        "alive": true,
+        "hp": 82.38775111010648,
+        "state": "search",
+        "respawn": 0,
+        "kills": 2,
+        "deaths": 0,
+        "shots": 22,
+        "mag": 30,
+        "memory": {
+          "position": {
+            "x": -6,
+            "y": 3,
+            "z": 18
+          },
+          "time": 55.849999999998964,
+          "kind": "sound"
+        }
+      },
+      {
+        "id": "red-15",
+        "team": "red",
+        "x": 37.74832361793751,
+        "z": 38.20401353820168,
+        "alive": true,
+        "hp": 100,
+        "state": "advance",
+        "respawn": 0,
+        "kills": 0,
+        "deaths": 1,
+        "shots": 0,
+        "mag": 30,
+        "memory": null
+      },
+      {
+        "id": "blue-0",
+        "team": "blue",
+        "x": 59.80574581442869,
+        "z": 9.00174772680035,
+        "alive": true,
+        "hp": 100,
+        "state": "react",
+        "respawn": 0,
+        "kills": 0,
+        "deaths": 0,
+        "shots": 20,
+        "mag": 30,
+        "memory": {
+          "position": {
+            "x": 58.472219195142074,
+            "y": 2.5620585296080636,
+            "z": 35.21998085876174
+          },
+          "time": 56.9499999999989,
+          "kind": "visual"
+        }
+      },
+      {
+        "id": "blue-1",
+        "team": "blue",
+        "x": 33.66346430835757,
+        "z": -62.451584367050806,
+        "alive": true,
+        "hp": 100,
+        "state": "advance",
+        "respawn": 0,
+        "kills": 1,
+        "deaths": 1,
+        "shots": 0,
+        "mag": 30,
+        "memory": null
+      },
+      {
+        "id": "blue-2",
+        "team": "blue",
+        "x": -18.04969430587086,
+        "z": -36.32530366226068,
+        "alive": true,
+        "hp": 100,
+        "state": "search",
+        "respawn": 0,
+        "kills": 0,
+        "deaths": 1,
+        "shots": 15,
+        "mag": 15,
+        "memory": {
+          "position": {
+            "x": -21,
+            "y": 2,
+            "z": -33
+          },
+          "time": 56.09999999999895,
+          "kind": "sound"
+        }
+      },
+      {
+        "id": "blue-3",
+        "team": "blue",
+        "x": -16.639528196265257,
+        "z": -33.70601121478384,
+        "alive": true,
+        "hp": 100,
+        "state": "react",
+        "respawn": 0,
+        "kills": 1,
+        "deaths": 1,
+        "shots": 17,
+        "mag": 13,
+        "memory": {
+          "position": {
+            "x": -47.52262499999999,
+            "y": 3.6039149604957768,
+            "z": -31
+          },
+          "time": 56.9499999999989,
+          "kind": "visual"
+        }
+      },
+      {
+        "id": "blue-4",
+        "team": "blue",
+        "x": -4.902435123551818,
+        "z": 2.198614317191895,
+        "alive": false,
+        "hp": 0,
+        "state": "grenade",
+        "respawn": 0.9000000000000061,
+        "kills": 2,
+        "deaths": 2,
+        "shots": 29,
+        "mag": 22,
+        "memory": {
+          "position": {
+            "x": -26,
+            "y": 1.5,
+            "z": 6
+          },
+          "time": 53.84999999999908,
+          "kind": "sound"
+        }
+      },
+      {
+        "id": "blue-5",
+        "team": "blue",
+        "x": 60.363215882740064,
+        "z": 10.026487680523054,
+        "alive": true,
+        "hp": 100,
+        "state": "react",
+        "respawn": 0,
+        "kills": 0,
+        "deaths": 0,
+        "shots": 20,
+        "mag": 30,
+        "memory": {
+          "position": {
+            "x": 58.472219195142074,
+            "y": 2.5620585296080636,
+            "z": 35.21998085876174
+          },
+          "time": 56.9499999999989,
+          "kind": "visual"
+        }
+      },
+      {
+        "id": "blue-6",
+        "team": "blue",
+        "x": 33.85026227485284,
+        "z": -32.186789510194565,
+        "alive": true,
+        "hp": 100,
+        "state": "advance",
+        "respawn": 0,
+        "kills": 0,
+        "deaths": 1,
+        "shots": 0,
+        "mag": 30,
+        "memory": null
+      },
+      {
+        "id": "blue-7",
+        "team": "blue",
+        "x": -26.821682281112526,
+        "z": -39.659268057913756,
+        "alive": true,
+        "hp": 86.84595044948927,
+        "state": "search",
+        "respawn": 0,
+        "kills": 0,
+        "deaths": 1,
+        "shots": 19,
+        "mag": 11,
+        "memory": {
+          "position": {
+            "x": -48,
+            "y": 4,
+            "z": -32
+          },
+          "time": 56.09999999999895,
+          "kind": "sound"
+        }
+      },
+      {
+        "id": "blue-8",
+        "team": "blue",
+        "x": -16.42259862300744,
+        "z": -32.74539424329838,
+        "alive": true,
+        "hp": 100,
+        "state": "react",
+        "respawn": 0,
+        "kills": 1,
+        "deaths": 1,
+        "shots": 9,
+        "mag": 21,
+        "memory": {
+          "position": {
+            "x": -47.52262499999999,
+            "y": 3.6039149604957768,
+            "z": -31
+          },
+          "time": 56.9499999999989,
+          "kind": "visual"
+        }
+      },
+      {
+        "id": "blue-9",
+        "team": "blue",
+        "x": -1.3749875069680049,
+        "z": -62.9081884020591,
+        "alive": true,
+        "hp": 100,
+        "state": "search",
+        "respawn": 0,
+        "kills": 4,
+        "deaths": 2,
+        "shots": 0,
+        "mag": 30,
+        "memory": {
+          "position": {
+            "x": -21,
+            "y": 2,
+            "z": -33
+          },
+          "time": 56.09999999999895,
+          "kind": "sound"
+        }
+      },
+      {
+        "id": "blue-10",
+        "team": "blue",
+        "x": 60.000328438279524,
+        "z": 1.7948585451288783,
+        "alive": true,
+        "hp": 100,
+        "state": "react",
+        "respawn": 0,
+        "kills": 2,
+        "deaths": 0,
+        "shots": 15,
+        "mag": 15,
+        "memory": {
+          "position": {
+            "x": 58.472219195142074,
+            "y": 2.5620585296080636,
+            "z": 35.21998085876174
+          },
+          "time": 56.9499999999989,
+          "kind": "visual"
+        }
+      },
+      {
+        "id": "blue-11",
+        "team": "blue",
+        "x": 38.49891086205475,
+        "z": -37.241756232262986,
+        "alive": true,
+        "hp": 100,
+        "state": "advance",
+        "respawn": 0,
+        "kills": 0,
+        "deaths": 1,
+        "shots": 0,
+        "mag": 30,
+        "memory": null
+      },
+      {
+        "id": "blue-12",
+        "team": "blue",
+        "x": -16.93023338272493,
+        "z": -34.67749014093164,
+        "alive": true,
+        "hp": 100,
+        "state": "search",
+        "respawn": 0,
+        "kills": 0,
+        "deaths": 1,
+        "shots": 0,
+        "mag": 30,
+        "memory": {
+          "position": {
+            "x": -21,
+            "y": 2,
+            "z": -33
+          },
+          "time": 56.09999999999895,
+          "kind": "sound"
+        }
+      },
+      {
+        "id": "blue-13",
+        "team": "blue",
+        "x": -5.65200415629032,
+        "z": -6.047759591752368,
+        "alive": false,
+        "hp": 0,
+        "state": "cover",
+        "respawn": 3.100000000000003,
+        "kills": 0,
+        "deaths": 2,
+        "shots": 4,
+        "mag": 0,
+        "memory": {
+          "position": {
+            "x": -6,
+            "y": 4.5,
+            "z": 26
+          },
+          "time": 56.04999999999895,
+          "kind": "sound"
+        }
+      },
+      {
+        "id": "blue-14",
+        "team": "blue",
+        "x": -16.461825871076247,
+        "z": -31.576139725539598,
+        "alive": true,
+        "hp": 100,
+        "state": "react",
+        "respawn": 0,
+        "kills": 0,
+        "deaths": 1,
+        "shots": 12,
+        "mag": 18,
+        "memory": {
+          "position": {
+            "x": -47.52262499999999,
+            "y": 3.6039149604957768,
+            "z": -31
+          },
+          "time": 56.9499999999989,
+          "kind": "visual"
+        }
+      },
+      {
+        "id": "blue-15",
+        "team": "blue",
+        "x": 47.16233241785318,
+        "z": -40.30252625759897,
+        "alive": true,
+        "hp": 100,
+        "state": "advance",
+        "respawn": 0,
+        "kills": 1,
+        "deaths": 1,
+        "shots": 0,
+        "mag": 30,
+        "memory": null
+      }
+    ]
+  },
+  "stats": {
+    "children": 104,
+    "meshes": 1246,
+    "envBuilt": true,
+    "envObjects": 3,
+    "worldMode": "pvp",
+    "mapName": "沙海双城",
+    "arena": 76,
+    "modelParts": 23189,
+    "obstacles": 455,
+    "wallMeshes": 360,
+    "enemies": 29,
+    "trackedEnemies": 31,
+    "renderCalls": 698,
+    "triangles": 874340,
+    "geometries": 407,
+    "textures": 54
+  }
+}

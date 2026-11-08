@@ -21,7 +21,6 @@
 .overlay .big-btn.ghost{background:transparent;border:1px solid #637b88;color:#d4e0e3}
 .overlay .big-btn:hover,.overlay .st-btn.primary:hover{filter:brightness(1.08);transform:translateY(-1px)}
 .overlay .big-btn.ach-btn::before{content:none}
-.overlay .note,.overlay 
 .overlay .hidden{display:none!important}
 .eyebrow{font-size:11px;font-weight:600;letter-spacing:3px;color:var(--ui-gold);display:flex;align-items:center;gap:12px}
 .eyebrow>span{display:block;width:26px;height:2px;background:currentColor}
@@ -39,7 +38,7 @@
 .status-pill{display:inline-block;font-size:10px;letter-spacing:1px;line-height:1;padding:5px 8px;border:1px solid #ebc17d66;border-radius:3px;color:var(--ui-gold);background:#ebc17d10;white-space:nowrap}
 
 /* Title screen: a readable left rail and an unobstructed hero on the right. */
-#menu-overlay{display:block;padding:0;background:#10232e url('../assets/ui-art/menu-sandwatch.webp') center/cover no-repeat;overflow:auto;isolation:isolate}
+#menu-overlay{display:block;padding:0;background:#10232e url('../assets/ui-art/menu-sandwatch-cast.webp') center/cover no-repeat;overflow:auto;isolation:isolate}
 #menu-overlay.hidden{display:none}
 #menu-overlay::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(90deg,#081722ed 0%,#0c2028ba 29%,#10212a38 53%,transparent 74%),linear-gradient(0deg,#081922d9,transparent 30%,transparent 80%,#08192266)}
 .home-shell{min-height:100%;min-height:100dvh;display:flex;flex-direction:column;padding:28px clamp(28px,5.5vw,110px)}
@@ -61,7 +60,7 @@
 .home-bottom b{color:var(--ui-gold);margin-left:24px;font-size:20px;font-weight:400}
 
 /* Lobby */
-#level-overlay{padding:0;background:#11232d url('../assets/ui-art/lobby-outpost.webp') center/cover no-repeat;display:block;overflow:auto}
+#level-overlay{padding:0;background:#11232d url('../assets/ui-art/lobby-outpost-cast.webp') center/cover no-repeat;display:block;overflow:auto}
 #level-overlay.hidden{display:none}
 .lobby-shell{height:100%;min-height:100dvh;display:flex;flex-direction:column;position:relative;background:linear-gradient(90deg,#081922ed 0%,#0b1e29cc 26%,#0b1d2340 50%,#0b1b220a 65%,#0b1b2299 100%),linear-gradient(0deg,#091a26e8,transparent 40%);color:var(--ui-text)}
 .lobby-topbar{flex:0 0 auto;padding:17px 32px;display:flex;align-items:center;justify-content:space-between;gap:22px;border-bottom:1px solid var(--ui-line);background:#091923c4}
@@ -81,7 +80,7 @@
 .mode-specs{display:flex;gap:12px;margin:18px 0 23px;font-size:10px;color:#d5e1dc}.mode-specs span+span{border-left:1px solid #c8dfdd33;padding-left:12px}
 .mode-room-link{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px 0 0;background:none;border:none;color:#bed0d2;font-size:12px;min-height:36px}.mode-room-link:hover{color:var(--ui-gold)}
 .lobby-modes .mode-card{display:flex;align-items:center;gap:15px;text-align:left;position:relative;isolation:isolate;width:100%;padding:17px 18px;border-radius:6px;border:1px solid #b6d0d42b;margin:12px 0 0;background:#10252be8;min-height:80px;color:var(--ui-text);box-shadow:none}
-.mode-card.endless-card{background:linear-gradient(90deg,#10242bf5,#12252bda),url('../assets/ui-art/loading-rooftops.webp') center/cover}
+.mode-card.endless-card{background:linear-gradient(90deg,#10242bf5,#12252bda),url('../assets/ui-art/loading-rooftops-cast.webp') center/cover}
 .mode-card b{display:block;font-size:16px;letter-spacing:1px}.mode-card small{display:block;color:#a3b9bf;font-size:10px;margin-top:7px;font-weight:400}.mode-index{font-size:11px;color:var(--ui-gold);align-self:flex-start;margin-top:5px;letter-spacing:1px}.mode-arrow{margin-left:auto;font-size:24px;color:var(--ui-gold)}
 .lobby-modes .mode-card:hover:not(:disabled){border-color:#dfba7d99;background-color:#233d43;transform:translateX(3px)}
 .lobby-modes .mode-card.locked{opacity:.65;filter:none;background:#12242abb}.mode-lock{margin-left:auto;color:#9fb3bb;font-size:10px;white-space:nowrap}.locked .mode-index{color:#9fb3bb}
@@ -119,10 +118,20 @@
 .room-main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(200px,1fr) 280px minmax(200px,1fr);gap:24px;padding:28px 32px;overflow:auto;align-items:start}
 .room-team{border-radius:7px;overflow:hidden;border:1px solid #afc5c52b;background:#10232ca8;min-width:0}.room-team.red{border-color:#d8977b55}.room-team.blue{border-color:#82b5da55}.rt-head{padding:18px;font-size:12px;font-weight:600;display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #ffffff10}.room-team.red .rt-head{background:#e0806820;color:#f5b09b}.room-team.blue .rt-head{background:#75b3e51a;color:#9bcbed}
 .rt-slots{padding:10px;max-height:none;overflow:visible;display:grid;gap:6px}.rt-slot{margin:0;min-height:42px;border:1px solid #a5c6c51a;background:#a6c2ca05;padding:10px 12px;font-size:11px;display:flex;gap:10px;justify-content:space-between;align-items:center;border-radius:3px}.rt-slot>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rt-slot.me{border-color:#e9c17d77;background:#e8bc7510;color:var(--ui-gold)}.rt-tag{font-size:9px;color:#89a5af;border:1px solid #b0c2c326;white-space:nowrap;padding:2px 5px;border-radius:3px}.rt-slot.me .rt-tag{color:var(--ui-gold)}.rt-slot.empty{border-style:dashed;opacity:.55}
-.room-center{display:flex;flex-direction:column;gap:18px}.rc-map{border:1px solid #c0d8d629;border-radius:6px;overflow:hidden;background:#142c35}.rc-map-thumb{height:160px;background:#16303a url('../assets/ui-art/loading-rooftops.webp') center/cover;border-radius:0}.rc-map-name{font-size:13px;padding:14px 16px;letter-spacing:1px}.rc-info{background:#aac5be07;border:1px solid #c0d8d620;padding:16px;border-radius:5px}.rc-row{display:flex;justify-content:space-between;gap:14px;font-size:11px;margin:12px 0;line-height:1.6}.rc-row:first-child{margin-top:0}.rc-row:last-child{margin-bottom:0}.rc-row>span{color:#8eabb6;white-space:nowrap}.rc-row b{text-align:right;font-weight:500;color:#c7d9da}.room-note{font-size:11px;color:#a6bec3;line-height:1.9;padding:0 2px}.rc-sim{font-size:11px;color:#b4c8ce;background:transparent;border:1px dashed #a6c4c73d;min-height:42px;border-radius:4px;padding:10px}.rc-sim:hover{border-color:var(--ui-gold);color:var(--ui-gold)}
+.room-center{display:flex;flex-direction:column;gap:18px}.rc-map{border:1px solid #c0d8d629;border-radius:6px;overflow:hidden;background:#142c35}.rc-map-thumb{height:160px;background:#16303a url('../assets/ui-art/loading-rooftops-cast.webp') center/cover;border-radius:0}.rc-map-name{font-size:13px;padding:14px 16px;letter-spacing:1px}.rc-info{background:#aac5be07;border:1px solid #c0d8d620;padding:16px;border-radius:5px}.rc-row{display:flex;justify-content:space-between;gap:14px;font-size:11px;margin:12px 0;line-height:1.6}.rc-row:first-child{margin-top:0}.rc-row:last-child{margin-bottom:0}.rc-row>span{color:#8eabb6;white-space:nowrap}.rc-row b{text-align:right;font-weight:500;color:#c7d9da}.room-note{font-size:11px;color:#a6bec3;line-height:1.9;padding:0 2px}.rc-sim{font-size:11px;color:#b4c8ce;background:transparent;border:1px dashed #a6c4c73d;min-height:42px;border-radius:4px;padding:10px}.rc-sim:hover{border-color:var(--ui-gold);color:var(--ui-gold)}
 .cr-form{gap:18px;margin:23px 0}.cr-row{display:grid;grid-template-columns:105px 1fr;align-items:center;gap:16px;text-align:left;font-size:12px}.cr-row>span{color:#b4c8ce}.cr-row select,.cr-row input{width:100%}.cr-check{align-items:flex-start;gap:12px;text-align:left;padding:16px;background:#bfd3c905;border:1px solid #b6cfca20;border-radius:5px;font-size:12px;line-height:1.7}.cr-check input{margin-top:4px;flex-shrink:0}.cr-check em{font-style:normal;display:block;font-size:10px;margin-top:5px;color:#87a4ae}.cr-check.disabled{opacity:.55}
 
-/* Inventory: the extra basin-helmet character has her own armory banner. */
+/* Inventory: authored character/equipment previews and category browsing. */
+.inv-catalog{min-width:0}.inv-filters{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #afc9ca22}
+.inv-filters.hidden{display:none}
+.inv-item.coming-soon .ii-future{position:relative;background:#c2cbd512;border:0!important;overflow:hidden}.ii-future img{filter:none!important;opacity:.9}.ii-future span{position:absolute;bottom:8px;left:8px;right:8px;text-align:center;background:#102733e6;border:1px solid #d9bf8559;border-radius:3px;padding:7px 4px;color:#f3e1bc;font-size:11px;letter-spacing:3px;box-shadow:0 2px 10px #0004}
+.inv-grid.character-grid{display:block}.inv-faction-note{font-size:11px;line-height:1.6;color:#91a9b4;margin:0 0 18px}.inv-faction{min-width:0;margin-bottom:24px;--faction-accent:#df9a96}.inv-faction:last-child{margin-bottom:0}.inv-faction-blue{--faction-accent:#92c7e9}.inv-faction-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #aac5cd26;padding:0 0 10px;margin-bottom:12px}.inv-faction-heading h3{margin:0;padding-left:10px;border-left:3px solid var(--faction-accent);font-size:13px;font-weight:600;letter-spacing:1px;color:var(--faction-accent)}.inv-faction-heading>span{font-size:10px;color:#8ba6b2}.inv-faction-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media(min-width:1250px){.inv-faction-cards{grid-template-columns:repeat(4,minmax(0,1fr))}.inv-grid.character-grid .ii-thumb{height:145px}}
+@media(max-width:600px){.inv-faction-cards{gap:10px}.inv-faction-heading h3{font-size:12px}.inv-faction-note{font-size:10px}}
+.inv-filter{border:1px solid #a4c2c633;border-radius:4px;background:#102936;color:#afc6cb;padding:8px 10px;font:inherit;font-size:11px;min-height:36px;cursor:pointer}.inv-filter.active{background:#dec18c;color:#142b36;border-color:#dec18c}.inv-filter:focus-visible,.inv-item:focus-visible{outline:2px solid #e6c58c;outline-offset:3px}
+.inv-item.coming-soon{cursor:default;border-style:dashed;background:#13273366;opacity:.7}.inv-item.coming-soon:hover{transform:none;border-color:#a4c2c633}.ii-future{background:linear-gradient(135deg,#9abdb706,#9abdb712);color:#849fa8;font-size:13px;letter-spacing:3px;border:1px dashed #9abdb72b!important}.ii-symbol{font-size:62px;color:#b4d8d9;text-shadow:0 0 22px #5fa2bb55}.id-description{font-size:12px;line-height:1.9;color:#b4c9ce;margin:14px 0 22px}.character-grid .ii-thumb{height:160px}
+@media(max-width:900px){.inv-catalog{grid-column:2;grid-row:1}}
+@media(max-width:600px){.inv-catalog{grid-column:1;grid-row:auto}.inv-filter{font-size:10px;padding:7px 10px}.character-grid .ii-thumb{height:125px}}
 .armory-banner{flex:0 0 auto;min-height:220px;height:clamp(220px,23vw,310px);background:#18303a url('../assets/ui-art/armory-basin-v2.webp') center top/cover;position:relative;display:flex;align-items:center;padding:25px 44px;isolation:isolate;border-bottom:1px solid #b6cfca33}
 .armory-banner::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#0c212bba,transparent 62%)}.armory-banner h1{margin:16px 0 12px;font-size:37px;letter-spacing:3px;text-shadow:none}.armory-banner p{font-size:12px;color:#d3dfdb;letter-spacing:1px;margin-bottom:25px}.armory-banner small{color:#a7bcbf;font-size:10px}
 .shell-main.inv-main{grid-template-columns:140px minmax(0,1fr) 265px;min-height:360px;gap:24px;flex:1;overflow:visible}
@@ -133,7 +142,7 @@
 
 /* Quick play, map picker and guide */
 
-.map-grid{gap:16px;margin:26px 0}.map-card{background:#a9c6c609;border:1px solid #a9c6c633;border-radius:6px;text-align:left;overflow:hidden;padding:0 0 18px;min-width:0;color:#dce5e2;transition:border-color .18s}.map-card:hover:not(.locked){border-color:var(--ui-gold)}.map-thumb{border-radius:0;height:145px;background:linear-gradient(145deg,#233d49,#102430);display:flex;align-items:center;justify-content:center;font-size:24px}.map-thumb.desert{background:#21414b url('../assets/ui-art/loading-rooftops.webp') center/cover;position:relative;align-items:flex-end;justify-content:flex-start;padding:12px}.map-thumb.desert>span{font-size:8px;letter-spacing:1px;padding:5px 8px;background:#112a30db;color:#e9d3a5;border:1px solid #e2cf9b44}.map-name{margin:16px 18px 8px;font-size:16px}.map-desc{margin:0 18px;font-size:10px;line-height:1.7;color:#91aab5}.map-play{display:block;font-size:11px;color:var(--ui-gold);margin:18px 18px 0}.map-card.locked{opacity:.45;cursor:default;filter:none}
+.map-grid{gap:16px;margin:26px 0}.map-card{background:#a9c6c609;border:1px solid #a9c6c633;border-radius:6px;text-align:left;overflow:hidden;padding:0 0 18px;min-width:0;color:#dce5e2;transition:border-color .18s}.map-card:hover:not(.locked){border-color:var(--ui-gold)}.map-thumb{border-radius:0;height:145px;background:linear-gradient(145deg,#233d49,#102430);display:flex;align-items:center;justify-content:center;font-size:24px}.map-thumb.desert{background:#21414b url('../assets/ui-art/loading-rooftops-cast.webp') center/cover;position:relative;align-items:flex-end;justify-content:flex-start;padding:12px}.map-thumb.desert>span{font-size:8px;letter-spacing:1px;padding:5px 8px;background:#112a30db;color:#e9d3a5;border:1px solid #e2cf9b44}.map-name{margin:16px 18px 8px;font-size:16px}.map-desc{margin:0 18px;font-size:10px;line-height:1.7;color:#91aab5}.map-play{display:block;font-size:11px;color:var(--ui-gold);margin:18px 18px 0}.map-card.locked{opacity:.45;cursor:default;filter:none}
 #controls-dialog{color:var(--ui-text);font-family:"Microsoft YaHei",sans-serif;background:#10232e;border:1px solid #a9c4c54d;border-top:3px solid var(--ui-gold);border-radius:8px;padding:28px;width:min(720px,calc(100vw - 36px));max-height:calc(100dvh - 36px);overflow:auto;box-shadow:0 25px 100px #0008}
 #controls-dialog::backdrop{background:#06121acc;backdrop-filter:blur(8px)}.help-head{display:flex;align-items:center;justify-content:space-between}.help-head h2{font-size:26px;margin:12px 0 20px;letter-spacing:2px}.help-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;border-top:1px solid var(--ui-line);border-bottom:1px solid var(--ui-line);padding:20px 0;margin-bottom:20px}.help-grid h3{font-size:13px;margin:0 0 18px;color:var(--ui-gold)}.help-grid p{font-size:11px;color:#b7c9cb;line-height:2}.help-rule>b{font-size:12px;color:#d2e0db}.help-rule p,.help-foot{font-size:12px;line-height:1.9;color:#a0b9c1}.help-foot{font-size:10px;margin-top:20px;color:#7494a1}
 #notice-pop{z-index:18;max-width:min(600px,90vw);box-sizing:border-box;white-space:normal;pointer-events:none}
@@ -164,3 +173,79 @@ body[data-ui] #notice-pop{z-index:330;top:auto;bottom:40px;color:#e5e9dd;backgro
 @media(max-width:600px){.map-grid{grid-template-columns:1fr}.lt-nav .lt-tab{flex:1 1 0;padding:10px 4px;min-width:0;max-width:none}.lt-tab.active::after{left:8px;right:8px}.armory-banner{background-position:69% top}}
 .armory-banner{background-size:auto 100%;background-position:right center;background-repeat:no-repeat}.st-title{font-weight:700}
 @media(prefers-reduced-motion:reduce){.overlay *,.loading-art,#loading-fill{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* A faction chooses the saved character, including in local room rosters. */
+.deploy-team{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:12px 0;color:#bdd0d6;font-size:12px}.deploy-team select{min-height:36px;min-width:100px;border:1px solid #94becb66;border-radius:4px;padding:5px 12px;color:#e7f4f5;background:#122b36}
+
+/* Desktop armory: inspect the collection on the left, configure both teams on the right. */
+#inventory-overlay .armory-banner{height:164px;min-height:164px;flex-shrink:0;padding:24px 34px}
+#inventory-overlay .armory-banner h1{font-size:30px;margin:8px 0}
+#inventory-overlay .armory-banner p{margin:0 0 12px}
+#inventory-overlay .shell-top{padding:20px 30px;gap:20px}
+#inventory-overlay .st-sub{max-width:none;font-size:11px}
+#inventory-overlay .st-right{margin-left:auto}
+#inventory-overlay .inv-main{grid-template-columns:106px minmax(270px,1fr) minmax(420px,.95fr);gap:22px;padding:25px 30px;align-items:start;flex:0 0 auto}
+#inventory-overlay .inv-catalog{min-width:0}
+#inventory-overlay .inv-grid{gap:12px}
+#inventory-overlay .ii-thumb{height:104px}
+#inventory-overlay .inv-faction-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+#inventory-overlay .ii-stats{flex-wrap:wrap}
+#inventory-overlay .inv-detail{margin-top:20px;padding:22px;position:static;grid-column:auto;grid-row:auto}
+.inv-equip-actions{display:flex;gap:10px;margin-top:16px;color:#a7bac2;font-size:12px}
+.inv-equip-actions .id-equip{margin:0;flex:1;font-size:12px;min-height:40px;padding:8px}
+.inv-equip-actions [data-team=red]{border-color:#c4887c;color:#f0b5a7;background:#5c363b55}
+.inv-equip-actions [data-team=blue]{border-color:#70aabc;color:#a7dfed;background:#254b6255}
+.inv-team-loadouts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-width:0;position:sticky;top:22px}
+.inv-kits-heading{grid-column:1/-1;display:flex;align-items:end;justify-content:space-between;gap:8px;margin:0 0 4px}
+.inv-kits-heading small{font-size:9px;letter-spacing:2px;color:#dabb89}
+.inv-kits-heading h2{font-size:20px;letter-spacing:2px;margin:5px 0 0;font-weight:600}
+.inv-kits-heading>span{font-size:10px;color:#94afb9;padding-bottom:3px}
+.inv-team-column{--kit-accent:#e2a395;--kit-line:#c887795c;--kit-tint:#673e3c24;min-width:0;border:1px solid var(--kit-line);border-radius:8px;padding:10px;background:linear-gradient(180deg,var(--kit-tint),#09192388)}
+.inv-team-blue{--kit-accent:#98d3e5;--kit-line:#78b1c25c;--kit-tint:#31546b33}
+.inv-team-column>header{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:5px 2px 13px;color:var(--kit-accent)}
+.inv-team-column h3{font-size:14px;font-weight:600;margin:0;letter-spacing:1px}
+.inv-team-column>header small{width:100%;padding-left:17px;font-size:10px;color:#9badb5}
+.inv-team-dot{width:7px;height:7px;border-radius:50%;background:var(--kit-accent)}
+.inv-loadout-slot{display:block;width:100%;position:relative;text-align:left;color:#dae5e8;border:1px solid #8eacb72e;border-radius:5px;padding:9px 10px;margin:0 0 7px;background:#102632b0;cursor:pointer;font-family:inherit;transition:background .15s,border-color .15s}
+.inv-loadout-slot:last-child{margin-bottom:0}
+.inv-loadout-slot:hover:not(:disabled){background:#29414b;border-color:var(--kit-accent)}
+.inv-loadout-slot:focus-visible,.inv-choice:focus-visible,#inv-slot-close:focus-visible{outline:2px solid #f4cc86;outline-offset:3px}
+.inv-slot-label{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--kit-accent)}
+.inv-slot-label kbd{font-family:inherit;font-size:9px;width:15px;height:14px;text-align:center;border:1px solid #9cb2bd44;border-radius:2px;line-height:12px}
+.inv-slot-value{display:flex;align-items:center;gap:7px;min-height:28px;margin:2px 0}
+.inv-slot-value img{width:52px;height:32px;object-fit:contain;flex-shrink:0}
+.inv-slot-value b{font-size:12px;font-weight:600;line-height:1.35;overflow-wrap:anywhere}
+.inv-slot-chevron{margin-left:auto;color:var(--kit-accent);font-size:20px}
+.inv-loadout-slot>small{display:block;font-size:9px;line-height:1.4;color:#91a8b3}
+.inv-character-slot .inv-slot-value{min-height:53px}
+.inv-character-slot img{height:53px}
+.inv-slot-placeholder{width:30px;text-align:center;font-size:24px;color:#9eb3bb;line-height:28px}
+.inv-loadout-slot:disabled{cursor:default;background:#10232b66;border-style:dashed;color:#a8bdc5;opacity:.72}
+.inv-loadout-slot:disabled .inv-slot-value{min-height:20px}
+.inv-loadout-slot:disabled .inv-slot-placeholder{font-size:18px;line-height:20px}
+.inv-slot-dialog{--kit-accent:#98d3e5;box-sizing:border-box;inset:0;margin:auto;width:min(820px,86vw);height:fit-content;max-height:88vh;padding:26px;border:1px solid #6a919d;border-radius:12px;background:radial-gradient(ellipse at right top,#294856,#0d202d 70%);color:#e2edf0;box-shadow:0 26px 90px #0009;overflow:auto;font-family:inherit}
+.inv-slot-dialog[data-team=red]{--kit-accent:#e2a395}
+.inv-slot-dialog::backdrop{background:#020e17b8;backdrop-filter:blur(6px)}
+.inv-picker-head{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.inv-picker-head small{font-size:11px;letter-spacing:2px;color:var(--kit-accent)}
+.inv-picker-head h2{font-size:26px;letter-spacing:2px;margin:8px 0 0}
+#inv-slot-close{width:38px;height:38px;background:#abc3ce12;color:#c5d7dd;border:1px solid #8aabb34d;border-radius:5px;font-size:25px;cursor:pointer}
+#inv-slot-note{font-size:12px;line-height:1.7;color:#a7bec8;margin:14px 0 22px}
+.inv-slot-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:13px}
+.inv-choice{display:flex;flex-direction:column;text-align:left;min-width:0;border:1px solid #8babb444;background:#142c38;padding:16px;border-radius:7px;color:#e1eced;font-family:inherit;cursor:pointer;transition:background .15s,border-color .15s}
+.inv-choice:hover{background:#26444e;border-color:var(--kit-accent)}
+.inv-choice.is-equipped{border-color:var(--kit-accent);box-shadow:inset 0 0 0 1px var(--kit-accent)}
+.inv-choice>img{height:146px;width:100%;object-fit:contain}
+.inv-choice-empty{display:grid;place-items:center;height:146px;font-size:48px;color:#708e9c}
+.inv-choice h3{font-size:16px;margin:16px 0 9px}
+.inv-choice p{font-size:11px;color:#adc2cb;line-height:1.85;margin:10px 0 22px}
+.inv-choice-ammo{font-size:11px;line-height:1.6;color:var(--kit-accent)}
+.inv-choice-action{margin-top:auto;display:block;padding-top:12px;border-top:1px solid #8babb433;font-size:12px;color:var(--kit-accent)}
+.inv-picker-foot{margin:20px 0 0;font-size:10px;color:#91a8b3;text-align:right}
+@media(min-width:901px) and (max-width:1200px){#inventory-overlay .inv-main{grid-template-columns:88px minmax(235px,1fr) 400px;padding:20px;gap:16px}.inv-team-loadouts{gap:8px}.inv-team-column{padding:8px}.inv-slot-value img{width:43px}.inv-kits-heading>span{font-size:9px}#inventory-overlay .st-sub{display:none}#inventory-overlay .inv-item{padding:10px}}
+
+/* Four-slot combat inventory and contextual weapon loot. */
+.wslot small{display:block;font-size:10px;font-weight:400;letter-spacing:0;opacity:.76;margin-top:2px}.wslot.empty{opacity:.45}#weapon-pickup{position:absolute;left:50%;bottom:136px;transform:translateX(-50%);width:max-content;max-width:min(680px,90vw);padding:10px 16px;border:1px solid #86b6b5;background:rgba(12,30,39,.93);color:#f1e3c6;border-radius:7px;font-size:13px;text-align:center;pointer-events:none}.tch-loot{display:none}.pvp-mode #touch-ui .tch-loot{display:flex}@media(max-width:600px){.wslot{font-size:11px!important;padding:4px 6px!important}.wslot small{font-size:8px}#weapon-pickup{bottom:165px;font-size:11px;max-width:85vw}}
+#weapon-pickup.hidden,#weapon-pickup[hidden],#weapon-pickup:empty{display:none!important}
+.wslot{font-family:inherit;pointer-events:auto}.wslot:focus-visible{outline:2px solid #f3cb83;outline-offset:3px}.touch-mode #weapon-bar{bottom:258px;right:20px;max-width:calc(100vw - 40px);gap:4px}.touch-mode .wslot{font-size:11px;padding:6px;touch-action:none}.touch-mode .wslot small{font-size:8px}.touch-mode #ammo-wrap,.touch-mode #nade-wrap{bottom:315px}.touch-mode #weapon-pickup{bottom:366px}.touch-mode.pvp-mode #touch-right{display:grid;width:190px;height:auto;grid-template-columns:repeat(3,58px);grid-template-rows:repeat(3,58px);gap:8px}.touch-mode.pvp-mode #btn-tch-fire{grid-area:2 / 2 / 4 / 4;width:124px;height:124px}.touch-mode.pvp-mode #btn-tch-jump{grid-area:1 / 3}.touch-mode.pvp-mode #btn-tch-reload{grid-area:1 / 2}.touch-mode.pvp-mode #btn-tch-nade{grid-area:1 / 1}.touch-mode.pvp-mode #btn-tch-pickup{grid-area:2 / 1}.touch-mode.pvp-mode #btn-tch-drop{grid-area:3 / 1}.touch-mode.pvp-mode #btn-tch-skill{display:none}.touch-mode.pvp-mode #touch-pause{right:230px}
+@media(max-width:600px){body.touch-mode #health-wrap{left:12px;top:88px;width:160px;padding:7px 10px}.touch-mode.pvp-mode #pvp-status{top:145px;font-size:9px}.touch-mode #minimap{left:12px;top:177px;bottom:auto;width:108px;height:108px}.touch-mode.pvp-mode #pvp-radar-key{left:12px;top:289px;bottom:auto;width:108px;font-size:8px}.touch-mode #weapon-bar{bottom:242px;left:12px;right:12px;max-width:none;justify-content:space-between}.touch-mode #ammo-wrap{bottom:305px;right:18px}.touch-mode #nade-wrap{bottom:305px;right:170px}.touch-mode #btn-fullscreen{right:12px;top:100px;font-size:10px}.touch-mode.pvp-mode #fallback-hint{top:310px;bottom:auto;max-width:85vw;width:320px;font-size:10px}.touch-mode #weapon-pickup{bottom:365px;font-size:11px}.touch-mode #notice-pop{top:40%;font-size:12px}}

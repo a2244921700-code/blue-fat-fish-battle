@@ -15,7 +15,7 @@ const OUT=process.env.FISH_TEST_OUTPUT||path.join(__dirname,'fps-results');fs.mk
   await page.evaluate(()=>{window.loadStages=[];new MutationObserver(()=>loadStages.push(+document.getElementById('loading-track').getAttribute('aria-valuenow'))).observe(document.getElementById('loading-track'),{attributes:true,attributeFilter:['aria-valuenow']});});
   await page.click('#btn-start');await page.screenshot({path:path.join(OUT,'01-lobby.png')});
   check('快速出战准备页已删除，规则通过自定义房间设置',await page.locator('#pvp-overlay').count()===0&&await page.locator('#cr-teamsize option').count()===4);
-  await page.click('#btn-pvp-mode');await page.screenshot({path:path.join(OUT,'02-loading.png')});
+  await page.selectOption('#lobby-deploy-team','red');await page.click('#btn-pvp-mode');await page.screenshot({path:path.join(OUT,'02-loading.png')});
   await page.waitForFunction(()=>FishGame.__debug.getPvp().active&&document.getElementById('loading-overlay').classList.contains('hidden'),null,{timeout:60000});
   await page.evaluate(()=>{const d=FishGame.__debug;d.enterFallback();d.setState('paused');window.stepGame=seconds=>{d.setState('playing');for(let t=0;t<seconds-.0001;t+=.05)d.update(Math.min(.05,seconds-t));if(d.getState()==='playing')d.setState('paused');};window.aiStep=d.getPvpTactics().step;d.getPvpTactics().step=()=>{};});
   const initial=await page.evaluate(()=>({state:FishGame.__debug.getPvp(),snap:FishGame.__debug.pvpSnapshot(),loading:loadStages,stats:FishGame.__debug.getSceneStats()}));
@@ -60,31 +60,57 @@ const OUT=process.env.FISH_TEST_OUTPUT||path.join(__dirname,'fps-results');fs.mk
     const friendHP=friend.hp;d.setState('paused');return {friendHP};});
   check('刀击不会伤害己方队员',combat.friendHP===100);
   const walls=await page.evaluate(()=>{const d=FishGame.__debug,p=d.getPlayer(),all=d.getEnemies().filter(e=>e.isBot),friend=all.find(e=>e.team==='red'),blue=all.filter(e=>e.team==='blue'),hidden=blue[0],exposed=blue[1];
-    all.forEach((e,i)=>{e.mesh.position.set(-40,1.4,-30+i*.1);e.protection=0;});friend.mesh.position.set(8,1.4,5);hidden.mesh.position.set(15,1.4,5);exposed.mesh.position.set(7,1.4,5);friend.hp=hidden.hp=exposed.hp=100;
-    p.pos.set(9,0,5);p.yaw=-Math.PI/2;p.pitch=0;p.hp=100;d.setState('playing');d.update(.8);d.switchWeapon('rifle');d.update(.75);d.shootOnce();const gunBlocked=hidden.hp===100;
-    const t=d.getPvpTactics(),botBlocked=t.fire({source:friend,position:friend.mesh.position,eyeY:1.9},{x:15,y:1.5,z:5},{damage:36},0)===false;
-    d.setNadeCount(1);d.nadeThrow();const gr=d.getGrenades()[0];gr.pos.set(9,.14,5);gr.vel.set(0,0,0);gr.fuse=0;d.update(0);d.setState('paused');return {gunBlocked,botBlocked,friend:friend.hp,hidden:hidden.hp,exposed:exposed.hp};});
+    all.forEach((e,i)=>{e.mesh.position.set(-40,1.4,-30+i*.1);e.protection=0;});friend.mesh.position.set(-14,1.4,-4.5);hidden.mesh.position.set(-12,1.4,-11);exposed.mesh.position.set(-10,1.4,-4);friend.hp=hidden.hp=exposed.hp=100;
+    p.pos.set(-12,0,-5);p.yaw=0;p.pitch=0;p.hp=100;d.setState('playing');d.update(.8);d.switchWeapon('rifle');d.update(.75);d.shootOnce();const gunBlocked=hidden.hp===100;
+    const t=d.getPvpTactics(),botBlocked=t.fire({source:friend,position:friend.mesh.position,eyeY:1.9},{x:-12,y:1.5,z:-11},{damage:36},0)===false;
+    d.setNadeCount(1);d.switchWeapon('grenade');for(let t=0;t<.8;t+=.01)d.update(.01);d.nadeThrow();for(let t=0;t<1.11;t+=.01)d.update(.01);const gr=d.getGrenades()[0];gr.pos.set(-12,.14,-5);gr.vel.set(0,0,0);gr.fuse=0;d.update(0);d.setState('paused');return {gunBlocked,botBlocked,friend:friend.hp,hidden:hidden.hp,exposed:exposed.hp};});
   check('玩家子弹与 AI 枪口都不能隔墙射击',walls.gunBlocked&&walls.botBlocked);
   check('手雷伤害遵守墙体遮挡及无友伤，能伤害暴露敌人',walls.friend===100&&walls.hidden===100&&walls.exposed<100);
   const redLoss=await page.evaluate(()=>{const d=FishGame.__debug;d.pvpSetTickets(1,20);d.setState('playing');d.pvpHurtPlayer();d.setState('paused');return {p:d.getPvp(),s:d.pvpSnapshot()};});
   check('红队最后额度耗尽同样立即判回合失败',redLoss.s.tickets.red===0&&redLoss.p.botRounds===1&&redLoss.p.roundState==='over');
   // 重新部署 16v16：每一个出生点可走、分隔在地图两端，无重叠。
-  const large=await page.evaluate(()=>{const d=FishGame.__debug;d.startPvp({teamSize:16});d.enterFallback();d.setState('paused');const s=d.pvpSnapshot(),nav=d.getPvpTactics().nav,p=d.getPlayer();const pts=s.actors.map(a=>({x:a.x,z:a.z})).concat([{x:p.pos.x,z:p.pos.z}]);let min=Infinity;for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++)min=Math.min(min,Math.hypot(pts[i].x-pts[j].x,pts[i].z-pts[j].z));return {s,min,clear:pts.every(p=>nav.clear(p.x,p.z))};});
+  const large=await page.evaluate(()=>{const d=FishGame.__debug;d.startPvp({team:'red',teamSize:16});d.enterFallback();d.setState('paused');const s=d.pvpSnapshot(),nav=d.getPvpTactics().nav,p=d.getPlayer();const pts=s.actors.map(a=>({x:a.x,z:a.z})).concat([{x:p.pos.x,z:p.pos.z}]);let min=Infinity;for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++)min=Math.min(min,Math.hypot(pts[i].x-pts[j].x,pts[i].z-pts[j].z));return {s,min,clear:pts.every(p=>nav.clear(p.x,p.z))};});
   check('16v16 有 31 个 AI 且全部在两端合法部署',large.s.actors.length===31&&large.s.actors.every(a=>a.team==='red'?a.z>35:a.z<-35)&&large.clear);
   check('32 人的出生位置互不重叠',large.min>=1.5);
-  const run=await page.evaluate(()=>{const d=FishGame.__debug,t=d.getPvpTactics(),begin=performance.now();stepGame(60);return {ms:performance.now()-begin,ai:t.stats,nav:t.nav.stats,pvp:d.getPvp(),s:d.pvpSnapshot(),stats:d.getSceneStats()};});
+  const run=await page.evaluate(()=>{
+    const d=FishGame.__debug,t=d.getPvpTactics(),nav=t.nav,route=nav.route,failures=[],begin=performance.now();let expectedJumpRejections=0;
+    nav.route=function(from,to,allowJumps){
+      const count=this.stats.failed,path=route.call(this,from,to,allowJumps);
+      if(this.stats.failed>count){
+        // Evade/reload planning probes walking-only alternatives. A crate top
+        // may have jump exits only: prove that exception by replaying the same
+        // query with jumps, without changing the real navigation statistics.
+        let requiresJump=false;
+        if(allowJumps===false){const saved={...this.stats},retry=route.call(this,from,to,true);requiresJump=retry.some(p=>p.jump);Object.assign(this.stats,saved);}
+        if(requiresJump)expectedJumpRejections++;
+        if(failures.length<30)failures.push({from:{...from},to:{...to},allowJumps,requiresJump,fromClear:this.clear(from.x,from.z,from.y),toClear:this.clear(to.x,to.z,to.y)});
+      }
+      return path;
+    };
+    try{stepGame(60);}finally{nav.route=route;}
+    return {ms:performance.now()-begin,ai:t.stats,nav:nav.stats,failures,expectedJumpRejections,pvp:d.getPvp(),s:d.pvpSnapshot(),stats:d.getSceneStats()};
+  });results.largeBattle=run;fs.writeFileSync(path.join(OUT,'battle-diagnostics.json'),JSON.stringify(run,null,2));
   check('32 人自主对战实际移动、交火并产生伤亡',run.ai.shots>50&&run.s.actors.some(a=>a.deaths>0)&&run.s.actors.some(a=>Math.abs(a.z)<30));
-  check('导航没有路线查找失败',run.nav.failed===0);results.largeBattle=run;
+  check('导航无异常失败，禁跳候选仅允许确实需要跳跃的拒绝',run.nav.failed===run.expectedJumpRejections);
   // 让相机看到正在交火的角色和武器；不改变角色图像资源。
   await page.evaluate(()=>{const d=FishGame.__debug,p=d.getPlayer();p.pos.set(0,0,24);p.yaw=0;p.pitch=0;d.setState('playing');d.update(0);d.setState('paused');});
   await page.screenshot({path:path.join(OUT,'05-large-battle.png')});
-  const aim=await page.evaluate(()=>{const d=FishGame.__debug,t=d.getPvpTactics(),step=t.step;const e=d.getEnemies().find(e=>e.isBot&&e.alive),target=new THREE.Vector3(e.mesh.position.x+4,2,e.mesh.position.z-8);t.step=()=>{};e.brain.aim=target.clone();e.brain.reload=0;d.setState('playing');d.update(0);d.setState('paused');t.step=step;const muzzle=e.gunMesh.muzzleTip,pos=muzzle.getWorldPosition(new THREE.Vector3()),forward=muzzle.getWorldDirection(new THREE.Vector3());return forward.dot(target.clone().sub(pos).normalize());});
-  check('AI 武器模型枪口轴与实际瞄准方向一致',aim>.995);
+  const aim=await page.evaluate(()=>{
+    const d=FishGame.__debug,t=d.getPvpTactics(),step=t.step;
+    // A throwing or melee actor is intentionally not in a gun-aiming pose.
+    const e=d.getEnemies().find(e=>e.isBot&&e.alive&&!e.grenadeAction&&!e.character.attack&&['rifle','pistol','fishpistol'].includes(e.brain.weapon));
+    if(!e)return {dot:null,reason:'没有可验收的持枪角色'};
+    const target=new THREE.Vector3(e.mesh.position.x+4,e.mesh.position.y+.6,e.mesh.position.z-8);t.step=()=>{};e.brain.aim=target.clone();e.brain.reload=0;
+    d.setState('playing');d.update(0);d.setState('paused');t.step=step;
+    const muzzle=e.gunMesh.muzzleTip,pos=muzzle.getWorldPosition(new THREE.Vector3()),forward=muzzle.getWorldDirection(new THREE.Vector3());
+    return {dot:forward.dot(target.clone().sub(pos).normalize()),weapon:e.brain.weapon,actor:e.pvpId};
+  });results.aim=aim;
+  check('AI 武器模型枪口轴与实际瞄准方向一致 '+JSON.stringify(aim),aim.dot>.995);
   const models=await page.evaluate(()=>['rifle','pistol','fishpistol','knife'].map(kind=>{const model=FishPvpArt.weapon(kind);let ok=true;model.traverse(m=>{if(m.isMesh&&(!m.geometry.attributes.position||!m.geometry.attributes.normal||!m.geometry.attributes.uv))ok=false;});FishArt.disposeTree(model);return ok;}));
   check('AI 主副武器与弹尽后匕首模型都能正常创建',models.every(Boolean));
   // 计分板在大队伍下可滚动，不溢出屏幕。
   await page.keyboard.down('Tab');await page.evaluate(()=>{FishGame.__debug.setState('playing');document.dispatchEvent(new KeyboardEvent('keydown',{code:'Tab',bubbles:true}));FishGame.__debug.setState('paused');});await page.screenshot({path:path.join(OUT,'06-scoreboard.png')});await page.keyboard.up('Tab');
-  const finish=await page.evaluate(()=>{const d=FishGame.__debug;d.startPvp({teamSize:6});d.enterFallback();d.getPvpTactics().step=()=>{};stepGame(5);d.pvpSetRound(3,0,4);d.pvpSetTickets(10,1);d.pvpKillBot();stepGame(3.1);return {state:d.getState(),p:d.getPvp(),title:document.querySelector('#gameover-overlay h1').textContent};});
+  const finish=await page.evaluate(()=>{const d=FishGame.__debug;d.startPvp({team:'red',teamSize:6});d.enterFallback();d.getPvpTactics().step=()=>{};stepGame(5);d.pvpSetRound(3,0,4);d.pvpSetTickets(10,1);d.pvpKillBot();stepGame(3.1);return {state:d.getState(),p:d.getPvp(),title:document.querySelector('#gameover-overlay h1').textContent};});
   check('先赢四回合结束整场比赛并显示正确结算 '+JSON.stringify(finish),finish.state==='gameover'&&finish.p.over&&finish.p.myRounds===4&&finish.title.includes('胜利'));
   await page.click('#btn-restart');
   await page.waitForFunction(()=>FishGame.__debug.getPvp().active&&document.getElementById('loading-overlay').classList.contains('hidden'),null,{timeout:60000});
@@ -97,7 +123,7 @@ const OUT=process.env.FISH_TEST_OUTPUT||path.join(__dirname,'fps-results');fs.mk
   await page.evaluate(()=>{FishGame.__debug.enterFallback();FishGame.__debug.setState('paused');});const endless=await page.evaluate(()=>({stages:loadStages,mode:FishGame.__debug.getPvp().mode}));
   check('无尽模式也使用完整载入画面',endless.mode==='endless'&&endless.stages.includes(4)&&endless.stages.includes(100));
   await page.screenshot({path:path.join(OUT,'07-endless.png')});
-  const cycles=[];for(let n=0;n<2;n++){await page.evaluate(()=>{const d=FishGame.__debug;d.startPvp({teamSize:16});d.enterFallback();d.setState('paused');});await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));cycles.push(await page.evaluate(()=>{const d=FishGame.__debug,s=d.getSceneStats();d.restart(true);d.enterGameWorld();return s;}));}
+  const cycles=[];for(let n=0;n<2;n++){await page.evaluate(()=>{const d=FishGame.__debug;d.startPvp({team:'red',teamSize:16});d.enterFallback();d.setState('paused');});await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));cycles.push(await page.evaluate(()=>{const d=FishGame.__debug,s=d.getSceneStats();d.restart(true);d.enterGameWorld();return s;}));}
   check('重复部署资源数量稳定',cycles[1].geometries<=cycles[0].geometries+2&&cycles[1].textures<=cycles[0].textures+2);results.cycles=cycles;
   check('没有脚本或 WebGL 着色器错误',errors.length===0);check('新增 JS/CSS/图像资源没有加载失败',!missing.some(u=>/fps|\.png|\.css|\.js/.test(u)));
   results.passed=passed;results.errors=errors;results.missing=missing;fs.writeFileSync(path.join(OUT,'report.json'),JSON.stringify(results,null,2));console.log('FPS browser: '+passed+' checks passed');

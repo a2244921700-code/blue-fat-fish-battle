@@ -5,7 +5,7 @@
 (function () {
 'use strict';
 var T = THREE, geometries = {}, materials = {};
-function shared(resource) { resource.userData.artShared = true; return resource; }
+function shared(resource) { resource.userData.artShared = true;if(window.FishRenderStyle)FishRenderStyle.material(resource);return resource; }
 function geo(key, make) { return geometries[key] || (geometries[key] = shared(make())); }
 function mat(name) {
   if (materials[name]) return materials[name];
@@ -53,7 +53,7 @@ function grip(p,x,y,z,w,h,d) {
 }
 function hand(p,z) {
   // 手套袖口和握持手，保持轮廓简单，避免枪械悬空。
-  var g=new T.Group();g.rotation.x=-.2;g.position.set(.015,-.10,z);p.add(g);
+  var g=new T.Group();g.name='procedural-hand';g.rotation.x=-.2;g.position.set(.015,-.10,z);p.add(g);
   box(g,.104,.105,.11,0,0,0,'sand',true);
   for(var i=0;i<3;i++)box(g,.12,.021,.046,0,.027-i*.027,-.052,'rubber',true);
   box(g,.105,.11,.095,.012,-.102,.035,'dark',true);
@@ -71,6 +71,32 @@ function playerWeapon(kind) {
     g.muzzleTip=anchor(g,0,.01,-.55);
     g.rotation.set(.55,.55,-.15);
     return g;
+  }
+  if(kind==='sniper') {
+    box(g,.12,.11,.49,0,.035,-.04,'dark',true);
+    box(g,.105,.10,.33,0,.035,-.43,'olive',true);
+    box(g,.11,.04,.44,0,.105,-.05,'steel',true);
+    for(var n=0;n<5;n++)box(g,.116,.016,.025,0,.091,-.33-n*.051,'dark');
+    tube(g,.025,.47,0,.057,-.80,'steel');tube(g,.043,.11,0,.057,-1.075,'dark');
+    for(var b=0;b<3;b++)box(g,.09,.018,.012,0,.057,-1.044-b*.026,'rubber');
+    ring(g,.043,.006,0,.057,-1.135,'bronze');
+    grip(g,0,-.03,.12,.082,.17,.09);hand(g,.122);
+    box(g,.09,.07,.20,0,.02,.30,'dark',true);
+    box(g,.11,.13,.22,0,.014,.44,'olive',true);box(g,.12,.16,.03,0,-.004,.56,'rubber',true);
+    box(g,.10,.04,.19,0,.097,.43,'sand',true);
+    var sm=new T.Group();g.add(sm);sm.position.set(0,-.043,-.095);g.magazine=sm;
+    box(sm,.08,.10,.12,0,-.045,0,'steel',true);box(sm,.09,.018,.13,0,-.096,0,'dark');
+    [-.17,.08].forEach(function(z){box(g,.055,.055,.035,0,.143,z,'dark');ring(g,.042,.009,0,.19,z,'bronze');});
+    tube(g,.039,.36,0,.19,-.035,'dark');tube(g,.064,.12,0,.19,-.26,'olive');tube(g,.052,.08,0,.19,.175,'dark');
+    mesh(g,geo('scope-lens',function(){return new T.CircleGeometry(.052,24);}),glow('scope-glass',0x315d67),0,.19,-.322).rotation.y=Math.PI;
+    ring(g,.064,.006,0,.19,-.323,'steel');ring(g,.052,.007,0,.19,.217,'rubber');
+    box(g,.056,.045,.056,0,.242,-.035,'steel',true);
+    var bolt=new T.Group();bolt.name='sniper-bolt';bolt.position.set(0,.07,.095);bolt.userData.homeZ=.095;g.add(bolt);g.bolt=bolt;
+    tube(bolt,.020,.15,0,0,-.055,'steel');box(bolt,.07,.018,.022,.077,0,0,'steel',true);tube(bolt,.023,.035,.113,-.02,0,'bronze');
+    var boltGrip=anchor(bolt,.113,-.02,0);boltGrip.name='sniper-bolt-grip';
+    var shell=new T.Group();shell.name='sniper-spent-case';tube(shell,.008,.047,0,0,0,'bronze');ring(shell,.009,.002,0,0,.024,'bronze');shell.visible=false;g.add(shell);g.spentCase=shell;
+    [bolt,shell].forEach(function(part){part.traverse(function(o){o.userData.sniperMoving=true;});});
+    g.muzzleTip=anchor(g,0,.057,-1.15);return g;
   }
   var rifle=kind==='rifle';
   if(!rifle) {
@@ -126,6 +152,17 @@ function bladeGeometry(w,len,t) {
     var a=[];faces.forEach(function(f){f.forEach(function(i){a.push.apply(a,v[i]);});});
     var g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(a,3));g.computeVertexNormals();return g;
   });
+}
+// Mounted in the authored Socket_Melee axes; the blade volume uses these same dimensions.
+function rigBlade(kind) {
+  var g=new T.Group(),len=kind==='sword'?.52:.245;
+  g.name='WhaleMaid/'+kind;
+  mesh(g,bladeGeometry(kind==='sword'?.065:.045,len,.009),'blade',0,0,.04).rotation.x=Math.PI/2;
+  box(g,kind==='sword'?.17:.105,.018,.025,0,0,.032,'bronze',true);
+  tube(g,.013,kind==='sword'?.12:.075,0,0,kind==='sword'?-.03:-.012,'rubber');
+  for(var i=0;i<4;i++)ring(g,.014,.0025,0,0,-.025+i*.012,'teal');
+  g.userData.blade={base:[0,0,.04],tip:[0,0,.04+len],radius:kind==='sword'?.0325:.0225};
+  g.muzzleTip=anchor(g,0,0,.04+len);return g;
 }
 function bossWeapon(mode) {
   // 相对位置按「少女形态 Boss 立绘」调校：武器贴近右手侧、略微下移，
@@ -231,16 +268,15 @@ function projectile() {
   return g;
 }
 function flashMesh() {
-  var texture=geoTexture();
   var g=geo('flash-planes',function(){
     var coords=[],uv=[];
     function quad(a,b,c,d){[a,b,c,a,c,d].forEach(function(v){coords.push.apply(coords,v);});uv.push(0,0,1,0,1,1,0,0,1,1,0,1);}
     quad([-.11,-.11,-.03],[.11,-.11,-.03],[.11,.11,-.03],[-.11,.11,-.03]);
     quad([-.07,0,.01],[.07,0,.01],[.015,0,-.26],[-.015,0,-.26]);
     quad([0,-.07,.01],[0,.07,.01],[0,.015,-.26],[0,-.015,-.26]);
-    var b=new T.BufferGeometry();b.setAttribute('position',new T.Float32BufferAttribute(coords,3));b.setAttribute('uv',new T.Float32BufferAttribute(uv,2));return b;
+    var b=new T.BufferGeometry();b.setAttribute('position',new T.Float32BufferAttribute(coords,3));b.setAttribute('uv',new T.Float32BufferAttribute(uv,2));b.computeVertexNormals();return b;
   });
-  return new T.Mesh(g,new T.MeshBasicMaterial({map:texture,color:0xffd599,transparent:true,opacity:1,side:T.DoubleSide,forceSinglePass:true,depthWrite:false,blending:T.AdditiveBlending,toneMapped:false}));
+  return new T.Mesh(g,window.FishAnimeFX?FishAnimeFX.material('burst',0xffcf72):new T.MeshBasicMaterial({map:geoTexture(),color:0xffd599,transparent:true,opacity:1,side:T.DoubleSide,forceSinglePass:true,depthWrite:false,blending:T.AdditiveBlending,toneMapped:false}));
 }
 var softTexture;
 function geoTexture() {
@@ -263,10 +299,11 @@ function effects(scene) {
   function take(kind,color,life) {
     var f=free.pop();
     if(!f && created>=MAX){f=active.shift();scene.remove(f.mesh);}
-    if(!f){f={mesh:new T.Mesh(puffGeo,new T.MeshBasicMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,forceSinglePass:true,toneMapped:false}))};created++;}
+    if(!f){f={mesh:new T.Mesh(puffGeo,window.FishAnimeFX?FishAnimeFX.material('puff'):new T.MeshBasicMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,forceSinglePass:true,toneMapped:false}))};created++;}
     var m=f.mesh;m.geometry=kind==='ring'?ringGeo:kind==='line'?lineGeo:kind==='slash'?slashGeo:kind==='flare'?flareGeo:puffGeo;
-    var mt=m.material;var map=kind==='puff'?geoTexture():null;
-    if(mt.map!==map){mt.map=map;mt.needsUpdate=true;}
+    var mt=m.material;
+    if(mt.isShaderMaterial)FishAnimeFX.setKind(mt,kind);
+    else {var map=kind==='puff'?geoTexture():null;if(mt.map!==map){mt.map=map;mt.needsUpdate=true;}}
     mt.color.set(color);mt.blending=T.NormalBlending;mt.opacity=1;
     m.position.set(0,0,0);m.quaternion.identity();m.scale.set(1,1,1);m.visible=true;m.renderOrder=kind==='flare'?1:0;
     f.kind=kind;f.t=0;f.life=life;f.size=1;f.grow=0;f.rise=0;f.alpha=1;f.spin=0;f.fadePower=2;
@@ -286,13 +323,13 @@ function effects(scene) {
       f.mesh.position.copy(from).lerp(to,.5);p1.subVectors(to,from).normalize();f.mesh.quaternion.setFromUnitVectors(unitY,p1);
       f.mesh.scale.set(width||.012,dist,width||.012);f.alpha=.85;
     },
-    muzzle:function(pos,color,size){var f=puff(pos,color||0xffd291,size||.45,.08,0);f.alpha=1;},
+    muzzle:function(pos,color,size){var f=take('burst',color||0xffd291,.08);f.mesh.position.copy(pos);f.size=size||.45;f.mesh.scale.setScalar(f.size);f.alpha=1;},
     trail:function(pos,color,size){puff(pos,color,size,.24,.16).alpha=.42;},
-    impact:function(pos,color){var f=puff(pos,color,.30,.16,.15);f.alpha=.85;},
+    impact:function(pos,color){var f=take('burst',color||0xffdc8b,.18);f.mesh.position.copy(pos);f.size=.34;f.grow=.2;f.mesh.scale.setScalar(f.size);f.alpha=.95;f.spin=1.2;},
     explosion:function(pos,radius,color){
       shock(pos,color||0xffb352,radius);
-      var fire=puff(pos,0xffad45,radius*.65,.3,.8);fire.alpha=.95;fire.fadePower=.65;
-      var core=puff(pos,0xffefbf,radius*.30,.16,.7);core.alpha=1;core.fadePower=.8;
+      var fire=take('burst',0xffa43d,.32);fire.mesh.position.copy(pos);fire.size=radius*.90;fire.grow=radius*.28;fire.mesh.scale.setScalar(fire.size);fire.alpha=.98;fire.fadePower=.65;
+      var core=take('burst',0xffefb5,.18);core.mesh.position.copy(pos);core.size=radius*.48;core.mesh.scale.setScalar(core.size);core.alpha=1;core.fadePower=.8;core.spin=.8;
       // 极短的立体焰核保证日间仍能读清爆点，随后完全交给轻薄烟尘。
       for(var fi=0;fi<3;fi++){
         var flash=take('flare',fi===1?0xffe2a1:0xff9b38,.23+fi*.015);
@@ -302,7 +339,15 @@ function effects(scene) {
       }
       for(var i=0;i<7;i++){
         var a=i*Math.PI*2/7;p2.set(pos.x+Math.cos(a)*radius*.19,pos.y+.15+(i%3)*radius*.10,pos.z+Math.sin(a)*radius*.19);
-        var f=puff(p2,i%2?0xbba78b:0x736d65,radius*.42,.75+(i%3)*.16,.8+i*.1);f.alpha=.55;f.grow=radius*.45;
+        var f=puff(p2,i%2?0xc4b8a6:0x747a8d,radius*.42,.95+(i%3)*.16,.8+i*.1);f.alpha=.78;f.grow=radius*.45;
+      }
+      // Short radial speed strokes make the force readable without opaque
+      // full-screen flashes or extra lights. They share the same 112-slot pool.
+      for(var si=0;si<9;si++){
+        var angle=si*Math.PI*2/9,stroke=take('line',si%2?0xffd77f:0xf4f3df,.18+si*.008);
+        p1.set(Math.cos(angle),.2+si%3*.22,Math.sin(angle)).normalize();
+        stroke.mesh.position.copy(pos).addScaledVector(p1,radius*.55);stroke.mesh.quaternion.setFromUnitVectors(unitY,p1);
+        stroke.mesh.scale.set(.022,radius*.42,.022);stroke.alpha=.9;
       }
     },
     slash:function(pos,dir,heavy){var f=take('slash',heavy?0xffd286:0xc6f9ff,.19);f.mesh.position.copy(pos);f.mesh.quaternion.setFromUnitVectors(_axis,dir);f.mesh.rotateZ(heavy?-.65:.45);f.size=heavy?.8:.5;f.grow=.4;f.spin=-2.2;f.mesh.scale.setScalar(f.size);f.alpha=.6;},
@@ -313,7 +358,7 @@ function effects(scene) {
         if(k>=1){scene.remove(f.mesh);free.push(f);active.splice(i,1);continue;}
         f.mesh.material.opacity=f.alpha*Math.pow(1-k,f.fadePower);
         if(f.kind!=='line'){var s=f.size+f.grow*(1-Math.pow(1-k,2));f.mesh.scale.setScalar(s);f.mesh.position.y+=f.rise*dt;}
-        if(f.kind==='puff')f.mesh.quaternion.copy(_q);
+        if(f.kind==='puff'||f.kind==='burst')f.mesh.quaternion.copy(_q);
         if(f.spin)f.mesh.rotateZ(f.spin*dt);
       }
     },
@@ -321,5 +366,5 @@ function effects(scene) {
     stats:function(){return {active:active.length,allocated:created,capacity:MAX};}
   };
 }
-window.FishCombat={playerWeapon:playerWeapon,bossWeapon:bossWeapon,fishGun:fishGun,fishSword:fishSword,grenade:grenade,aimWeapon:aimWeapon,muzzleDirection:muzzleDirection,projectile:projectile,flashMesh:flashMesh,effects:effects};
+window.FishCombat={playerWeapon:playerWeapon,rigBlade:rigBlade,bossWeapon:bossWeapon,fishGun:fishGun,fishSword:fishSword,grenade:grenade,aimWeapon:aimWeapon,muzzleDirection:muzzleDirection,projectile:projectile,flashMesh:flashMesh,effects:effects};
 })();

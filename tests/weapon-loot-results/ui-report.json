@@ -1,0 +1,99 @@
+{
+  "checks": [
+    {
+      "name": "rifle 卡片和详情都显示弹药型号",
+      "ok": true
+    },
+    {
+      "name": "pistol 卡片和详情都显示弹药型号",
+      "ok": true
+    },
+    {
+      "name": "fishpistol 卡片和详情都显示弹药型号",
+      "ok": true
+    },
+    {
+      "name": "指南与无尽入口文案各自放在正确区域",
+      "ok": true
+    },
+    {
+      "name": "开局没有目标时，不显示空白拾取框",
+      "ok": true,
+      "visible": false,
+      "text": ""
+    },
+    {
+      "name": "FPS 底部实际渲染提示同步新键位",
+      "ok": true
+    },
+    {
+      "name": "准星下掉枪提示含型号、剩余弹药和 F 操作",
+      "ok": true
+    },
+    {
+      "name": "移开准星立即隐藏并清空，重新瞄准才恢复",
+      "ok": true,
+      "away": {
+        "visible": false,
+        "text": ""
+      }
+    },
+    {
+      "name": "超过拾取距离即使对准武器也不保留提示",
+      "ok": true,
+      "far": {
+        "visible": false,
+        "text": ""
+      }
+    },
+    {
+      "name": "墙体遮住地面武器时隐藏提示",
+      "ok": true,
+      "blocked": {
+        "visible": false,
+        "text": ""
+      }
+    },
+    {
+      "name": "备弹已满不可交互时不显示拾取框",
+      "ok": true,
+      "full": {
+        "visible": false,
+        "text": ""
+      }
+    },
+    {
+      "name": "切枪动作锁期间隐藏，动作完成后重新检测",
+      "ok": true,
+      "busy": {
+        "visible": false,
+        "text": ""
+      }
+    },
+    {
+      "name": "暂停时立即清除提示",
+      "ok": true,
+      "visible": false,
+      "text": ""
+    },
+    {
+      "name": "拾取成功后立即清除目标和文字",
+      "ok": true,
+      "picked": true,
+      "visible": false,
+      "text": ""
+    },
+    {
+      "name": "持雷时下半身继续移动，空中切到跳跃动作",
+      "ok": true,
+      "moving": true,
+      "jump": true
+    },
+    {
+      "name": "UI 和动画无脚本异常",
+      "ok": true,
+      "errors": []
+    }
+  ],
+  "errors": []
+}
