@@ -211,10 +211,62 @@ function build(scene,obstacles,wallMeshes){
   parapets.flush(wallMeshes);
   // 后续区域由下方工厂生成，全部使用同一组材质与基础几何。
   buildMarkets();buildOasis();buildProps();buildPlanting();
+  var signal=buildOutpostMachinery();
   var parts=0,triangles=0,batches=0;
   root.traverse(function(o){parts+=o.userData.modelParts||0;triangles+=o.userData.triangles||0;if(o.isMesh)batches++;});
   root.userData.detailStats={parts:parts,triangles:triangles,batches:batches,solidColliders:solidCount};
-  return {root:root,clothTime:clothTime,animated:animated,lights:lights};
+  return {root:root,clothTime:clothTime,animated:animated,lights:lights,setSignal:signal};
+
+  function buildOutpostMachinery(){
+    var v=function(x,y,z){return new THREE.Vector3(x,y,z);};
+    var b=area('门楼/航标灯与传动架');
+    var lensMaterial=new THREE.MeshStandardMaterial({color:0xffe5ad,emissive:0x2faaa6,emissiveIntensity:.8,roughness:.35});
+    [-8.5,8.5].forEach(function(z){
+      // Rest the feet on the solid coping. The walking surface inside the arch stays clear.
+      [-1,1].forEach(function(s){
+        b.box('bronze',s*1.65,6.57,z,.64,.20,.95);
+        b.beam('iron',v(s*1.65,6.65,z),v(s*.68,8.35,z),.12);
+        collider(s*1.65,6.57,z,.64,.20,.95,'航标/基脚');
+      });
+      b.add(cylinder(),'glaze',0,7.35,z,.61,1.52,.61);
+      b.add(cylinder(),'bronze',0,8.14,z,1.1,.20,1.1);
+      b.add(cylinder(),'bronze',0,9.55,z,.99,.16,.99);
+      for(var i=0;i<6;i++){var a=i*PI/3;b.add(cylinder(),'iron',Math.cos(a)*.76,8.86,z+Math.sin(a)*.76,.065,1.43,.065);}
+      b.add(geo('signal-cap',function(){return new THREE.ConeGeometry(1,1,8);}), 'glaze',0,10.08,z,1.14,1.0,1.14);
+      b.add(ball(),'bronze',0,10.64,z,.12,.20,.12);
+      var lens=new THREE.Mesh(geo('beacon-lens',function(){return new THREE.CylinderGeometry(.48,.59,1.08,8);}),lensMaterial);
+      lens.position.set(0,8.86,z);b.root.add(lens);wallMeshes.push(lens);
+      collider(0,8.58,z,1.55,4.06,1.55,'门楼/航标灯');
+    });b.flush(wallMeshes);
+    // The water lift sits outside the arena wall. Its sail wheel reads above the stalls from the spawn.
+    var wind=area('绿洲外/提水风车'),x=-28,z=-51,h=12.8;
+    for(var sx of [-1,1])for(var sz of [-1,1]){
+      wind.beam('timber',v(x+sx*2.65,0,z+sz*2.65),v(x+sx*.8,h,z+sz*.8),.19);
+      wind.beam('timber',v(x+sx*1.96,4,z+sz*1.96),v(x-sx*1.22,9,z+sz*1.22),.105);
+    }
+    wind.box('glaze',x,8.4,z,4.2,.36,4.2);wind.box('timber',x,h,z,2.5,.5,2.2);
+    wind.add(cylinder(),'bronze',x,h,z+1.15,.32,2.5,.32,PI/2);
+    var wheel=group(wind.root,'提水风车/帆轮');wheel.position.set(x,h,z+2.08);
+    var sails=new Batch(wheel);
+    for(var i=0;i<8;i++){
+      var a=i*PI/4,dx=Math.sin(a),dy=Math.cos(a);
+      sails.beam('timber',v(dx*.42,dy*.42,0),v(dx*5.0,dy*5.0,0),.085);
+      var g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.Float32BufferAttribute([.05,1.6,.04,.15,4.86,.06,1.58,4.56,.20,.68,1.85,.39],3));
+      g.setAttribute('uv',new THREE.Float32BufferAttribute([0,0,0,1,1,1,1,0],2));
+      g.setIndex([0,1,2,0,2,3]);g.computeVertexNormals();
+      sails.add(g,i%2?'cloth-red':'cloth-teal',0,0,0,1,1,1,0,0,-a);g.dispose();
+    }
+    sails.add(ring(),'bronze',0,0,.04,1.67,1.67,1.67);sails.add(ball(),'bronze',0,0,.2,.52,.52,.31);
+    sails.flush();wind.flush();
+    animated.push(function(time){wheel.rotation.z=time*.19;});
+    var last='';
+    return function(phase){
+      if(phase===last)return;last=phase;
+      var color=phase==='boss'?0xff5946:phase==='fighting'?0xffaf3e:0x55d3be;
+      lensMaterial.color.setHex(color);lensMaterial.emissive.setHex(color);lensMaterial.emissiveIntensity=phase==='boss'?1.25:.75;
+    };
+  }
 
   function clothMaterial(name){
     var m=material(name).clone();m.userData.artShared=false;
@@ -247,12 +299,28 @@ function build(scene,obstacles,wallMeshes){
         b.box('timber',tx,.52,tz,1.45,.94,3.1);b.box('timber',tx,1.03,tz,1.65,.12,3.3);
         for(var k=-3;k<=3;k++)b.box('cream',tx-s*.74,.52,tz+k*.41,.035,.67,.055);
         collider(tx,.55,tz,1.65,1.1,3.3,'市集/木柜');
-        for(var j=0;j<5;j++){var sc=.38+(j%3)*.09;pot(b,tx+(j%2)*.25,1.09,tz-1.15+j*.55,sc,index?'terra':j%2?'glaze':'terra');}
+        if(!index){
+          for(var j=0;j<5;j++){var sc=.38+(j%3)*.09;pot(b,tx+(j%2)*.25,1.09,tz-1.15+j*.55,sc,j%2?'glaze':'terra');}
+        }else{
+          // Domed spice baskets, copper rims and fruit replace identical rows of pots on this stall.
+          for(var j=-1;j<=1;j++){
+            var bz=tz+j*.92;b.add(geo('spice-basket',function(){return new THREE.CylinderGeometry(.42,.29,.21,12);}), 'rope',tx,1.19,bz);
+            b.add(ring(),'bronze',tx,1.30,bz,.40,.40,.40,PI/2);
+            b.add(ball(),j===0?'fruit':j<0?'terra':'dry',tx,1.31,bz,.37,.15,.37);
+            for(var k=0;k<7;k++)b.add(ball(),j<0?'terra':'fruit',tx+Math.cos(k*.9)*.22,1.42,bz+Math.sin(k*.9)*.22,.067,.065,.067);
+          }
+        }
         collider(tx+.1,1.38,tz,1.05,.56,2.9,'市集/柜上陶器');
         // 卷好的织物、藤筐和铜盘都由真实立体几何组成。
         b.add(cylinder(),index?'terra':'glaze',tx,.32,tz+2.1,.26,.64,.26,0,0,PI/2);
         b.add(ring(),'rope',tx,.32,tz+2.1,.27,.27,.27,0,PI/2);
         collider(tx,.33,tz+2.1,.7,.66,.58,'市集/织物卷');
+        // Woven goods hang over the counter. The central aisle remains open overhead.
+        var banner=new THREE.PlaneGeometry(1.48,1.65,8,5),verts=banner.attributes.position;
+        for(var i=0;i<verts.count;i++){var u=verts.getX(i),v=verts.getY(i);verts.setZ(i,.09*Math.cos(u*10)*(1.2-v*.6));}
+        banner.computeVertexNormals();b.add(banner,index?'cloth-red':'cloth-teal',tx,2.76,tz+2.93);banner.dispose();
+        b.box('bronze',tx,3.63,tz+2.93,1.74,.08,.09);
+        for(var i=-3;i<=3;i++){var tip=tx+i*.20;b.add(cylinder(),'rope',tip,1.86,tz+2.93,.021,.16,.021);b.add(ball(),'bronze',tip,1.77,tz+2.93,.036,.052,.036);}
       });b.flush(wallMeshes);
     });
     // 庭院高处的绳索和彩旗，留出整个地面通行空间。

@@ -39,7 +39,11 @@ function create(opts){
   return [top,top*.62].some(function(h){var p=new T.Vector3(position.x,position.y+h,position.z),dir=p.sub(eye),dist=dir.length();return dist<=8&&FishHitboxes.wallDistance(eye,dir.divideScalar(dist),staticObstacles,dist)>=dist-.02;});
  }
  function canReach(point,distance){var dx=point.x-player.pos.x,dz=point.z-player.pos.z,len=Math.hypot(dx,dz);if(len>distance||(-Math.sin(player.yaw)*dx-Math.cos(player.yaw)*dz)/Math.max(.01,len)<.35)return false;var from=player.pos.clone().add(new T.Vector3(0,1.4,0)),to=new T.Vector3(point.x,point.y||1.4,point.z),dir=to.sub(from),l=dir.length();return FishHitboxes.wallDistance(from,dir.divideScalar(l||1),staticObstacles,l)>=l-.08;}
- function updatePrompt(){prompt=phase==='play'?(stage===0&&canReach(home.rice,1.8)?'rice':stage===3&&canReach(home.exit,1.65)?'exit':null):null;promptEl.hidden=!prompt;promptEl.textContent=prompt==='rice'?'F　收起第四碗白饭':prompt==='exit'?'F　轻轻打开大门':'';}
+ function updatePrompt(){
+   var next=phase==='play'?(stage===0&&canReach(home.rice,1.8)?'rice':stage===3&&canReach(home.exit,1.65)?'exit':null):null;
+   if(next===prompt&&promptEl.hidden===!next)return;
+   prompt=next;promptEl.hidden=!next;promptEl.textContent=next==='rice'?'F　收起第四碗白饭':next==='exit'?'F　轻轻打开大门':'';
+ }
  function caught(){phase='caught';catches++;suspicion=0;caughtTimer=1.2;prompt=null;promptEl.hidden=true;guard.wait=0;voice(catches===3?'story-caught-three':'story-caught');subtitle('蓝色大肥鱼','……被发现了。',1.2);opts.resetMotion();}
  function retry(){fade.classList.remove('visible');resetPlayer(home.spawn);resetGuard();setStage(0);phase='play';callTimer=12;caption=null;dialog.hidden=true;checkpointSaved=false;opts.checkpoint(null);}
  function finish(){phase='complete';dialog.hidden=true;opts.complete({seconds:Math.round(elapsed),catches:catches});}
@@ -47,14 +51,21 @@ function create(opts){
  function update(dt){if(disposed)return;clock+=dt;if(phase==='play')elapsed+=dt;
   if(phase==='play'){patrol(dt);var sees=visibleAt(player.pos,opts.crouched());suspicion=Math.max(0,Math.min(1,suspicion+dt*(sees?.82:-.65)));if(suspicion>=1)caught();
    if(phase==='play'&&stage===1&&player.pos.x>-.8&&player.pos.z>-.5&&player.pos.z<4.8){setStage(2);subtitle('蓝色大肥鱼','先躲好……等他去厨房盛汤。',4);}
-   if(phase==='play'&&stage===2&&lastPlayerZ<=5.45&&player.pos.z>5.45){if(guard.pos.z< -5){setStage(3);subtitle('蓝色大肥鱼','趁现在……玄关就在前面。',3);}else subtitle('蓝色大肥鱼','还不是时候，先退回客厅躲好。',3);}
+   if(phase==='play'&&stage===2){
+     var inFoyer=player.pos.z>5.45,kitchen=guard.pos.z< -5;
+     var cue=kitchen?'厨房传来盛汤声，穿过客厅去玄关。':inFoyer?'在玄关等一等，留意厨房的动静。':OBJECTIVES[2];
+     if(objective.textContent!==cue)objective.textContent=cue;
+     if(inFoyer&&kitchen){setStage(3);subtitle('蓝色大肥鱼','听见了……现在可以去开门了。',3);}
+     else if(inFoyer&&lastPlayerZ<=5.45)subtitle('蓝色大肥鱼','先在这儿躲一会儿。',2.5);
+   }
    if(phase==='play'&&stage===3&&!checkpointSaved&&Math.hypot(player.pos.x-home.checkpoint.x,player.pos.z-home.checkpoint.z)<1.5){checkpointSaved=true;opts.checkpoint('foyer',{seconds:elapsed,catches:catches});subtitle('旁白','她终于摸到了玄关。进度已保存。',4);}
    callTimer-=dt;if(phase==='play'&&callTimer<=0){callTimer=13;var call=(Math.floor(clock/13)%2)?['饭要凉了。','story-rice']:['肥鱼？在不在？','story-call'];voice(call[1]);if(!caption)subtitle('梁文峰 · '+(guard.pos.z< -4.5?'厨房':'客厅'),call[0],3.5);}
   }else if(phase==='caught'){if(caughtTimer>0){caughtTimer-=dt;if(guard.pos.distanceTo(player.pos)>1.05)moveGuard(player.pos,dt,1.25);else guard.speed=0;if(caughtTimer<=0){guard.speed=0;fade.classList.add('visible');sequence([['梁文峰',catches===3?'第三次了。别再偷偷溜出去了，先把饭吃完。':'跑什么跑，饭要凉了。'],['旁白','她被拎回了房间。（从房间重新来）']],retry);}}}
   else guard.speed=0;
   if(phase==='ending'||phase==='complete'){doorAngle=Math.min(1.35,doorAngle+dt*.65);home.doorPivot.rotation.y=-doorAngle;}
   syncGuard(dt);if(caption){caption.time-=dt;if(caption.time<=0){if(afterDialog)nextLine();else{caption=null;dialog.hidden=true;}}}
-  lastPlayerZ=player.pos.z;updatePrompt();alert.hidden=phase!=='play'||suspicion<.02;alertFill.style.width=(suspicion*100)+'%';
+  home.updateSteam(clock);lastPlayerZ=player.pos.z;updatePrompt();alert.hidden=phase!=='play'||suspicion<.02;
+  if(!alert.hidden){var message=sees?'他正往这边看，找掩护':'已经避开视线';if(alert.firstElementChild.textContent!==message)alert.firstElementChild.textContent=message;alert.dataset.seen=sees?'yes':'no';alertFill.style.width=(suspicion*100)+'%';}
  }
  resetGuard();setStage(0);resetPlayer(home.spawn);ui.hidden=false;
  if(opts.resume){elapsed=opts.savedTime||0;catches=opts.savedCatches||0;setStage(3);resetPlayer(home.checkpoint);phase='play';subtitle('旁白','已回到玄关。轻轻打开门，就能离开家。',4);}else sequence(INTRO,function(){phase='play';subtitle('蓝色大肥鱼','先去餐桌收好白饭。躲在墙后，别让老爸看见。',5);});

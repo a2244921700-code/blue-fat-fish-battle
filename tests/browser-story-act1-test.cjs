@@ -2,7 +2,7 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
-const OUT=path.join(__dirname,'story-act1-results');fs.mkdirSync(OUT,{recursive:true});
+const OUT=process.env.FISH_TEST_OUTPUT||path.join(__dirname,'story-act1-results');fs.mkdirSync(OUT,{recursive:true});
 const report={checks:[],errors:[],shaderErrors:[],missing:[]};
 function check(name,value,details){if(details!==undefined)report[name]=details;assert(value,name+' '+JSON.stringify(details||''));report.checks.push(name);console.log('PASS | '+name);}
 (async()=>{const browser=await chromium.launch({headless:true,channel:'msedge'});try{
@@ -44,7 +44,7 @@ function check(name,value,details){if(details!==undefined)report[name]=details;a
  check('几何腿部由既有走路骨骼驱动',JSON.stringify(patrol.leg[0])!==JSON.stringify(patrol.leg[1]));
  await fresh();await skipIntro();
  const timing=await page.evaluate(()=>{let p=d.getPlayer();p.pos.set(-5,0,-6.4);p.yaw=0;r.interact();r.guard.pos.set(3.1,0,.1);r.guard.wait=999;p.pos.set(6.5,0,4.3);d.update(0);p.pos.z=6;d.update(0);let early=r.snapshot().stage;r.guard.pos.z=-8;d.update(0);let stayed=r.snapshot().stage;p.pos.z=4.3;d.update(0);p.pos.z=6;d.update(0);let valid=r.snapshot().stage,notSaved=d.getStory().saved.checkpoint;p.pos.set(0,0,7.8);d.update(0);return {early,stayed,valid,notSaved,saved:d.getStory().saved.checkpoint};});
- check('必须在家长进厨房后穿过走廊，不能提前越过再挂机',timing.early===2&&timing.stayed===2&&timing.valid===3,timing);
+ check('提早到玄关时要等家长进厨房，躲好后无需退回重走',timing.early===2&&timing.stayed===3&&timing.valid===3,timing);
  check('到达玄关才存档，刚穿过客厅门不会提前存档',timing.notSaved===null&&timing.saved==='foyer');
  await fresh();await skipIntro();
  const premature=await page.evaluate(()=>{let p=d.getPlayer();p.pos.set(0,0,8.8);p.yaw=Math.PI;r.interact();return r.snapshot();});check('不能跳过取饭直接通关',premature.stage===0&&premature.phase==='play');

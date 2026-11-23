@@ -77,11 +77,11 @@
     var epoch=++navEpoch;
     if(which==='level')warmLoading();
     requestAnimationFrame(function(){
-      if(epoch!==navEpoch)return;
+      if(epoch!==navEpoch||document.querySelector('dialog[open]'))return;
       var host=visibleOverlay();if(!host)return;
       host.setAttribute('aria-modal','true');host.setAttribute('role','dialog');
       var previous=focusMemory[which]&&document.getElementById(focusMemory[which]);
-      var defaults={menu:'btn-start',level:'btn-pvp-mode',createroom:'cr-name',room:'btn-room-start',roomlist:'room-search'};
+      var defaults={menu:'btn-start',level:'btn-pvp-mode',story:'btn-story-1',pause:'btn-resume',createroom:'cr-name',room:'btn-room-start',roomlist:'room-search'};
       var preferred=previous&&host.contains(previous)&&!previous.disabled?previous:document.getElementById(defaults[which]);
       var candidates=focusables(host);if(!preferred||!host.contains(preferred)||preferred.disabled)preferred=candidates[0];
       if(preferred)preferred.focus({preventScroll:true});
@@ -92,7 +92,7 @@
     if(prev&&el&&el.id&&el.closest&&el.closest('.overlay'))focusMemory[prev]=el.id;
     navEpoch++;document.body.removeAttribute('data-ui');
   }
-  var backIds={level:'btn-level-back',map:'btn-map-back',inventory:'btn-inv-back',roomlist:'btn-roomlist-back',createroom:'btn-cr-back',room:'btn-room-leave',achievements:'btn-ach-close',settings:'btn-settings-close'};
+  var backIds={level:'btn-level-back',map:'btn-map-back',story:'btn-story-back',inventory:'btn-inv-back',roomlist:'btn-roomlist-back',createroom:'btn-cr-back',room:'btn-room-leave',achievements:'btn-ach-close',settings:'btn-settings-close'};
   function bind(){
     var help=document.getElementById('controls-dialog');
     document.querySelectorAll('[data-open-help]').forEach(function(button){button.addEventListener('click',function(){if(help&&!help.open)help.showModal();});});

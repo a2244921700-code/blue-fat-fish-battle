@@ -242,6 +242,50 @@ body[data-ui] #notice-pop{z-index:330;top:auto;bottom:40px;color:#e5e9dd;backgro
 .inv-choice-ammo{font-size:11px;line-height:1.6;color:var(--kit-accent)}
 .inv-choice-action{margin-top:auto;display:block;padding-top:12px;border-top:1px solid #8babb433;font-size:12px;color:var(--kit-accent)}
 .inv-picker-foot{margin:20px 0 0;font-size:10px;color:#91a8b3;text-align:right}
+.mode-icon{flex:none;width:34px;height:34px;display:grid;place-items:center;border-radius:8px;color:#edc78f;background:#9f734125;border:1px solid #b997594d}
+.endless-icon{font:30px/1 Georgia,serif}.story-icon{color:#94c5ce;border-color:#7caaaa55;background:#508b9a20;position:relative}
+.story-icon:before,.story-icon:after{content:"";position:absolute;width:8px;height:13px;border:1.5px solid currentColor;top:9px}
+.story-icon:before{left:7px;transform:skewY(13deg);border-radius:2px 0 0 2px}.story-icon:after{right:7px;transform:skewY(-13deg);border-radius:0 2px 2px 0}
+.lobby-side button.loadout-line,.lobby-side button.loadout-portrait{width:100%;font-family:inherit;color:#e5eceb;cursor:pointer;text-align:left;background:transparent;border:0}
+.lobby-side button.loadout-portrait{margin:10px 0 6px;padding:4px 3px 10px;border-bottom:1px solid #88acb436}
+.lobby-side button.loadout-line{align-items:center;min-height:31px;padding:4px 5px;margin:0;border-radius:3px}
+.loadout-line b{margin-left:auto}.loadout-line i{font-style:normal;color:#91b8bd}
+.lobby-side button[data-lobby-slot]:hover,.lobby-side button[data-lobby-slot]:focus-visible{background:#7eabb529}
+.lobby-side button[data-lobby-slot]:focus-visible{outline:2px solid #edc78f;outline-offset:2px}
+#lobby-kit-team{padding:3px 8px;border-radius:20px;letter-spacing:1px;font-size:10px;color:#b5dfed;background:#25526a}
+#lobby-kit-team[data-team=red]{color:#ffd1bc;background:#70453e}
+.loadout-card .outline-btn{margin-top:12px}
+.inv-choice-specs{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:13px 0 2px}
+.inv-choice-specs span{display:grid;gap:3px;padding:6px 4px;border-top:1px solid #779aa54d;font-size:10px;color:#a6bec5}
+.inv-choice-specs b{font:600 15px/1.2 Consolas,monospace;color:#e4eced}
+#inv-save-status{color:#b6e1cc;font-size:12px;padding:6px 30px;border-top:1px solid #7caca933;background:#102b33;min-height:28px;display:flex;align-items:center;flex-shrink:0}
+#inv-save-status:empty{display:none}
+@media(min-width:1000px){
+  #inventory-overlay .shell-page{overflow:hidden}
+  #inventory-overlay .armory-banner{height:clamp(116px,17vh,170px);min-height:0}
+  #inventory-overlay .inv-main{min-height:0;flex:1 1 0;overflow:hidden;grid-template-columns:94px minmax(0,1.17fr) minmax(375px,1fr);align-items:stretch;padding:18px 24px;gap:18px}
+  #inventory-overlay .inv-catalog{display:flex;flex-direction:column;min-height:0}
+  #inventory-overlay .inv-filters{flex:none;margin:0 0 8px;padding:0 0 8px;gap:5px}
+  #inventory-overlay .inv-filter{min-height:29px;padding:4px 8px}
+  #inventory-overlay .inv-grid{flex:1 1 0;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:3px 7px 6px 2px;grid-auto-rows:max-content;align-items:start;scrollbar-color:#50717a #10242e}
+  #inventory-overlay .inv-item{padding:10px 12px}
+  #inventory-overlay .ii-thumb{height:clamp(68px,9vh,105px);margin:0 0 5px}
+  #inventory-overlay .character-grid .ii-thumb{height:clamp(92px,13vh,140px)}
+  #inventory-overlay .inv-detail{flex:none;max-height:42%;overflow:auto;margin:8px 0 0;padding:12px 14px;background:#1b343f;border-top:2px solid #c4a775;scrollbar-color:#50717a #10242e}
+  .inv-detail-title{display:flex;align-items:baseline;gap:10px}.inv-detail-title .id-name{font-size:17px;margin:0}.inv-detail-title .id-type{margin:0}
+  #inventory-overlay .id-description{margin:5px 0 7px;font-size:11px;line-height:1.5}
+  .inv-stat-list{display:flex;flex-wrap:wrap;column-gap:16px}
+  .inv-stat-list .id-row{padding:2px 0;gap:5px;font-size:10px;align-items:baseline;border:0}.inv-stat-list .id-row b{color:#e3e8e1}
+  #inventory-overlay .inv-equip-actions{margin-top:8px}.inv-equip-actions .id-equip{min-height:32px;padding:4px 8px}
+  #inventory-overlay .inv-team-loadouts{position:static;align-self:stretch;align-content:start;overflow:auto;min-height:0;overscroll-behavior:contain;scrollbar-color:#50717a #10242e;gap:9px}
+  #inventory-overlay .inv-kits-heading{position:sticky;top:0;background:#112630;z-index:1;padding:0 3px 5px}
+  #inventory-overlay .inv-kits-heading small{display:none}
+  #inventory-overlay .inv-team-column{padding:7px}
+  #inventory-overlay .inv-loadout-slot{margin-bottom:5px;padding:5px 7px}
+  #inventory-overlay .inv-slot-value{min-height:24px}
+  #inventory-overlay .inv-slot-value img{height:27px}
+  #inventory-overlay .inv-character-slot .inv-slot-value,#inventory-overlay .inv-character-slot img{min-height:37px;height:37px}
+}
 @media(min-width:901px) and (max-width:1200px){#inventory-overlay .inv-main{grid-template-columns:88px minmax(235px,1fr) 400px;padding:20px;gap:16px}.inv-team-loadouts{gap:8px}.inv-team-column{padding:8px}.inv-slot-value img{width:43px}.inv-kits-heading>span{font-size:9px}#inventory-overlay .st-sub{display:none}#inventory-overlay .inv-item{padding:10px}}
 
 /* Four-slot combat inventory and contextual weapon loot. */

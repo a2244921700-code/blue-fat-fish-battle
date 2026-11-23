@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('fs'),path=require('path'),assert=require('assert/strict'),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
-const OUT=path.join(__dirname,'elevation-map-results');fs.mkdirSync(OUT,{recursive:true});
+const OUT=process.env.FISH_TEST_OUTPUT||path.join(__dirname,'elevation-map-results');fs.mkdirSync(OUT,{recursive:true});
 (async()=>{
  const browser=await chromium.launch({headless:true,channel:'msedge'}),report={checks:[],errors:[]};
  function check(name,data){report.checks.push({name,data});assert(data.ok,name+' '+JSON.stringify(data));console.log('PASS | '+name);}
@@ -67,10 +67,11 @@ const OUT=path.join(__dirname,'elevation-map-results');fs.mkdirSync(OUT,{recursi
   await page.evaluate(()=>{window.renderMap=false;d.restart(true);d.enterGameWorld();d.clearCovers();d.setState('paused');});
   report.endless=await page.evaluate(()=>({stats:d.getSceneStats(),solids:d.getObstacles().map(o=>[o.min.x,o.min.y,o.min.z,o.max.x,o.max.y,o.max.z])}));
   check('无尽模式仍使用原地图和原范围',{ok:report.endless.stats.worldMode==='endless'&&report.endless.stats.arena===45&&report.endless.stats.modelParts===null});
-  const baseline=await browser.newPage();await baseline.route('**/js/game.js',route=>route.fulfill({contentType:'application/javascript',body:fs.readFileSync('D:/CodexWork/蓝色肥鱼开发备份/2026-11-01-立体沙漠地图/js/game.js','utf8')}));
-  await baseline.goto(process.env.FISH_TEST_URL||'http://127.0.0.1:8123/');await baseline.waitForFunction(()=>window.FishGame&&FishGame.__debug.isFishReady());await baseline.evaluate(()=>FishCharacters.load(null,['deepseek']));
-  const old=await baseline.evaluate(()=>{const d=FishGame.__debug;d.enterGameWorld();d.clearCovers();d.setState('paused');return d.getObstacles().map(o=>[o.min.x,o.min.y,o.min.z,o.max.x,o.max.y,o.max.z]);});
-  check('无尽固定碰撞体与本轮备份逐项相同',{ok:JSON.stringify(old)===JSON.stringify(report.endless.solids),before:old.length,after:report.endless.solids.length});
+  // The archived pre-beacon map has 288 fixed AABBs. Hash all six coordinates in stable order.
+  const beaconIndices=await page.evaluate(()=>d.getObstacles().map((o,i)=>['航标/基脚','门楼/航标灯'].includes(o.mesh.name)?i:-1).filter(i=>i>=0));
+  const fixed=report.endless.solids.filter((_,i)=>!beaconIndices.includes(i));
+  const digest=require('node:crypto').createHash('sha256').update(JSON.stringify(fixed.map(s=>JSON.stringify(s)).sort())).digest('hex');
+  check('无尽原有 288 个固定碰撞体逐项匹配，新增航标只占用门楼顶部',{ok:fixed.length===288&&digest==='f9c9b62422713718681efdc6a1e9786473e1cf9700556698fbcea175285cc25c'&&beaconIndices.length===6&&beaconIndices.every(i=>report.endless.solids[i][1]>6.4),fixed:fixed.length,beacons:beaconIndices.length,digest});
   check('场景与实战没有浏览器脚本异常',{ok:report.errors.length===0,errors:report.errors});
  }finally{fs.writeFileSync(path.join(OUT,'report.json'),JSON.stringify(report,null,2));await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

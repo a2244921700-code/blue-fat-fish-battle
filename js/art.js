@@ -235,6 +235,7 @@ function sign(root, x, y, z, title, subtitle, turn) {
   ctx.font='24px Microsoft YaHei, sans-serif'; ctx.fillText(subtitle,256,206);
   var t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=anisotropy;
   var m=new THREE.Mesh(new THREE.PlaneGeometry(2.1,1.05),new THREE.MeshStandardMaterial({map:t,roughness:.85}));
+  m.name='调试路标/'+title;m.userData.debugMapSign=true;m.visible=false;
   m.position.set(x,y,z); m.rotation.y=turn||0; root.add(m);
 }
 function build(scene, obstacles, poolWater) {
